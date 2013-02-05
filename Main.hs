@@ -1,6 +1,5 @@
 import Lexer
 
-main :: IO ()
-main = do
-	putStrLn "Hallo"
-	putStrLn "Wereldje"
+main = case lexer ("if true /* altijd waar! */ return false;", 0) of
+	Match xs _ -> print $ xs
+	NoMatch n -> print $ n

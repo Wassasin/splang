@@ -1,5 +1,7 @@
 module Lexer where
 
+import Data.List (sortBy)
+
 data Location = Location Int Int
 	deriving (Show, Eq)
 
@@ -52,6 +54,8 @@ data Token = Token TokenE Location
 
 data LexerResult = Match [Token] (String, Int)
 	| NoMatch Int
+
+type LexerFunc = (String, Int) -> LexerResult
 
 literalMap :: [(String, TokenE)]
 literalMap = [
@@ -112,18 +116,49 @@ precut :: String -> Int -> String
 precut str 0	= str
 precut (x:xs) i	= precut xs (i-1)
 
-consumeWhitespace :: (String, Int) -> LexerResult
+consumeWhitespace :: LexerFunc
 consumeWhitespace (' ':xs, i) = Match [] (xs, i+1)
 consumeWhitespace ('\t':xs, i) = Match [] (xs, i+1)
 consumeWhitespace ('\n':xs, i) = Match [] (xs, i+1)
 consumeWhitespace (xs, i) = NoMatch i
 
-consumeComment :: (String, Int) -> LexerResult
+consumeComment :: LexerFunc
 consumeComment (str, start)
 	| not (isPrefixOf "/*" str)	= NoMatch start
 	| otherwise			= case findstr "*/" (precut str 2) of
 						Nothing -> NoMatch (start+2)
 						Just n -> let
-								length = 2+n+2
-								end = start+length
-								in Match [Token (Comment (substr str 2 n)) (Location start end)] (precut str length, end)
+								size = 2+n+2
+								end = start+size
+								in Match [Token (Comment (substr str 2 n)) (Location start end)] (precut str size, end)
+
+lexbind :: LexerFunc -> LexerFunc -> LexerFunc
+lexbind f g = \x -> case f x of
+		Match tok loc	-> Match tok loc
+		NoMatch i	-> g x
+
+(>>>) :: LexerFunc -> LexerFunc -> LexerFunc
+(>>>) = lexbind
+
+consumeLiteral :: LexerFunc
+consumeLiteral = foldr1 lexbind literalFuncs
+	where literalFuncs = map f (reverse (sortBy (\(x, _) (y, _) -> compare (length x) (length y)) literalMap))
+		where f (lstr, ltok) (str, start)
+			| not (isPrefixOf lstr str) = NoMatch start
+			| otherwise = let
+				size = length lstr
+				end = start + size
+				in Match [Token ltok (Location start end)] (precut str size, end)
+
+lextok :: LexerFunc
+lextok = consumeWhitespace
+	>>> consumeComment
+	>>> consumeLiteral
+
+lexer :: LexerFunc
+lexer ([], n)	= Match [] ([], n)
+lexer x		= case lextok x of
+			NoMatch i -> NoMatch i
+			Match ts y -> case lexer y of
+				NoMatch i -> NoMatch i
+				Match us ([], n) -> Match (ts ++ us) ([], n)
