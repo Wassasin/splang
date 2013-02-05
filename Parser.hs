@@ -14,12 +14,18 @@ data Identifier = Identifier String
 	deriving (Show, Eq)
 data SLInteger = SLInteger Int
 	deriving (Show, Eq)
-data Op2Mult = Multiplication | Division | Modulo
+data BinaryOperator = Multiplication | Division | Modulo
+	| Plus | Minus | Cons
+	| Equal | LesserThan | GreaterThan | LesserEqualThen | GreaterEqualThan | Nequal
+	| And | Or
 	deriving (Show, Eq)
 
-data Term4 = BOPid Identifier Op2Mult Term4
-	| BOPint SLInteger Op2Mult Term4
-	| Kid Identifier
+data UnaryOperator = Not | Negative
+	deriving (Show, Eq)
+
+data Expr = Binop Expr BinaryOperator Expr
+	| Unop UnaryOperator Expr
+	| Var Identifier
 	| Kint SLInteger
 	deriving (Show, Eq)
 
@@ -41,7 +47,7 @@ parseSLInteger = mytoken ( \x -> case x of
 	(Lexer.Token (Lexer.Integer n) _) -> Just (SLInteger n)
 	_ -> Nothing )
 
-parseOp2Mult :: MyParser Op2Mult
+parseOp2Mult :: MyParser BinaryOperator
 parseOp2Mult = mytoken ( \x -> case x of
 	(Lexer.Token (Lexer.Operator op) _) -> case op of
 		Lexer.Multiplication -> Just Multiplication
@@ -50,10 +56,10 @@ parseOp2Mult = mytoken ( \x -> case x of
 		_ -> Nothing
 	_ -> Nothing )
 
-parseTerm4 :: MyParser Term4
+parseTerm4 :: MyParser Expr
 parseTerm4 = do { i <- parseIdentifier;
-				do { b <- parseOp2Mult; t <- parseTerm4; return (BOPid i b t) }
-				<|> return (Kid i) }
+				do { b <- parseOp2Mult; t <- parseTerm4; return (Binop (Var i) b t) }
+				<|> return (Var i) }
 	<|> do { n <- parseSLInteger;
-				do { b <- parseOp2Mult; t <- parseTerm4; return (BOPint n b t) }
+				do { b <- parseOp2Mult; t <- parseTerm4; return (Binop (Kint n) b t) }
 				<|> return (Kint n) }
