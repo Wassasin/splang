@@ -1,0 +1,45 @@
+Prog		:= Decl | Prog Decl
+Decl		:= VarDecl | FunDecl
+VarDecl		:= Type id '=' Exp ';'
+FunDecl		:= RetType id '(' [ FArgs ] ')' '{' VarDecl* Stmt+ '}'
+RetType		:= Type | 'Void'
+Type		:= 'Int' | 'Bool' | '(' Type ',' Type ')' | '[' Type ']' | id
+FArgs		:= Type id | Type id ',' Fargs
+NestedStmt	:= Stmt | NestedStmt Stmt
+
+Stmt		:= '{' '}'
+			 | '{' NestedStmt '}'
+			 | 'if' '(' Exp ')' Stmt
+			 | 'if' '(' Exp ')' Stmt 'else' Stmt
+			 | 'while' '(' Exp ')' Stmt
+			 | id '=' Exp ';'
+			 | FunCall ';'
+			 | 'return' Exp ';'
+
+Exp			:= id
+			 | Exp Op2 Exp
+			 | Op1 Exp
+			 | int
+			 | 'False'
+			 | 'True'
+			 | '(' Exp ')'
+			 | FunCall
+			 | '[]'
+			 | '(' Exp ',' Exp ')'
+
+FunCall		:= id '(' ')'
+			 | id '(' ActArgs ')'
+
+ActArgs		:= Exp | Exp ',' ActArgs
+
+Op2			:= '+' | '-' | '*' | '/' | '%' | '==' | '<' | '>' | '<=' | '>=' | '!=' | '&&' | '||' | ':'
+
+Op1			:= '!' | '-'
+
+int			:= digit+
+			 | '-' digit+
+
+id			:= alpha
+			 | alpha id`
+
+id`			:= id` '_' | id` alphaNum
