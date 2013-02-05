@@ -5,10 +5,8 @@ FunDecl		:= RetType id '(' [ FArgs ] ')' '{' VarDecl* Stmt+ '}'
 RetType		:= Type | 'Void'
 Type		:= 'Int' | 'Bool' | '(' Type ',' Type ')' | '[' Type ']' | id
 FArgs		:= Type id | Type id ',' Fargs
-NestedStmt	:= Stmt | NestedStmt Stmt
 
-Stmt		:= '{' '}'
-			 | '{' NestedStmt '}'
+Stmt		:= '{' Stmt* '}'
 			 | 'if' '(' Exp ')' Stmt
 			 | 'if' '(' Exp ')' Stmt 'else' Stmt
 			 | 'while' '(' Exp ')' Stmt
