@@ -1,6 +1,7 @@
 module Lexer where
 
 import Data.List (sortBy)
+import Data.Char (isDigit, isAlpha, isAlphaNum)
 
 data Location = Location Int Int
 	deriving (Show, Eq)
@@ -99,13 +100,22 @@ isPrefixOf (x:xs) (y:ys)	= x == y && (isPrefixOf xs ys)
 isPrefixOf (x:xs) []		= False
 isPrefixOf _ _			= True
 
+findFirst :: (Char -> Bool) -> String -> Maybe Int
+findFirst _ []		= Nothing
+findFirst f (x:xs)
+	| f x		= Just 0
+	| otherwise	= case (findFirst f xs) of
+		Nothing	-> Nothing
+		Just n	-> Just (n+1)
+
+
 findstr :: String -> String -> Maybe Int
 findstr _ []			= Nothing
 findstr needle str
 	| isPrefixOf needle str	= Just 0
 	| otherwise		= case findstr needle (tail str) of
-					Just n -> Just (n+1)
 					Nothing -> Nothing
+					Just n -> Just (n+1)
 
 substr :: String -> Int -> Int -> String
 substr _ _ 0		= []
@@ -115,6 +125,11 @@ substr (x:xs) i n	= substr xs (i-1) n
 precut :: String -> Int -> String
 precut str 0	= str
 precut (x:xs) i	= precut xs (i-1)
+
+(>>>) :: LexerFunc -> LexerFunc -> LexerFunc
+(>>>) f g = \x -> case f x of
+	Match tok loc	-> Match tok loc
+	NoMatch i	-> g x
 
 consumeWhitespace :: LexerFunc
 consumeWhitespace (' ':xs, i) = Match [] (xs, i+1)
@@ -128,20 +143,12 @@ consumeComment (str, start)
 	| otherwise			= case findstr "*/" (precut str 2) of
 						Nothing -> NoMatch (start+2)
 						Just n -> let
-								size = 2+n+2
-								end = start+size
-								in Match [Token (Comment (substr str 2 n)) (Location start end)] (precut str size, end)
-
-lexbind :: LexerFunc -> LexerFunc -> LexerFunc
-lexbind f g = \x -> case f x of
-		Match tok loc	-> Match tok loc
-		NoMatch i	-> g x
-
-(>>>) :: LexerFunc -> LexerFunc -> LexerFunc
-(>>>) = lexbind
+							size = 2+n+2
+							end = start+size
+							in Match [Token (Comment (substr str 2 n)) (Location start end)] (precut str size, end)
 
 consumeLiteral :: LexerFunc
-consumeLiteral = foldr1 lexbind literalFuncs
+consumeLiteral = foldr1 (>>>) literalFuncs
 	where literalFuncs = map f (reverse (sortBy (\(x, _) (y, _) -> compare (length x) (length y)) literalMap))
 		where f (lstr, ltok) (str, start)
 			| not (isPrefixOf lstr str) = NoMatch start
@@ -150,10 +157,31 @@ consumeLiteral = foldr1 lexbind literalFuncs
 				end = start + size
 				in Match [Token ltok (Location start end)] (precut str size, end)
 
+consumeInteger :: LexerFunc
+consumeInteger (str, start)	= case findFirst (not . isDigit) str of
+					Nothing -> NoMatch start
+					Just 0 -> NoMatch start -- First character is not even a digit
+					Just size -> let
+						end = start+size
+						--in error (show size)
+						in Match [Token (Integer (read (substr str 0 size))) (Location start end)] (precut str size, end)
+
+consumeIdentifier :: LexerFunc
+consumeIdentifier (x:xs, start)
+	| isAlpha x = f (x:xs, start) -- Also include first character for token Location
+	| otherwise = NoMatch start
+	where f (str, start)	= case findFirst (\c -> not (isAlphaNum c) && c /= '_') str of
+					Nothing -> NoMatch start
+					Just size -> let
+						end = start+size
+						in Match [Token (Identifier (substr str 0 size)) (Location start end)] (precut str size, end)
+
 lextok :: LexerFunc
 lextok = consumeWhitespace
 	>>> consumeComment
+	>>> consumeInteger
 	>>> consumeLiteral
+	>>> consumeIdentifier
 
 lexer :: LexerFunc
 lexer ([], n)	= Match [] ([], n)
