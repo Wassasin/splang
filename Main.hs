@@ -1,6 +1,8 @@
+import System.Environment
 import Lexer
 
 main :: IO ()
 main = do
-	s <- readFile "test.sl"
+	[file] <- getArgs
+	s <- readFile file
 	putStrLn s
