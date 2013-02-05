@@ -1,6 +1,7 @@
 module Lexer where
 
 data Location = Location Int Int
+	deriving (Show, Eq)
 
 data TypeE = Void
 	| Int
