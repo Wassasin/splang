@@ -2,5 +2,5 @@ import Lexer
 
 main :: IO ()
 main = do
-	putStrLn "Hallo"
-	putStrLn "Wereldje"
+	s <- readFile "test.sl"
+	putStrLn s
