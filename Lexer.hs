@@ -100,14 +100,13 @@ isPrefixOf (x:xs) (y:ys)	= x == y && (isPrefixOf xs ys)
 isPrefixOf (x:xs) []		= False
 isPrefixOf _ _			= True
 
-findFirst :: (Char -> Bool) -> String -> Maybe Int
-findFirst _ []		= Nothing
-findFirst f (x:xs)
-	| f x		= Just 0
-	| otherwise	= case (findFirst f xs) of
-		Nothing	-> Nothing
+findLast :: (Char -> Bool) -> String -> Maybe Int
+findLast _ []		= Nothing
+findLast f (x:xs)
+	| not (f x)	= Nothing
+	| otherwise	= case (findLast f xs) of
+		Nothing	-> Just 0
 		Just n	-> Just (n+1)
-
 
 findstr :: String -> String -> Maybe Int
 findstr _ []			= Nothing
@@ -158,21 +157,21 @@ consumeLiteral = foldr1 (>>>) literalFuncs
 				in Match [Token ltok (Location start end)] (precut str size, end)
 
 consumeInteger :: LexerFunc
-consumeInteger (str, start)	= case findFirst (not . isDigit) str of
+consumeInteger (str, start)	= case findLast isDigit str of
 					Nothing -> NoMatch start
-					Just 0 -> NoMatch start -- First character is not even a digit
-					Just size -> let
+					Just n -> let
+						size = n+1
 						end = start+size
-						--in error (show size)
 						in Match [Token (Integer (read (substr str 0 size))) (Location start end)] (precut str size, end)
 
 consumeIdentifier :: LexerFunc
 consumeIdentifier (x:xs, start)
 	| isAlpha x = f (x:xs, start) -- Also include first character for token Location
 	| otherwise = NoMatch start
-	where f (str, start)	= case findFirst (\c -> not (isAlphaNum c) && c /= '_') str of
+	where f (str, start)	= case findLast (\c -> isAlphaNum c || c == '_') str of
 					Nothing -> NoMatch start
-					Just size -> let
+					Just n -> let
+						size = n+1
 						end = start+size
 						in Match [Token (Identifier (substr str 0 size)) (Location start end)] (precut str size, end)
 
