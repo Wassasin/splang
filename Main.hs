@@ -5,4 +5,6 @@ main :: IO ()
 main = do
 	[file] <- getArgs
 	s <- readFile file
-	putStrLn s
+	case lexer (s, 0) of
+		Match xs _ -> print $ xs
+		NoMatch n -> print $ n
