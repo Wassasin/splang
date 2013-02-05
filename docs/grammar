@@ -14,13 +14,9 @@ Stmt		:= '{' Stmt* '}'
 			 | FunCall ';'
 			 | 'return' Exp ';'
 
-Exp			:= id
-			 | Exp Op2 Exp
-			 | Op1 Exp
-			 | int
+Exp			:= Term
 			 | 'False'
 			 | 'True'
-			 | '(' Exp ')'
 			 | FunCall
 			 | '[]'
 			 | '(' Exp ',' Exp ')'
@@ -30,9 +26,30 @@ FunCall		:= id '(' ')'
 
 ActArgs		:= Exp | Exp ',' ActArgs
 
-Op2			:= '+' | '-' | '*' | '/' | '%' | '==' | '<' | '>' | '<=' | '>=' | '!=' | '&&' | '||' | ':'
+Term		:= Term2 Op2Bool Term
+			 | OpNot Term
+			 | Term2
 
-Op1			:= '!' | '-'
+Term2		:= Term3 Op2Equal Term2
+			 | Term3
+
+Term3		:= Term4 Op2Add Term3
+			 | OpNegative Term3
+			 | Term4
+
+Term4		:= id Op2Mult Term4
+			 | int Op2Mult Term4
+			 | id
+			 | int
+			 | '(' Exp ')'
+
+Op2Mult			:= '*' | '/' | '%'
+Op2Add			:= '+' | '-' | ':'
+Op2Equal		:= '==' | '<' | '>' | '<=' | '>=' | '!='
+Op2Bool			:= '&&' | '||'
+
+OpNot			:= '!'
+OpNegative		:= '-'
 
 int			:= digit+
 			 | '-' digit+

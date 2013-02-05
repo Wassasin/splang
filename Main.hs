@@ -1,5 +1,8 @@
 import Lexer
 
-main = case lexer ("if true /* altijd waar! */ return false;", 0) of
-	Match xs _ -> print $ xs
-	NoMatch n -> print $ n
+main :: IO ()
+main = do
+	s <- readFile "test.sl"
+	case lexer (s, 0) of
+		Match xs _ -> print $ xs
+		NoMatch n -> print $ n
