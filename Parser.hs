@@ -9,27 +9,9 @@ import Text.Parsec.Pos
 
 import qualified Lexer
 import qualified Source
+import qualified AST
 
 type MyParser a   = GenParser Lexer.Token () a
-
-data Identifier = Identifier String
-	deriving (Show, Eq)
-data SLInteger = SLInteger Int
-	deriving (Show, Eq)
-data BinaryOperator = Multiplication | Division | Modulo
-	| Plus | Minus | Cons
-	| Equal | LesserThan | GreaterThan | LesserEqualThen | GreaterEqualThan | Nequal
-	| And | Or
-	deriving (Show, Eq)
-
-data UnaryOperator = Not | Negative
-	deriving (Show, Eq)
-
-data Expr = Binop Expr BinaryOperator Expr
-	| Unop UnaryOperator Expr
-	| Var Identifier
-	| Kint SLInteger
-	deriving (Show, Eq)
 
 mytoken :: (Lexer.Token -> Maybe a) -> MyParser a
 mytoken test
@@ -39,29 +21,34 @@ mytoken test
     posToken  (Lexer.Token _ (Source.IndexSpan c r))   = newPos "bla" c r
     testToken tok   = test tok
 
-parseIdentifier :: MyParser Identifier
+equalsToken :: Lexer.Token -> MyParser ()
+equalsToken tok = mytoken ( \x -> case x of
+	(Lexer.Token tok _) -> Just ()
+	_ -> Nothing)
+
+parseIdentifier :: MyParser AST.Identifier
 parseIdentifier = mytoken ( \x -> case x of
-	(Lexer.Token (Lexer.Identifier str) _) -> Just (Identifier str)
+	(Lexer.Token (Lexer.Identifier str) _) -> Just str
 	_ -> Nothing )
 
-parseSLInteger :: MyParser SLInteger
-parseSLInteger = mytoken ( \x -> case x of
-	(Lexer.Token (Lexer.Integer n) _) -> Just (SLInteger n)
+parseInteger :: MyParser AST.Integer
+parseInteger = mytoken ( \x -> case x of
+	(Lexer.Token (Lexer.Integer n) _) -> Just n
 	_ -> Nothing )
 
-parseOp2Mult :: MyParser BinaryOperator
+parseOp2Mult :: MyParser AST.BinaryOperator
 parseOp2Mult = mytoken ( \x -> case x of
 	(Lexer.Token (Lexer.Operator op) _) -> case op of
-		Lexer.Multiplication -> Just Multiplication
-		Lexer.Division -> Just Division
-		Lexer.Modulo -> Just Modulo
+		Lexer.Multiplication -> Just AST.Multiplication
+		Lexer.Division -> Just AST.Division
+		Lexer.Modulo -> Just AST.Modulo
 		_ -> Nothing
 	_ -> Nothing )
 
-parseTerm4 :: MyParser Expr
+parseTerm4 :: MyParser AST.Expr
 parseTerm4 = do { i <- parseIdentifier;
-				do { b <- parseOp2Mult; t <- parseTerm4; return (Binop (Var i) b t) }
-				<|> return (Var i) }
-	<|> do { n <- parseSLInteger;
-				do { b <- parseOp2Mult; t <- parseTerm4; return (Binop (Kint n) b t) }
-				<|> return (Kint n) }
+				do { b <- parseOp2Mult; t <- parseTerm4; return (AST.Binop (AST.Var i) b t) }
+				<|> return (AST.Var i) }
+	<|> do { n <- parseInteger;
+				do { b <- parseOp2Mult; t <- parseTerm4; return (AST.Binop (AST.Kint n) b t) }
+				<|> return (AST.Kint n) }
