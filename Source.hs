@@ -44,7 +44,7 @@ pointOutLocationSpan (LocationSpan (fLine, fCol) (tLine, tCol)) str
 		putStrLn strLine
 		putStr (blank (substr strLine 0 fCol))
 		putStr "^"
-		putStrLn (take (tCol - fCol) (repeat '~'))
+		putStrLn (repeatstr (tCol - fCol) '~')
 		where strLine = fetchLine fLine str
 		
 merge :: IndexSpan -> IndexSpan -> IndexSpan
@@ -95,6 +95,9 @@ substr (x:xs) i n	= substr xs (i-1) n
 precut :: String -> Index -> String
 precut str 0	= str
 precut (x:xs) i	= precut xs (i-1)
+
+repeatstr :: Int -> Char -> String
+repeatstr n c = take n (repeat c)
 
 blank :: String -> String
 blank = map (\c -> case c of 
