@@ -46,6 +46,9 @@ pointOutLocationSpan (LocationSpan (fLine, fCol) (tLine, tCol)) str
 		putStr "^"
 		putStrLn (take (tCol - fCol) (repeat '~'))
 		where strLine = fetchLine fLine str
+		
+merge :: IndexSpan -> IndexSpan -> IndexSpan
+merge (IndexSpan xx xy) (IndexSpan yx yy) = IndexSpan (min xx yx) (max xy yy)
 
 convert :: Index -> String -> Location
 convert n str = convert1 n str (0, 0)
