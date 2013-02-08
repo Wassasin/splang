@@ -6,7 +6,9 @@ import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
 import Text.Parsec.Pos
+
 import qualified Lexer
+import qualified Source
 
 type MyParser a   = GenParser Lexer.Token () a
 
@@ -34,7 +36,7 @@ mytoken test
   = token showToken posToken testToken
   where
     showToken tok   = show tok
-    posToken  (Lexer.Token _ (Lexer.Location c r))   = newPos "bla" c r
+    posToken  (Lexer.Token _ (Source.IndexSpan c r))   = newPos "bla" c r
     testToken tok   = test tok
 
 parseIdentifier :: MyParser Identifier

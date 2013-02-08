@@ -1,11 +1,17 @@
 import System.Environment
+
 import qualified Lexer
+import qualified Source
 import Parser
+
 import Text.Parsec
+import Text.Parsec.Error
 
 
 main :: IO ()
-main = do
+main = test
+
+test = do
 	[file] <- getArgs
 	s <- readFile file
 	putStrLn "File:"
@@ -17,5 +23,10 @@ main = do
 			putStrLn "Parsing result:"
 			case (parse parseTerm4 file xs) of
 				Right x -> print x
-				Left pError -> print pError
-		Lexer.NoMatch lError -> print lError
+				Left pError -> case (errorPos pError) of
+					pPos -> do
+						putStr (show (map messageString (Text.Parsec.Error.errorMessages pError)))
+						Source.pointOutLocation (sourceLine pPos-1, sourceColumn pPos-1) s
+		Lexer.NoMatch lError -> do
+			putStr "Unexpected sequence of characters starting "
+			Source.pointOutIndex lError s

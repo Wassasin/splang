@@ -1,5 +1,7 @@
 module Lexer where
 
+import qualified Source
+
 import Data.List (sortBy)
 import Data.Char (isDigit, isAlpha, isAlphaNum)
 
@@ -50,11 +52,11 @@ data TokenE = Comment String
 	| Operator OperatorE
 	deriving (Show, Eq)
 
-data Token = Token TokenE Location
+data Token = Token TokenE Source.IndexSpan
 	deriving (Show, Eq)
 
-data LexerResult = Match [Token] (String, Int)
-	| NoMatch Int
+data LexerResult = Match [Token] (String, Source.Index)
+	| NoMatch Source.Index
 
 type LexerFunc = (String, Int) -> LexerResult
 
@@ -95,36 +97,6 @@ literalMap = [
 		("!", Operator Not)
 	]
 
-isPrefixOf :: String -> String -> Bool
-isPrefixOf (x:xs) (y:ys)	= x == y && (isPrefixOf xs ys)
-isPrefixOf (x:xs) []		= False
-isPrefixOf _ _			= True
-
-findLast :: (Char -> Bool) -> String -> Maybe Int
-findLast _ []		= Nothing
-findLast f (x:xs)
-	| not (f x)	= Nothing
-	| otherwise	= case (findLast f xs) of
-		Nothing	-> Just 0
-		Just n	-> Just (n+1)
-
-findstr :: String -> String -> Maybe Int
-findstr _ []			= Nothing
-findstr needle str
-	| isPrefixOf needle str	= Just 0
-	| otherwise		= case findstr needle (tail str) of
-					Nothing -> Nothing
-					Just n -> Just (n+1)
-
-substr :: String -> Int -> Int -> String
-substr _ _ 0		= []
-substr (x:xs) 0 n	= (x : substr xs 0 (n-1))
-substr (x:xs) i n	= substr xs (i-1) n
-
-precut :: String -> Int -> String
-precut str 0	= str
-precut (x:xs) i	= precut xs (i-1)
-
 (>>>) :: LexerFunc -> LexerFunc -> LexerFunc
 (>>>) f g = \x -> case f x of
 	Match tok loc	-> Match tok loc
@@ -138,42 +110,42 @@ consumeWhitespace (xs, i) = NoMatch i
 
 consumeComment :: LexerFunc
 consumeComment (str, start)
-	| not (isPrefixOf "/*" str)	= NoMatch start
-	| otherwise			= case findstr "*/" (precut str 2) of
-						Nothing -> NoMatch (start+2)
-						Just n -> let
-							size = 2+n+2
-							end = start+size
-							in Match [Token (Comment (substr str 2 n)) (Location start end)] (precut str size, end)
+	| not (Source.isPrefixOf "/*" str)	= NoMatch start
+	| otherwise				= case Source.findstr "*/" (Source.precut str 2) of
+							Nothing -> NoMatch (start+2)
+							Just n -> let
+								size = 2+n+2
+								end = start+size
+								in Match [Token (Comment (Source.substr str 2 n)) (Source.IndexSpan start end)] (Source.precut str size, end)
 
 consumeLiteral :: LexerFunc
 consumeLiteral = foldr1 (>>>) literalFuncs
 	where literalFuncs = map f (reverse (sortBy (\(x, _) (y, _) -> compare (length x) (length y)) literalMap))
 		where f (lstr, ltok) (str, start)
-			| not (isPrefixOf lstr str) = NoMatch start
+			| not (Source.isPrefixOf lstr str) = NoMatch start
 			| otherwise = let
 				size = length lstr
 				end = start + size
-				in Match [Token ltok (Location start end)] (precut str size, end)
+				in Match [Token ltok (Source.IndexSpan start end)] (Source.precut str size, end)
 
 consumeInteger :: LexerFunc
-consumeInteger (str, start)	= case findLast isDigit str of
+consumeInteger (str, start)	= case Source.findLast isDigit str of
 					Nothing -> NoMatch start
 					Just n -> let
 						size = n+1
 						end = start+size
-						in Match [Token (Integer (read (substr str 0 size))) (Location start end)] (precut str size, end)
+						in Match [Token (Integer (read (Source.substr str 0 size))) (Source.IndexSpan start end)] (Source.precut str size, end)
 
 consumeIdentifier :: LexerFunc
 consumeIdentifier (x:xs, start)
 	| isAlpha x = f (x:xs, start) -- Also include first character for token Location
 	| otherwise = NoMatch start
-	where f (str, start)	= case findLast (\c -> isAlphaNum c || c == '_') str of
+	where f (str, start)	= case Source.findLast (\c -> isAlphaNum c || c == '_') str of
 					Nothing -> NoMatch start
 					Just n -> let
 						size = n+1
 						end = start+size
-						in Match [Token (Identifier (substr str 0 size)) (Location start end)] (precut str size, end)
+						in Match [Token (Identifier (Source.substr str 0 size)) (Source.IndexSpan start end)] (Source.precut str size, end)
 
 lextok :: LexerFunc
 lextok = consumeWhitespace
