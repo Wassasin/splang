@@ -37,42 +37,45 @@ parseVarDecl :: MyParser AST.Decl
 parseVarDecl = do
 	t <- parseType
 	i <- parseIdentifier
-	_ <- equalsToken Lexer.AssignmentSign
+	equalsToken Lexer.AssignmentSign
 	e <- parseExpr
-	_ <- equalsToken Lexer.Semicolon
+	equalsToken Lexer.Semicolon
 	return (AST.VarDecl t i e)
 
 parseFunDecl :: MyParser AST.Decl
 parseFunDecl = do
 	t <- parseType
 	i <- parseIdentifier
-	_ <- equalsToken Lexer.ParenthesesOpen
+	equalsToken Lexer.ParenthesesOpen
 	fargs <- parseFargs
-	_ <- equalsToken Lexer.ParenthesesClose
-	_ <- equalsToken Lexer.CurlyBracketOpen
+	equalsToken Lexer.ParenthesesClose
+	equalsToken Lexer.CurlyBracketOpen
 	vdecls <- many parseVarDecl
 	stmts <- many1 parseStmt
-	_ <- equalsToken Lexer.CurlyBracketClose
+	equalsToken Lexer.CurlyBracketClose
 	return (AST.FunDecl t i fargs vdecls stmts)
 
-parseType :: MyParser AST.Type
-parseType = mytoken (\x -> case x of
+parseBasicType :: MyParser AST.Type
+parseBasicType = mytoken (\x -> case x of
 	Lexer.Token (Lexer.Type y) _ -> Just (case y of
 		Lexer.Void -> AST.Void
 		Lexer.Int -> AST.Int
 		Lexer.Bool -> AST.Bool)
 	_ -> Nothing)
-	<|> do {
-		_ <- equalsToken Lexer.ParenthesesOpen;
-		t1 <- parseType;
-		t2 <- parseType;
-		_ <- equalsToken Lexer.ParenthesesClose;
-		return (AST.Product t1 t2)}
-	<|>	do {
-		_ <- equalsToken Lexer.SquareBracketsOpen;
+
+parseType :: MyParser AST.Type
+parseType = parseBasicType
+	<|>	do
+		equalsToken Lexer.ParenthesesOpen
+		t1 <- parseType
+		t2 <- parseType
+		equalsToken Lexer.ParenthesesClose
+		return (AST.Product t1 t2)
+	<|>	do
+		equalsToken Lexer.SquareBracketsOpen;
 		t <- parseType;
-		_ <- equalsToken Lexer.SquareBracketsClose;
-		return (AST.ListType t)}
+		equalsToken Lexer.SquareBracketsClose;
+		return (AST.ListType t)
 	<|> (parseIdentifier >>= return . AST.Identifier)
 
 parseFarg :: MyParser (AST.Type, AST.Identifier)
@@ -82,10 +85,10 @@ parseFarg = do
 	return (t, i)
 
 parseFargs :: MyParser [(AST.Type, AST.Identifier)]
-parseFargs = do {
-	farg <- parseFarg;
-	do {_ <- equalsToken Lexer.Comma; rest <- parseFargs; return (farg : rest)} <|> return [farg]
-} <|> return []
+parseFargs = do
+	farg <- parseFarg
+	(equalsToken Lexer.Comma >> parseFargs >>= return . (farg:)) <|> return [farg]
+	<|> return []
 
 -- TODO: Add if-else
 parseStmt :: MyParser AST.Stmt
@@ -93,7 +96,7 @@ parseStmt = (equalsToken Lexer.CurlyBracketOpen >> (many1 parseStmt) >>= (\stmts
 	<|> (equalsToken Lexer.If >> equalsToken Lexer.ParenthesesOpen >> parseExpr >>= (\expr -> equalsToken Lexer.ParenthesesClose >> parseStmt >>= (\stmt -> return (AST.If expr stmt))))
 	<|> (equalsToken Lexer.While >> equalsToken Lexer.ParenthesesOpen >> parseExpr >>= (\expr -> equalsToken Lexer.ParenthesesClose >> parseStmt >>= (\stmt -> return (AST.While expr stmt))))
 	<|> (parseIdentifier >>= (\id -> equalsToken Lexer.AssignmentSign >> parseExpr >>= (\expr -> equalsToken Lexer.Semicolon >> return (AST.Assignment id expr))))
-	<|> (equalsToken Lexer.Return >> parseExpr >>= (\expr -> return (AST.Return expr)))
+	<|> (equalsToken Lexer.Return >> parseExpr >>= (\expr -> equalsToken Lexer.Semicolon >> return (AST.Return expr)))
 
 -- TODO: add FunCall
 parseExpr :: MyParser AST.Expr
@@ -127,13 +130,10 @@ parseTerm4 = do { i <- parseIdentifier;
          <|> do { n <- parseInteger;
 				  do { b <- parseOp2Mult; t <- parseTerm4; return (AST.Binop (AST.Kint n) b t) }
 				  <|> return (AST.Kint n) }
-         <|> do { _ <- equalsToken Lexer.ParenthesesOpen;
-                  expr <- parseExpr;
-                  _ <- equalsToken Lexer.ParenthesesClose;
-                  return expr}
-         <|> ((equalsToken Lexer.TrueT) >> return (AST.Kbool True))
-         <|> ((equalsToken Lexer.FalseT) >> return (AST.Kbool False))
-         <|> ((equalsToken Lexer.SquareBracketsOpen) >> (equalsToken Lexer.SquareBracketsOpen) >> return (AST.List []))
+         <|> (equalsToken Lexer.ParenthesesOpen >> parseExpr >>= (\expr -> equalsToken Lexer.ParenthesesClose >> return expr))
+         <|> (equalsToken Lexer.TrueT >> return (AST.Kbool True))
+         <|> (equalsToken Lexer.FalseT >> return (AST.Kbool False))
+         <|> (equalsToken Lexer.SquareBracketsOpen >> (equalsToken Lexer.SquareBracketsOpen) >> return (AST.List []))
 
 operatorToken :: (Lexer.OperatorE -> Maybe a) -> MyParser a
 operatorToken f = mytoken ( \x -> case x of
