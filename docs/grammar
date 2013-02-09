@@ -15,11 +15,6 @@ Stmt		:= '{' Stmt* '}'
 			 | 'return' Exp ';'
 
 Exp			:= Term
-			 | 'False'
-			 | 'True'
-			 | FunCall
-			 | '[]'
-			 | '(' Exp ',' Exp ')'
 
 FunCall		:= id '(' ')'
 			 | id '(' ActArgs ')'
@@ -42,6 +37,11 @@ Term4		:= id Op2Mult Term4
 			 | id
 			 | int
 			 | '(' Exp ')'
+			 | 'False'
+			 | 'True'
+			 | FunCall
+			 | '[]'
+			 | '(' Exp ',' Exp ')'
 
 Op2Mult			:= '*' | '/' | '%'
 Op2Add			:= '+' | '-' | ':'
