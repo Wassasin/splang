@@ -12,7 +12,7 @@ data Decl = VarDecl Type Identifier Expr
 data Type = Void
 	| Int
 	| Bool
-	| Identifier
+	| Identifier Identifier
 	| Product Type Type
 	| ListType Type
 	deriving (Show, Eq)
@@ -39,7 +39,7 @@ data Expr = Var Identifier
 
 data BinaryOperator = Multiplication | Division | Modulo
 	| Plus | Minus | Cons
-	| Equal | LesserThan | GreaterThan | LesserEqualThen | GreaterEqualThan | Nequal
+	| Equals | LesserThan | GreaterThan | LesserEqualThan | GreaterEqualThan | Nequals
 	| And | Or
 	deriving (Show, Eq)
 

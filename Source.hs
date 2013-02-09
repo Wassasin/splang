@@ -60,6 +60,7 @@ fetchLine :: Int -> String -> String
 fetchLine 0 str		= case findLast ((/=) '\n') str of
 	Nothing -> str
 	Just n -> substr str 0 (n+1)
+fetchLine _ [] = []
 fetchLine i ('\n':xs)	= fetchLine (i-1) xs
 fetchLine i (_:xs)	= fetchLine i xs
 
@@ -85,6 +86,7 @@ findstr needle str
 					Just n -> Just (n+1)
 
 substr :: String -> Index -> Int -> String
+substr [] _ _ = []
 substr _ _ 0		= []
 substr (x:xs) 0 n	= (x : substr xs 0 (n-1))
 substr (x:xs) i n	= substr xs (i-1) n

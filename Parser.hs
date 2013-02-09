@@ -21,9 +21,10 @@ mytoken test
     posToken  (Lexer.Token _ (Source.IndexSpan c r))   = newPos "bla" c r
     testToken tok   = test tok
 
-equalsToken :: Lexer.Token -> MyParser ()
+equalsToken :: Lexer.TokenE -> MyParser ()
 equalsToken tok = mytoken ( \x -> case x of
-	(Lexer.Token tok _) -> Just ()
+	(Lexer.Token tok' _) -> if (tok == tok') then Just () else Nothing )
+
 	_ -> Nothing)
 
 parseIdentifier :: MyParser AST.Identifier
