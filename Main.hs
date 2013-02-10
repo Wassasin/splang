@@ -3,6 +3,7 @@ import System.Environment
 import qualified Lexer
 import qualified Source
 import Parser
+import Output
 
 import Text.Parsec
 import Text.Parsec.Error
@@ -22,7 +23,7 @@ test = do
 			print xs
 			putStrLn "Parsing result:"
 			case (parse parseProgram file xs) of
-				Right x -> print x
+				Right x -> putStrLn (outputProgram x)
 				Left pError -> case (errorPos pError) of
 					pPos -> do
 						print pError
