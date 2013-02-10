@@ -18,8 +18,7 @@ mytoken test
   = token showToken posToken testToken
   where
     showToken tok   = show tok
-    posToken (Lexer.Token _ (Source.LocationSpan from _)) = case from of 
-		(l, c) -> newPos "file.stub" (l+1) (c+1) 
+    posToken (Lexer.Token _ (Source.LocationSpan (l, c) _)) = newPos "file.stub" (l+1) (c+1)
     testToken tok   = test tok
 
 equalsToken :: Lexer.TokenE -> MyParser ()
