@@ -11,14 +11,15 @@ import qualified Lexer
 import qualified Source
 import qualified AST
 
-type MyParser a   = GenParser Lexer.Token () a
+type MyParser a   = GenParser (Lexer.Token Source.LocationSpan) () a
 
-mytoken :: (Lexer.Token -> Maybe a) -> MyParser a
+mytoken :: (Lexer.Token Source.LocationSpan -> Maybe a) -> MyParser a
 mytoken test
   = token showToken posToken testToken
   where
     showToken tok   = show tok
-    posToken  (Lexer.Token _ (Source.IndexSpan c r))   = newPos "bla" c r
+    posToken (Lexer.Token _ (Source.LocationSpan from _)) = case from of 
+		(l, c) -> newPos "file.stub" (l+1) (c+1) 
     testToken tok   = test tok
 
 equalsToken :: Lexer.TokenE -> MyParser ()

@@ -52,10 +52,10 @@ data TokenE = Comment String
 	| Operator OperatorE
 	deriving (Show, Eq)
 
-data Token = Token TokenE Source.IndexSpan
+data Token loc = Token TokenE loc
 	deriving (Show, Eq)
 
-data LexerResult = Match [Token] (String, Source.Index)
+data LexerResult = Match [Token Source.IndexSpan] (String, Source.Index)
 	| NoMatch Source.Index
 
 type LexerFunc = (String, Int) -> LexerResult
