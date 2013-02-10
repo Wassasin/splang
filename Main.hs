@@ -21,10 +21,11 @@ test = do
 		Lexer.Match xs _ -> do
 			print xs
 			putStrLn "Parsing result:"
-			case (parse parseTerm4 file xs) of
+			case (parse parseProgram file xs) of
 				Right x -> print x
 				Left pError -> case (errorPos pError) of
 					pPos -> do
+						print pError
 						putStr (show (map messageString (Text.Parsec.Error.errorMessages pError)))
 						Source.pointOutLocation (sourceLine pPos-1, sourceColumn pPos-1) s
 		Lexer.NoMatch lError -> do

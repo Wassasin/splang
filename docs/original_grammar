@@ -1,4 +1,4 @@
-Prog		:= Decl+
+Prog		:= Decl | Prog Decl
 Decl		:= VarDecl | FunDecl
 VarDecl		:= Type id '=' Exp ';'
 FunDecl		:= RetType id '(' [ FArgs ] ')' '{' VarDecl* Stmt+ '}'
@@ -14,42 +14,25 @@ Stmt		:= '{' Stmt* '}'
 			 | FunCall ';'
 			 | 'return' Exp ';'
 
-Exp			:= Term
+Exp			:= id
+			 | Exp Op2 Exp
+			 | Op1 Exp
+			 | int
+			 | 'False'
+			 | 'True'
+			 | '(' Exp ')'
+			 | FunCall
+			 | '[]'
+			 | '(' Exp ',' Exp ')'
 
 FunCall		:= id '(' ')'
 			 | id '(' ActArgs ')'
 
 ActArgs		:= Exp | Exp ',' ActArgs
 
-Term		:= Term2 Op2Bool Term
-			 | OpNot Term
-			 | Term2
+Op2			:= '+' | '-' | '*' | '/' | '%' | '==' | '<' | '>' | '<=' | '>=' | '!=' | '&&' | '||' | ':'
 
-Term2		:= Term3 Op2Equal Term2
-			 | Term3
-
-Term3		:= Term4 Op2Add Term3
-			 | OpNegative Term3
-			 | Term4
-
-Term4		:= id Op2Mult Term4
-			 | int Op2Mult Term4
-			 | id
-			 | int
-			 | '(' Exp ')'
-			 | 'False'
-			 | 'True'
-			 | FunCall
-			 | '[]'
-			 | '(' Exp ',' Exp ')'
-
-Op2Mult			:= '*' | '/' | '%'
-Op2Add			:= '+' | '-' | ':'
-Op2Equal		:= '==' | '<' | '>' | '<=' | '>=' | '!='
-Op2Bool			:= '&&' | '||'
-
-OpNot			:= '!'
-OpNegative		:= '-'
+Op1			:= '!' | '-'
 
 int			:= digit+
 			 | '-' digit+
