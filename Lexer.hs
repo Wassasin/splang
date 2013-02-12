@@ -58,7 +58,7 @@ data Token loc = Token TokenE loc
 data LexerResult = Match [Token Source.IndexSpan] (String, Source.Index)
 	| NoMatch Source.Index
 
-type LexerFunc = (String, Int) -> LexerResult
+type LexerFunc = (String, Source.Index) -> LexerResult
 
 literalMap :: [(String, TokenE)]
 literalMap = [

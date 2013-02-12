@@ -54,14 +54,11 @@ instance Span IndexSpan where
 	merge (IndexSpan xx xy) (IndexSpan yx yy) = IndexSpan (min xx yx) (max xy yy)
 
 instance Span LocationSpan where
-	merge (LocationSpan xx xy) (LocationSpan yx yy) = case (lt xx yx, lt xy yy) of
+	merge (LocationSpan xx xy) (LocationSpan yx yy) = case (xx <= yx, xy <= yy) of
 		(False, False)	-> LocationSpan yx xy
 		(False, True)	-> LocationSpan yx yy
 		(True, False)	-> LocationSpan xx xy
 		(True, True)	-> LocationSpan xx yy
-		where
-			lt :: Location -> Location -> Bool
-			lt (xl, xc) (yl, yc) = xl < yl || (xl == yl && xc < yc)
 
 convert :: Index -> String -> Location
 convert n str = convert1 n str (0, 0)

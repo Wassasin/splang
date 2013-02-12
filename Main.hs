@@ -2,7 +2,8 @@ import System.Environment
 
 import qualified Lexer
 import qualified Source
-import Parser
+-- import Parser
+import NewParser
 import Output
 
 import Text.Parsec
@@ -22,13 +23,13 @@ test = do
 		Lexer.Match xs _ -> case filterComment (map (convertToken s) xs) of
 			xs -> do
 				print xs
-				putStrLn "Parsing result:"
-				case (parse parseProgram file xs) of
-					Right x -> putStrLn (outputProgram x)
-					Left pError -> case (errorPos pError) of
-						pPos -> do
-							print pError
-							Source.pointOutLocation (sourceLine pPos-1, sourceColumn pPos-1) s
+				--putStrLn "Parsing result:"
+				--case (parse parseProgram file xs) of
+				--	Right x -> putStrLn (outputProgram x)
+				--	Left pError -> case (errorPos pError) of
+				--		pPos -> do
+				--			print pError
+				--			Source.pointOutLocation (sourceLine pPos-1, sourceColumn pPos-1) s
 		Lexer.NoMatch lError -> do
 			putStr "Unexpected sequence of characters starting "
 			Source.pointOutIndex lError s
@@ -40,4 +41,4 @@ filterComment :: [Lexer.Token a] -> [Lexer.Token a]
 filterComment = filter (\t -> case t of
 	Lexer.Token (Lexer.Comment _) _	-> False
 	_				-> True
-	) xs
+	)
