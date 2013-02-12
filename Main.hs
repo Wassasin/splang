@@ -19,7 +19,7 @@ test = do
 	putStrLn s
 	putStrLn "Lexing result:"
 	case Lexer.lexer (s, 0) of
-		Lexer.Match xs _ -> case map (convertToken s) xs of
+		Lexer.Match xs _ -> case filterComment (map (convertToken s) xs) of
 			xs -> do
 				print xs
 				putStrLn "Parsing result:"
@@ -35,3 +35,9 @@ test = do
 
 convertToken :: String -> Lexer.Token Source.IndexSpan -> Lexer.Token Source.LocationSpan
 convertToken s (Lexer.Token t (Source.IndexSpan from to)) = Lexer.Token t (Source.LocationSpan (Source.convert from s) (Source.convert to s))
+
+filterComment :: [Lexer.Token a] -> [Lexer.Token a]
+filterComment = filter (\t -> case t of
+	Lexer.Token (Lexer.Comment _) _	-> False
+	_				-> True
+	) xs
