@@ -23,7 +23,7 @@ test = do
 			xs -> do
 				print xs
 				putStrLn "Parsing result:"
-				case (parse parseProgram file xs) of
+				case (parse parseProgram file (filterComments xs)) of
 					Right x -> putStrLn (outputProgram x)
 					Left pError -> case (errorPos pError) of
 						pPos -> do
@@ -32,6 +32,11 @@ test = do
 		Lexer.NoMatch lError -> do
 			putStr "Unexpected sequence of characters starting "
 			Source.pointOutIndex lError s
+
+filterComments :: [Lexer.Token a] -> [Lexer.Token a]
+filterComments [] = []
+filterComments ((Lexer.Token (Lexer.Comment _) _) : xs) = filterComments xs
+filterComments (x:xs) = x : filterComments xs
 
 convertToken :: String -> Lexer.Token Source.IndexSpan -> Lexer.Token Source.LocationSpan
 convertToken s (Lexer.Token t (Source.IndexSpan from to)) = Lexer.Token t (Source.LocationSpan (Source.convert from s) (Source.convert to s))

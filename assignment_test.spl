@@ -1,0 +1,53 @@
+/*
+Three ways to implement the fac tor ial function in SPL.
+First the recursive version .
+*/
+Int facR ( Int n )
+{if ( n < 2 )
+return 1;
+else
+return n * facR ( n  1 );
+}// The iterative version of the factorial function
+Int FacI ( Int n )
+{Int r = 1;
+while ( n > 1 )
+{r = r * n;
+n = n  1;
+}return r ;
+}// A main function to check the results
+Void main ()
+{Int n = 0;
+Int facN = 1;
+Bool ok = True;
+while ( n < 20 )
+{facN = facR ( n );
+if ( facN != facI ( n ) j j facN != facL ( n ))
+{print ( n : facN : facI ( n ) : facL ( n ) : [] );
+ok = False ;
+}n = n + 1;
+}print ( ok );
+}// A list based factorial function
+// Defined here to show that functions can be given in any order (unlike C)
+Int facL ( Int n )
+{return product (fromTo ( 1, n ) );
+}// Computes the product of a list of integers
+Int product ( [ Int ] list )
+{if ( isEmpty ( list ))
+return 1;
+else
+return head ( list ) * product ( tail ( list ) );
+}// Generates a list of integers from the first to the last argument
+[ Int ] fromTo (Int from, Int to )
+{if ( from <= to )
+return from : fromTo ( from + 1, to );
+else
+return [ ] ;
+}// Reverse any list
+[ t ] reverse ( [ t ] list )
+{[ t ] accu = [ ] ;
+while ( ! isEmpty ( list ))
+{accu = head ( list ) : accu ;
+list = tail ( list );
+}return accu ;
+}// Absolute value, in an strange layout
+Int abs (Int n) { if (n < 0) return n; else return n ; }

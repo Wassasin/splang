@@ -110,13 +110,19 @@ consumeWhitespace (xs, i) = NoMatch i
 
 consumeComment :: LexerFunc
 consumeComment (str, start)
-	| not (Source.isPrefixOf "/*" str)	= NoMatch start
-	| otherwise				= case Source.findstr "*/" (Source.precut str 2) of
+	| (Source.isPrefixOf "/*" str) = case Source.findstr "*/" (Source.precut str 2) of
 							Nothing -> NoMatch (start+2)
 							Just n -> let
 								size = 2+n+2
 								end = start+size
 								in Match [Token (Comment (Source.substr str 2 n)) (Source.IndexSpan start end)] (Source.precut str size, end)
+	| (Source.isPrefixOf "//" str) = case Source.findLast (\c -> c /= '\n') (Source.precut str 2) of
+							Nothing -> NoMatch start
+							Just n -> let
+								size = 2+n+1
+								end = start+size
+								in Match [Token (Comment (Source.substr str 2 (n+1))) (Source.IndexSpan start end)] (Source.precut str size, end)
+	| otherwise = NoMatch start
 
 consumeLiteral :: LexerFunc
 consumeLiteral = foldr1 (>>>) literalFuncs
