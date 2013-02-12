@@ -4,10 +4,10 @@ import qualified Lexer
 import qualified Source
 import Parser
 import Output
+import qualified Console
 
 import Text.Parsec
 import Text.Parsec.Error
-
 
 main :: IO ()
 main = test
@@ -15,22 +15,22 @@ main = test
 test = do
 	[file] <- getArgs
 	s <- readFile file
-	putStrLn "File:"
+	Console.highLight "File:"
 	putStrLn s
-	putStrLn "Lexing result:"
+	Console.highLight "Lexing result:"
 	case Lexer.lexer (s, 0) of
-		Lexer.Match xs _ -> case map (convertToken s) xs of
-			xs -> do
-				print xs
-				putStrLn "Parsing result:"
-				case (parse parseProgram file (filterComments xs)) of
+		Lexer.Match xs _ -> let lResult = map (convertToken s) xs in do
+				print lResult
+				Console.highLight "Parsing result:"
+				case (parse parseProgram file (filterComments lResult)) of
 					Right x -> putStrLn (outputProgram x)
-					Left pError -> case (errorPos pError) of
-						pPos -> do
-							print pError
-							Source.pointOutLocation (sourceLine pPos-1, sourceColumn pPos-1) s
+					Left pError -> let
+						pPos = (errorPos pError)
+						loc = (sourceLine pPos-1, sourceColumn pPos-1) in do
+						Console.putMessage Console.Error file s loc (messageString $ head $ errorMessages pError) -- parsec errors are stupid
+						Source.pointOutLocation loc s
 		Lexer.NoMatch lError -> do
-			putStr "Unexpected sequence of characters starting "
+			Console.putMessage Console.Error file s (Source.convert lError s) "Unexpected sequence of characters starting"
 			Source.pointOutIndex lError s
 
 filterComments :: [Lexer.Token a] -> [Lexer.Token a]

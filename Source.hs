@@ -17,9 +17,6 @@ pointOutIndex i str = case convert i str of
 
 pointOutLocation :: Location -> String -> IO ()
 pointOutLocation (line, col) str = do
-	putStr "at "
-	describe (line, col) str
-	putStrLn ":"
 	putStrLn strLine
 	putStr (blank (substr (fetchLine line str) 0 col))
 	putStrLn "^"
