@@ -162,6 +162,13 @@ parseTerm4 = parseVar
 		equalsToken Lexer.ParenthesesClose
 		produceP1 (AST.FunCall i args)
 	<|> do
+		equalsToken Lexer.ParenthesesOpen
+		e1 <- parseExpr
+		equalsToken Lexer.Comma
+		e2 <- parseExpr
+		equalsToken Lexer.ParenthesesClose
+		produceP1 (AST.Pair e1 e2)
+	<|> do
 		equalsToken Lexer.SquareBracketsOpen
 		equalsToken Lexer.SquareBracketsClose
 		produceP1 (AST.List [])
