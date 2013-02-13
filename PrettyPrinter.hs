@@ -1,4 +1,4 @@
-module PrettyPrinter (Printer, prettyPrinter, noPrettyPrinter, coloredPrettyPrinter, plainPrettyPrinter, prettyPrint) where
+module PrettyPrinter (Printer, prettyPrinter, miniPrettyPrinter, coloredPrettyPrinter, plainPrettyPrinter, prettyPrint) where
 
 import System.Console.ANSI
 import AST
@@ -14,13 +14,17 @@ prettyPrinter f g (Right s : xs) = g s >> prettyPrinter f g xs
 prettyPrint :: Monad m => (Printer (m a)) -> Program -> m a
 prettyPrint f prog = f (outputProgram prog)
 
--- No output
-noPrettyPrinter :: Printer (IO ())
-noPrettyPrinter = prettyPrinter (\x -> return ()) (\x -> return ())
-
 -- Plain Output
 plainPrettyPrinter :: Printer (IO ())
 plainPrettyPrinter = prettyPrinter putChar (\x -> return ())
+
+-- minizer output
+strip '\t' = return ()
+strip '\n' = return ()
+strip c = putChar c
+
+miniPrettyPrinter :: Printer (IO ())
+miniPrettyPrinter = prettyPrinter strip (\x -> return ())
 
 -- Colored Output
 syntaxColor :: Styles -> Color

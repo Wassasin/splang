@@ -30,7 +30,7 @@ options :: [OptDescr (Options -> Options)]
 options =
   [ Option [] ["colored"] (NoArg (\o -> o { astPrinter = coloredPrettyPrinter })) "prints the AST with colored text"
   , Option [] ["plain"] (NoArg (\o -> o { astPrinter = plainPrettyPrinter })) "prints the AST in plain text"
-  , Option [] ["no-output"] (NoArg (\o -> o { astPrinter = noPrettyPrinter })) "does not print the AST"
+  , Option [] ["minimizer"] (NoArg (\o -> o { astPrinter = miniPrettyPrinter })) "prints the AST without tabs and newlines"
   , Option [] ["show-input"] (NoArg (\o -> o { showInput = True })) "shows the input-file"
   , Option [] ["show-lexing"] (NoArg (\o -> o { showLexingResult = True })) "shows the in-between lexing result"
   , Option [] ["show-parsing"] (NoArg (\o -> o { showParsingResult = True })) "shows the in-between AST"
