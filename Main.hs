@@ -2,8 +2,8 @@ import System.Environment
 
 import qualified Lexer
 import qualified Source
--- import Parser
-import NewParser
+import ParserLib
+import Parser
 import Output
 
 
