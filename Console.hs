@@ -1,4 +1,4 @@
-module Console where
+module Console (MessageE(..), putMessage, highLight) where
 
 import System.Console.ANSI
 import qualified Source

@@ -1,6 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-
-module Output where
+module Output (Styles(..), OpenClose(..), Markup, MarkupString, outputProgram) where
 
 import AST
 

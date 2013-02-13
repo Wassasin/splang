@@ -3,10 +3,9 @@ import System.Environment
 import qualified Lexer
 import qualified Source
 import Parser
-import Output
+import PrettyPrinter
 import qualified Console
 
-import System.Console.ANSI
 import Text.Parsec
 import Text.Parsec.Error
 
@@ -24,7 +23,7 @@ test = do
 				print lResult
 				Console.highLight "Parsing result:"
 				case (parse parseProgram file (filterComments lResult)) of
-					Right x -> prettyPrinter (outputProgram x)
+					Right x -> prettyPrint coloredPrettyPrinter x
 					Left pError -> let
 						pPos = (errorPos pError)
 						loc = (sourceLine pPos-1, sourceColumn pPos-1) in do
@@ -41,16 +40,4 @@ filterComments (x:xs) = x : filterComments xs
 
 convertToken :: String -> Lexer.Token Source.IndexSpan -> Lexer.Token Source.LocationSpan
 convertToken s (Lexer.Token t (Source.IndexSpan from to)) = Lexer.Token t (Source.LocationSpan (Source.convert from s) (Source.convert to s))
-
-syntaxColor :: Styles -> Color
-syntaxColor Type = Cyan
-syntaxColor Variable = Yellow
-syntaxColor Constant = Red
-syntaxColor Keyword = Black
-
-prettyPrinter :: MarkupString Styles -> IO ()
-prettyPrinter [] = putStr "\n"
-prettyPrinter (Left c : xs) = putChar c >> prettyPrinter xs
-prettyPrinter (Right (Open s) : xs) = setSGR [SetColor Foreground Vivid (syntaxColor s)] >> prettyPrinter xs
-prettyPrinter (Right (Close s) : xs) = setSGR [] >> prettyPrinter xs
 
