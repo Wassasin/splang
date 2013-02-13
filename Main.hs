@@ -1,29 +1,64 @@
 import System.Environment
 
+import Control.Monad
+import System.Console.GetOpt
+import Text.Parsec
+import Text.Parsec.Error
+
 import qualified Lexer
 import qualified Source
 import Parser
 import PrettyPrinter
 import qualified Console
 
-import Text.Parsec
-import Text.Parsec.Error
+data Options = Options
+  { astPrinter :: Printer (IO ())
+  , showInput :: Bool
+  , showLexingResult :: Bool
+  , showParsingResult :: Bool
+  }
+
+defaultOptions :: Options
+defaultOptions = Options
+  { astPrinter = coloredPrettyPrinter
+  , showInput = False
+  , showLexingResult = False
+  , showParsingResult = False
+  }
+
+options :: [OptDescr (Options -> Options)]
+options =
+  [ Option [] ["colored"] (NoArg (\o -> o { astPrinter = coloredPrettyPrinter })) "prints the AST with colored text"
+  , Option [] ["plain"] (NoArg (\o -> o { astPrinter = plainPrettyPrinter })) "prints the AST in plain text"
+  , Option [] ["no-output"] (NoArg (\o -> o { astPrinter = noPrettyPrinter })) "does not print the AST"
+  , Option [] ["show-input"] (NoArg (\o -> o { showInput = True })) "shows the input-file"
+  , Option [] ["show-lexing"] (NoArg (\o -> o { showLexingResult = True })) "shows the in-between lexing result"
+  , Option [] ["show-parsing"] (NoArg (\o -> o { showParsingResult = True })) "shows the in-between AST"
+  ]
+
+mkOptions :: [String] -> IO (Options, [String])
+mkOptions argv =
+  case getOpt Permute options argv of
+    (o, n, []  ) -> return (foldl (flip id) defaultOptions o, n)
+    (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
+  where header = "slih [OPTION...] file"
+
 
 main :: IO ()
 main = test
 
 test = do
-	[file] <- getArgs
+	(opts, [file]) <- getArgs >>= mkOptions
 	s <- readFile file
-	Console.highLight "File:"
-	putStrLn s
-	Console.highLight "Lexing result:"
+	when (showInput opts) $ Console.highLight "File:" >> putStrLn s
+
+	when (showLexingResult opts) $ Console.highLight "Lexing result:"
 	case Lexer.lexer (s, 0) of
 		Lexer.Match xs _ -> let lResult = map (convertToken s) xs in do
-				print lResult
-				Console.highLight "Parsing result:"
+				when (showLexingResult opts) $ print lResult
+				when (showParsingResult opts) $ Console.highLight "Parsing result:"
 				case (parse parseProgram file (filterComments lResult)) of
-					Right x -> prettyPrint coloredPrettyPrinter x
+					Right x -> when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
 					Left pError -> let
 						pPos = (errorPos pError)
 						loc = (sourceLine pPos-1, sourceColumn pPos-1) in do

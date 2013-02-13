@@ -1,2 +1,2 @@
 #!/bin/bash
-ghc Main.hs -o Main -O2 && ./Main $1
+ghc Main.hs -o Main -O2 && ./Main --show-parsing --colored "$@"
