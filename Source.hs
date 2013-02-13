@@ -24,8 +24,8 @@ pointOutLocation (line, col) str = do
 
 pointOutIndexSpan :: IndexSpan -> String -> IO ()
 pointOutIndexSpan (IndexSpan from to) str
-	| from == to	= pointOutIndex from str
-	| otherwise	= case convert from str of
+	| from == (to-1)	= pointOutIndex from str
+	| otherwise		= case convert from str of
 		fromL -> case convert to str of
 			toL -> pointOutLocationSpan (LocationSpan fromL toL) str
 			
@@ -41,11 +41,21 @@ pointOutLocationSpan (LocationSpan (fLine, fCol) (tLine, tCol)) str
 		putStrLn strLine
 		putStr (blank (substr strLine 0 fCol))
 		putStr "^"
-		putStrLn (repeatstr (tCol - fCol) '~')
+		putStrLn (repeatstr (tCol - fCol - 1) '~')
 		where strLine = fetchLine fLine str
 		
-merge :: IndexSpan -> IndexSpan -> IndexSpan
-merge (IndexSpan xx xy) (IndexSpan yx yy) = IndexSpan (min xx yx) (max xy yy)
+class Span a where
+	merge :: a -> a -> a
+
+instance Span IndexSpan where
+	merge (IndexSpan xx xy) (IndexSpan yx yy) = IndexSpan (min xx yx) (max xy yy)
+
+instance Span LocationSpan where
+	merge (LocationSpan xx xy) (LocationSpan yx yy) = case (xx <= yx, xy <= yy) of
+		(False, False)	-> LocationSpan yx xy
+		(False, True)	-> LocationSpan yx yy
+		(True, False)	-> LocationSpan xx xy
+		(True, True)	-> LocationSpan xx yy
 
 convert :: Index -> String -> Location
 convert n str = convert1 n str (0, 0)

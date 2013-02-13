@@ -11,7 +11,7 @@ prettyPrinter f g [] = f '\n'
 prettyPrinter f g (Left c : xs) = f c >> prettyPrinter f g xs
 prettyPrinter f g (Right s : xs) = g s >> prettyPrinter f g xs
 
-prettyPrint :: Monad m => (Printer (m a)) -> Program -> m a
+prettyPrint :: Monad m => (Printer (m a)) -> Program b -> m a
 prettyPrint f prog = f (outputProgram prog)
 
 -- Plain Output

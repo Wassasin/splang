@@ -1,49 +1,50 @@
 module AST where
 
 -- Derived from the original grammar
-type Program = [Decl]
+data Program a = Program [Decl a] a
+	deriving (Show, Eq)
 
 -- I have inlined both VarDecl, FunDecl and FArgs
-data Decl = VarDecl Type Identifier Expr
-	| FunDecl Type Identifier [(Type, Identifier)] [Decl] [Stmt]
+data Decl a = VarDecl (Type a) Identifier (Expr a) a
+	| FunDecl (Type a) Identifier [(Type a, Identifier)] [Decl a] [Stmt a] a
 	deriving (Show, Eq)
 
 -- I have merged RetType and Type
-data Type = Void
-	| Int
-	| Bool
-	| Identifier Identifier
-	| Product Type Type
-	| ListType Type
+data Type a = Void a
+	| Int a
+	| Bool a
+	| Identifier Identifier a
+	| Product (Type a) (Type a) a
+	| ListType (Type a) a
 	deriving (Show, Eq)
 
 -- We allow an Expr to be an statement, for example we dont need an extra FunCall now
-data Stmt = Expr Expr
-	| Scope [Stmt]
-	| If Expr Stmt
-	| IfElse Expr Stmt Stmt
-	| While Expr Stmt
-	| Assignment Identifier Expr
-	| Return Expr
+data Stmt a = Expr (Expr a) a
+	| Scope [Stmt a] a
+	| If (Expr a) (Stmt a) a
+	| IfElse (Expr a) (Stmt a) (Stmt a) a
+	| While (Expr a) (Stmt a) a
+	| Assignment Identifier (Expr a) a
+	| Return (Expr a) a
 	deriving (Show, Eq)
 
-data Expr = Var Identifier
-	| Binop Expr BinaryOperator Expr
-	| Unop UnaryOperator Expr
-	| Kint AST.Integer
-	| Kbool Boolean
-	| FunCall Identifier [Expr]
-	| Pair Expr Expr
-	| List [Expr]
+data Expr a = Var Identifier a
+	| Binop (Expr a) (BinaryOperator a) (Expr a) a
+	| Unop (UnaryOperator a) (Expr a) a
+	| Kint AST.Integer a
+	| Kbool Boolean a
+	| FunCall Identifier [Expr a] a
+	| Pair (Expr a) (Expr a) a
+	| List [Expr a] a
 	deriving (Show, Eq)
 
-data BinaryOperator = Multiplication | Division | Modulo
-	| Plus | Minus | Cons
-	| Equals | LesserThan | GreaterThan | LesserEqualThan | GreaterEqualThan | Nequals
-	| And | Or
+data BinaryOperator a = Multiplication a | Division a | Modulo a
+	| Plus a | Minus a | Cons a
+	| Equals a | LesserThan a | GreaterThan a | LesserEqualThan a | GreaterEqualThan a | Nequals a
+	| And a | Or a
 	deriving (Show, Eq)
 
-data UnaryOperator = Not | Negative
+data UnaryOperator a = Not a | Negative a
 	deriving (Show, Eq)
 
 type Identifier = String
