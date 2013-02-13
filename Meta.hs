@@ -3,11 +3,11 @@ module Meta where
 import qualified Source
 import AST
 
-data P1Meta = P1 {src :: Source.LocationSpan}
+data P1Meta = P1 {src :: Source.IndexSpan}
 
 type P1 a = a P1Meta
 
-constructP1 :: Source.LocationSpan -> P1Meta
+constructP1 :: Source.IndexSpan -> P1Meta
 constructP1 l = P1 {src=l}
 
 class ASTMeta a where

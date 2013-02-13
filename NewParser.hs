@@ -7,9 +7,6 @@ import Meta
 
 type Token = Lexer.Token Source.IndexSpan
 
--- AST element (P1)
--- P1A
-
 data Error = Unexpected Token | EndOfStream
 type ParseInput = (Source.IndexSpan, [Token])
 
@@ -45,8 +42,8 @@ bestNoMatch (Unexpected (Lexer.Token x (Source.IndexSpan xx xy))) (Unexpected (L
 	| xx <= yx	= Unexpected (Lexer.Token y (Source.IndexSpan yx yy))
 	| otherwise	= Unexpected (Lexer.Token x (Source.IndexSpan xx xy))
 
-(\/) :: ParseFunc a -> ParseFunc a -> ParseFunc a
-(\/) f g = (\ i -> case (f i, g i) of
+(<|>) :: ParseFuncD a -> ParseFuncD a -> ParseFuncD a
+(<|>) fd gd = mo (\ i -> case ((bo fd) i, (bo gd) i) of
 		(Match xs, Match ys)	-> Match (xs ++ ys)
 		(Match xs, NoMatch _)	-> Match xs
 		(NoMatch _, Match ys)	-> Match ys
@@ -66,21 +63,54 @@ instance Monad ParseFuncD where
 					(_, matchesSet) -> Match (concat matchesSet)
 		)
 
---	return :: ASTMeta a => a -> ParseFuncD a
+--	return :: a -> ParseFuncD a
 	return a = mo (\ i -> Match [(a, i)])
 
-parseToken :: (Lexer.TokenE -> Bool) -> ParseFunc Lexer.TokenE
-parseToken _ (l, [])	= NoMatch EndOfStream
-parseToken f (_, (Lexer.Token t l:xs))
-	| f t		= Match [(t, (l, xs))]
-	| otherwise	= NoMatch (Unexpected (Lexer.Token t l))
+produce :: (Source.IndexSpan -> a) -> ParseFuncD a
+produce f = mo (\ (l, xs) -> Match [(f l, (l, xs))])
 
+parseToken :: (Lexer.TokenE -> Bool) -> ParseFuncD Lexer.TokenE
+parseToken f = mo (\ i -> case i of
+		(l, [])				-> NoMatch EndOfStream
+		(_, (Lexer.Token t l:xs))	-> case f t of
+			True -> Match [(t, (l, xs))]
+			False -> NoMatch (Unexpected (Lexer.Token t l))
+	)
+	
+equalsToken :: Lexer.TokenE -> ParseFuncD Lexer.TokenE
+equalsToken t = parseToken ((==) t)
 
+parseOne :: (Token -> Maybe a) -> ParseFunc a
+parseOne f (_, (Lexer.Token t l):xs) = case f (Lexer.Token t l) of
+	Nothing -> NoMatch (Unexpected (Lexer.Token t l))
+	Just result -> Match [(result, (l, xs))]
 
--- parseBasicType :: ParseFunc (P1 AST.Type)
--- parseBasicType = mytoken (\x -> case x of
-	-- Lexer.Token (Lexer.Type y) l -> Just (case y of
--- 		Lexer.Void -> AST.Void (constructP1 l)
---  		Lexer.Int -> AST.Int (constructP1 l)
--- 		Lexer.Bool -> AST.Bool (constructP1 l))
--- 	_ -> Nothing)
+parseBasicType :: ParseFuncD (P1 AST.Type)
+parseBasicType = mo (parseOne (\x -> case x of
+		Lexer.Token (Lexer.Type t) l -> Just (case t of
+			Lexer.Void	-> AST.Void (constructP1 l)
+			Lexer.Int	-> AST.Int (constructP1 l)
+			Lexer.Bool	-> AST.Bool (constructP1 l))
+		_ -> Nothing
+	))
+
+parseType :: ParseFuncD (P1 AST.Type)
+parseType = parseBasicType
+	<|>	do
+		equalsToken Lexer.ParenthesesOpen
+		t1 <- parseType
+		t2 <- parseType
+		equalsToken Lexer.ParenthesesClose
+		produce (\l -> AST.Product (constructP1 l) t1 t2)
+	<|>	do
+		equalsToken Lexer.SquareBracketsOpen
+		t <- parseType
+		equalsToken Lexer.SquareBracketsClose
+		produce (\l -> AST.ListType (constructP1 l) t)
+	<|>	do
+		equalsToken Lexer.SquareBracketsOpen
+		t <- parseType;
+		equalsToken Lexer.SquareBracketsClose
+		produce (\l -> AST.ListType (constructP1 l) t)
+--	<|> (parseIdentifier >>= return . AST.Identifier)
+
