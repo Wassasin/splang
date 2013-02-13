@@ -60,7 +60,7 @@ bestNoMatch (Unexpected (Lexer.Token x (Source.IndexSpan xx xy))) (Unexpected (L
 many1 :: ParseFuncD a -> ParseFuncD [a]
 many1 fd = do
 	t <- fd
-	(many fd >>= return . (t:)) <|> return [t]
+	(many1 fd >>= return . (t:)) <|> return [t]
 
 many :: ParseFuncD a -> ParseFuncD [a]
 many fd = do
@@ -130,7 +130,7 @@ parseVarDecl = do
 	equalsToken Lexer.AssignmentSign
 	e <- parseExpr
 	equalsToken Lexer.Semicolon
-	produceP1 AST.VarDecl t i e
+	produceP1 (AST.VarDecl t i e)
 
 parseFunDecl :: ParseFuncD (P1 AST.Decl)
 parseFunDecl = do
@@ -143,7 +143,7 @@ parseFunDecl = do
 	vdecls <- many parseVarDecl
 	stmts <- many1 parseStmt
 	equalsToken Lexer.CurlyBracketClose
-	produceP1 AST.FunDecl t i fargs vdecls stmts
+	produceP1 (AST.FunDecl t i fargs vdecls stmts)
 
 parseFarg :: ParseFuncD (P1 AST.Type, AST.Identifier)
 parseFarg = do
@@ -194,7 +194,7 @@ parseStmt = newObject (
 
 -- TODO: add FunCall
 parseExpr :: ParseFuncD (P1 AST.Expr)
-parseExpr = parseTerm1
+parseExpr = newObject parseTerm1
 
 parseTerm1 :: ParseFuncD (P1 AST.Expr)
 parseTerm1 = parseTerm2
@@ -229,18 +229,18 @@ parseTerm3 = parseTerm4
 		produceP1 (AST.Unop b expr)
 
 parseTerm4 :: ParseFuncD (P1 AST.Expr)
-parseTerm4 = parseIdentifier
-	<|> parseInteger
+parseTerm4 = parseVar
+	<|> parseKint
 	<|> do
-		i <- parseIdentifier
+		v <- parseVar
 		b <- parseOp2Mult
 		t <- parseTerm4
-		produceP1 (AST.Binop (AST.Var i) b t)
+		produceP1 (AST.Binop v b t)
 	<|> do
-		n <- parseInteger
+		n <- parseKint
 		b <- parseOp2Mult
 		t <- parseTerm4
-		produceP1 (AST.Binop (AST.Kint n) b t)
+		produceP1 (AST.Binop n b t)
 	<|> do
 		equalsToken Lexer.ParenthesesOpen
 		expr <- parseExpr
@@ -256,6 +256,18 @@ parseTerm4 = parseIdentifier
 		equalsToken Lexer.SquareBracketsOpen
 		equalsToken Lexer.SquareBracketsOpen
 		produceP1 (AST.List [])
+
+parseVar :: ParseFuncD (P1 AST.Expr)
+parseVar = newObject ( do
+		i <- parseIdentifier
+		produceP1 (AST.Var i)
+	)
+
+parseKint :: ParseFuncD (P1 AST.Expr)
+parseKint = newObject ( do
+		n <- parseInteger
+		produceP1 (AST.Kint n)
+	)
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
 parseBasicType = parseOne ( \x -> case x of

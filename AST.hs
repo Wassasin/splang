@@ -2,6 +2,7 @@ module AST where
 
 -- Derived from the original grammar
 data Program a = Program [Decl a] a
+	deriving (Show, Eq)
 
 -- I have inlined both VarDecl, FunDecl and FArgs
 data Decl a = VarDecl (Type a) Identifier (Expr a) a

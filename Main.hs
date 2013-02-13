@@ -25,7 +25,7 @@ test = do
 					Left [x]		-> putStrLn (outputProgram x)
 					Left xs			-> do
 						putStrLn "Multiple options:"
-						putStr (foldr1 (++) (map ((++ "\n") . show) xs))
+						putStr (foldr1 (++) (map ((++ "\n\n") . show) xs))
 					Right EndOfStream	-> putStrLn "Error on end of stream"
 					Right (Unexpected (Lexer.Token t l)) -> do	
 						putStr "Unexpected token "

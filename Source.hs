@@ -27,8 +27,8 @@ pointOutLocation (line, col) str = do
 
 pointOutIndexSpan :: IndexSpan -> String -> IO ()
 pointOutIndexSpan (IndexSpan from to) str
-	| from == to	= pointOutIndex from str
-	| otherwise	= case convert from str of
+	| from == (to-1)	= pointOutIndex from str
+	| otherwise		= case convert from str of
 		fromL -> case convert to str of
 			toL -> pointOutLocationSpan (LocationSpan fromL toL) str
 			
