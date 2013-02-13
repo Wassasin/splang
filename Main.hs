@@ -24,8 +24,8 @@ test = do
 				case (parse parseProgram xs) of
 					Left [x]		-> putStrLn (outputProgram x)
 					Left xs			-> do
-						putStrLn "Multiple options:"
-						putStr (foldr1 (++) (map ((++ "\n\n") . show) xs))
+						putStrLn "Ambiguous input - able to derive multiple programs"
+						putStrLn (concat (map ((\str -> "Option:\n" ++ str ++ "\n") . outputProgram) xs))
 					Right EndOfStream	-> putStrLn "Error on end of stream"
 					Right (Unexpected (Lexer.Token t l)) -> do	
 						putStr "Unexpected token "
