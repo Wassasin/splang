@@ -2,7 +2,6 @@ module ParserLib where
 
 import qualified Source
 import qualified Lexer
-import qualified AST
 import Meta
 
 type Token = Lexer.Token Source.IndexSpan
