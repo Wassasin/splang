@@ -21,8 +21,8 @@ test = do
 			xs -> do
 				print xs
 				putStrLn "Parsing result:"
-				case (parse parseType xs) of
-					Left [x]		-> putStrLn (outputType x)
+				case (parse parseProgram xs) of
+					Left [x]		-> putStrLn (outputProgram x)
 					Left xs			-> do
 						putStrLn "Multiple options:"
 						putStr (foldr1 (++) (map ((++ "\n") . show) xs))

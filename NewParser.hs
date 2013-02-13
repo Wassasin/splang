@@ -57,6 +57,15 @@ bestNoMatch (Unexpected (Lexer.Token x (Source.IndexSpan xx xy))) (Unexpected (L
 		(NoMatch t, NoMatch u)	-> NoMatch (bestNoMatch t u)
 	)
 
+many1 :: ParseFuncD a -> ParseFuncD [a]
+many1 fd = do
+	t <- fd
+	(many fd >>= return . (t:)) <|> return [t]
+
+many :: ParseFuncD a -> ParseFuncD [a]
+many fd = do
+	many1 fd <|> return []
+
 instance Monad ParseFuncD where
 --	(>>=) :: ParseFuncD a -> (a -> ParseFuncD b) -> ParseFuncD b
 	(>>=) fd gm = mo (\ (l0, xs) -> case (bo fd) (l0, xs) of
@@ -105,6 +114,148 @@ parseOne f = mo (\ i -> case i of
 			Nothing -> NoMatch (Unexpected (Lexer.Token t l))
 			Just result -> Match [(result, (Source.merge il l, xs))]
 	)
+
+parseProgram :: ParseFuncD (P1 AST.Program)
+parseProgram = do
+	decls <- many1 parseDecl
+	produceP1 (AST.Program decls)
+
+parseDecl :: ParseFuncD (P1 AST.Decl)
+parseDecl = parseVarDecl <|> parseFunDecl
+
+parseVarDecl :: ParseFuncD (P1 AST.Decl)
+parseVarDecl = do
+	t <- parseType
+	i <- parseIdentifier
+	equalsToken Lexer.AssignmentSign
+	e <- parseExpr
+	equalsToken Lexer.Semicolon
+	produceP1 AST.VarDecl t i e
+
+parseFunDecl :: ParseFuncD (P1 AST.Decl)
+parseFunDecl = do
+	t <- parseType
+	i <- parseIdentifier
+	equalsToken Lexer.ParenthesesOpen
+	fargs <- parseFargs
+	equalsToken Lexer.ParenthesesClose
+	equalsToken Lexer.CurlyBracketOpen
+	vdecls <- many parseVarDecl
+	stmts <- many1 parseStmt
+	equalsToken Lexer.CurlyBracketClose
+	produceP1 AST.FunDecl t i fargs vdecls stmts
+
+parseFarg :: ParseFuncD (P1 AST.Type, AST.Identifier)
+parseFarg = do
+	t <- newObject parseType
+	i <- newObject parseIdentifier
+	return (t, i)
+
+parseFargs :: ParseFuncD [(P1 AST.Type, AST.Identifier)]
+parseFargs = do
+	farg <- parseFarg
+	(equalsToken Lexer.Comma >> parseFargs >>= return . (farg:)) <|> return [farg]
+	<|> return []
+
+-- TODO: Add if-else
+parseStmt :: ParseFuncD (P1 AST.Stmt)
+parseStmt = newObject (
+	do
+		equalsToken Lexer.CurlyBracketOpen
+		stmts <- many1 parseStmt
+		equalsToken Lexer.CurlyBracketClose
+		produceP1 (AST.Scope stmts)
+	<|> do
+		equalsToken Lexer.If
+		equalsToken Lexer.ParenthesesOpen
+		expr <- parseExpr
+		equalsToken Lexer.ParenthesesClose
+		stmt <- parseStmt
+		produceP1 (AST.If expr stmt)
+	<|> do
+		equalsToken Lexer.While
+		equalsToken Lexer.ParenthesesOpen
+		expr <- parseExpr
+		equalsToken Lexer.ParenthesesClose
+		stmt <- parseStmt
+		produceP1 (AST.While expr stmt)
+	<|> do
+		i <- parseIdentifier
+		equalsToken Lexer.AssignmentSign
+		expr <- parseExpr
+		equalsToken Lexer.Semicolon
+		produceP1 (AST.Assignment i expr)
+	<|> do
+		equalsToken Lexer.Return
+		expr <- parseExpr
+		equalsToken Lexer.Semicolon
+		produceP1 (AST.Return expr)
+	)
+
+-- TODO: add FunCall
+parseExpr :: ParseFuncD (P1 AST.Expr)
+parseExpr = parseTerm1
+
+parseTerm1 :: ParseFuncD (P1 AST.Expr)
+parseTerm1 = parseTerm2
+	<|> do
+		expr1 <- parseTerm2
+		b <- parseOp2Bool
+		expr2 <- parseTerm1
+		produceP1 (AST.Binop expr1 b expr2)
+	<|> do
+		b <- parseOpNot;
+		expr <- parseTerm3;
+		produceP1 (AST.Unop b expr)
+
+parseTerm2 :: ParseFuncD (P1 AST.Expr)
+parseTerm2 = parseTerm3
+	<|> do
+		expr1 <- parseTerm3
+		b <- parseOp2Equal
+		expr2 <- parseTerm2
+		produceP1 (AST.Binop expr1 b expr2)
+
+parseTerm3 :: ParseFuncD (P1 AST.Expr)
+parseTerm3 = parseTerm4
+	<|> do
+		expr1 <- parseTerm4
+		b <- parseOp2Add
+		expr2 <- parseTerm3
+		produceP1 (AST.Binop expr1 b expr2)
+	<|> do
+		b <- parseOpNegative
+		expr <- parseTerm3
+		produceP1 (AST.Unop b expr)
+
+parseTerm4 :: ParseFuncD (P1 AST.Expr)
+parseTerm4 = parseIdentifier
+	<|> parseInteger
+	<|> do
+		i <- parseIdentifier
+		b <- parseOp2Mult
+		t <- parseTerm4
+		produceP1 (AST.Binop (AST.Var i) b t)
+	<|> do
+		n <- parseInteger
+		b <- parseOp2Mult
+		t <- parseTerm4
+		produceP1 (AST.Binop (AST.Kint n) b t)
+	<|> do
+		equalsToken Lexer.ParenthesesOpen
+		expr <- parseExpr
+		equalsToken Lexer.ParenthesesClose
+		return expr
+	<|> do
+		equalsToken Lexer.TrueT
+		produceP1 (AST.Kbool True)
+	<|> do
+		equalsToken Lexer.FalseT
+		produceP1 (AST.Kbool False)
+	<|> do
+		equalsToken Lexer.SquareBracketsOpen
+		equalsToken Lexer.SquareBracketsOpen
+		produceP1 (AST.List [])
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
 parseBasicType = parseOne ( \x -> case x of
