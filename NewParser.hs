@@ -7,7 +7,8 @@ import Meta
 
 type Token = Lexer.Token Source.IndexSpan
 
-data Error = Unexpected Token | EndOfStream
+data Error = Unexpected Token | EndOfStream | Ambiguity
+	deriving (Show, Eq)
 type ParseInput = (Source.IndexSpan, [Token])
 
 data ParseResult a = Match [(a, ParseInput)] | NoMatch Error
@@ -19,6 +20,18 @@ bo (PF f) = f
 
 mo :: ParseFunc a -> ParseFuncD a
 mo f = PF f
+
+parse :: ParseFuncD a -> [Token] -> Either [a] Error
+parse f is = (case (bo f) (Source.IndexSpan 0 0, is) of
+		NoMatch e	-> Right e
+		Match xs	-> (case dualmap (\ i -> (case i of
+					(x, (_, []))	-> Left x	-- Completely parsed, possible result
+					(_, (_, t:_))	-> Right t	-- Tokens left to parse
+				)) xs of
+					([], ts)	-> Right (foldr1 bestNoMatch (map (\ t -> Unexpected t) ts)) -- If no options, show last token where parsing terminated
+					(xs, _)		-> Left xs	-- Return all possible options (ideally one option)
+			)
+	)
 
 fap :: (a -> Maybe b) -> [a] -> [b]
 fap f [] = []
@@ -86,7 +99,7 @@ parseOne f (_, (Lexer.Token t l):xs) = case f (Lexer.Token t l) of
 	Just result -> Match [(result, (l, xs))]
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
-parseBasicType = mo (parseOne (\x -> case x of
+parseBasicType = mo (parseOne ( \x -> case x of
 		Lexer.Token (Lexer.Type t) l -> Just (case t of
 			Lexer.Void	-> AST.Void (constructP1 l)
 			Lexer.Int	-> AST.Int (constructP1 l)
@@ -99,6 +112,7 @@ parseType = parseBasicType
 	<|>	do
 		equalsToken Lexer.ParenthesesOpen
 		t1 <- parseType
+		equalsToken Lexer.Comma
 		t2 <- parseType
 		equalsToken Lexer.ParenthesesClose
 		produce (\l -> AST.Product (constructP1 l) t1 t2)
@@ -112,5 +126,12 @@ parseType = parseBasicType
 		t <- parseType;
 		equalsToken Lexer.SquareBracketsClose
 		produce (\l -> AST.ListType (constructP1 l) t)
---	<|> (parseIdentifier >>= return . AST.Identifier)
+	<|>	do
+		i <- parseIdentifier
+		produce (\l -> AST.Identifier (constructP1 l) i)
 
+parseIdentifier :: ParseFuncD AST.Identifier
+parseIdentifier = mo (parseOne ( \x -> case x of
+		(Lexer.Token (Lexer.Identifier str) l) -> Just str
+		_ -> Nothing
+	))

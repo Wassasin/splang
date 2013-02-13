@@ -6,9 +6,6 @@ import qualified Source
 import NewParser
 import Output
 
-import Text.Parsec
-import Text.Parsec.Error
-
 
 main :: IO ()
 main = test
@@ -20,16 +17,21 @@ test = do
 	putStrLn s
 	putStrLn "Lexing result:"
 	case Lexer.lexer (s, 0) of
-		Lexer.Match xs _ -> case filterComment (map (convertToken s) xs) of
+		Lexer.Match xs _ -> case filterComment xs of
 			xs -> do
 				print xs
-				--putStrLn "Parsing result:"
-				--case (parse parseProgram file xs) of
-				--	Right x -> putStrLn (outputProgram x)
-				--	Left pError -> case (errorPos pError) of
-				--		pPos -> do
-				--			print pError
-				--			Source.pointOutLocation (sourceLine pPos-1, sourceColumn pPos-1) s
+				putStrLn "Parsing result:"
+				case (parse parseType xs) of
+					Left [x]		-> putStrLn (outputType x)
+					Left xs			-> do
+						putStrLn "Multiple options:"
+						putStr (foldr1 (++) (map ((++ "\n") . show) xs))
+					Right EndOfStream	-> putStrLn "Error on end of stream"
+					Right (Unexpected (Lexer.Token t l)) -> do	
+						putStr "Unexpected token "
+						putStr (show t)
+						putStr " "
+						Source.pointOutIndexSpan l s
 		Lexer.NoMatch lError -> do
 			putStr "Unexpected sequence of characters starting "
 			Source.pointOutIndex lError s

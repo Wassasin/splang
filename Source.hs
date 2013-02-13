@@ -44,7 +44,7 @@ pointOutLocationSpan (LocationSpan (fLine, fCol) (tLine, tCol)) str
 		putStrLn strLine
 		putStr (blank (substr strLine 0 fCol))
 		putStr "^"
-		putStrLn (repeatstr (tCol - fCol) '~')
+		putStrLn (repeatstr (tCol - fCol - 1) '~')
 		where strLine = fetchLine fLine str
 		
 class Span a where
