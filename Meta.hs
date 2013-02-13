@@ -15,38 +15,38 @@ class ASTMeta a where
 	getMeta :: a b -> b
 
 instance ASTMeta Program where
-	getMeta (Program m _) = m
+	getMeta (Program _ m) = m
 
 instance ASTMeta Decl where
-	getMeta (VarDecl m _ _ _) = m
-	getMeta (FunDecl m _ _ _ _ _) = m
+	getMeta (VarDecl _ _ _ m) = m
+	getMeta (FunDecl _ _ _ _ _ m) = m
 
 instance ASTMeta Type where
 	getMeta (Void m) = m
 	getMeta (Int m) = m
 	getMeta (Bool m) = m
-	getMeta (Identifier m _) = m
-	getMeta (Product m _ _) = m
-	getMeta (ListType m _) = m
+	getMeta (Identifier _ m) = m
+	getMeta (Product _ _ m) = m
+	getMeta (ListType _ m) = m
 
 instance ASTMeta Stmt where
-	getMeta (Expr m _) = m
-	getMeta (Scope m _) = m
-	getMeta (If m _ _) = m
-	getMeta (IfElse m _ _ _) = m
-	getMeta (While m _ _) = m
-	getMeta (Assignment m _ _) = m
-	getMeta (Return m _) = m
+	getMeta (Expr _ m) = m
+	getMeta (Scope _ m) = m
+	getMeta (If _ _ m) = m
+	getMeta (IfElse _ _ _ m) = m
+	getMeta (While _ _ m) = m
+	getMeta (Assignment _ _ m) = m
+	getMeta (Return _ m) = m
 
 instance ASTMeta Expr where
-	getMeta (Var m _) = m
-	getMeta (Binop m _ _ _) = m
-	getMeta (Unop m _ _) = m
-	getMeta (Kint m _) = m
-	getMeta (Kbool m _) = m
-	getMeta (FunCall m _ _) = m
-	getMeta (Pair m _ _) = m
-	getMeta (List m _) = m
+	getMeta (Var _ m) = m
+	getMeta (Binop _ _ _ m) = m
+	getMeta (Unop _ _ m) = m
+	getMeta (Kint _ m) = m
+	getMeta (Kbool _ m) = m
+	getMeta (FunCall _ _ m) = m
+	getMeta (Pair _ _ m) = m
+	getMeta (List _ m) = m
 
 instance ASTMeta BinaryOperator where
 	getMeta (Multiplication m) = m

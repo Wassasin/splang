@@ -76,6 +76,9 @@ instance Monad ParseFuncD where
 produce :: (Source.IndexSpan -> a) -> ParseFuncD a
 produce f = mo (\ (l, xs) -> Match [(f l, (l, xs))])
 
+produceP1 :: (P1Meta -> a) -> ParseFuncD a
+produceP1 f = produce (f . constructP1)
+
 newObject :: ParseFuncD a -> ParseFuncD a
 newObject fd = mo (\ (Source.IndexSpan from to, is) -> case (bo fd) (Source.IndexSpan to to, is) of
 		NoMatch e	-> NoMatch e
@@ -121,15 +124,69 @@ parseType = newObject (
 			equalsToken Lexer.Comma
 			t2 <- parseType
 			equalsToken Lexer.ParenthesesClose
-			produce (\l -> AST.Product (constructP1 l) t1 t2)
+			produceP1 (AST.Product t1 t2)
 		<|>	do
 			equalsToken Lexer.SquareBracketsOpen
 			t <- parseType
 			equalsToken Lexer.SquareBracketsClose
-			produce (\l -> AST.ListType (constructP1 l) t)
+			produceP1 (AST.ListType t)
 		<|>	do
 			i <- parseIdentifier
-			produce (\l -> AST.Identifier (constructP1 l) i)
+			produceP1 (AST.Identifier i)
+	)
+
+operatorToken :: (Lexer.OperatorE -> Maybe (P1Meta -> a)) -> ParseFuncD a
+operatorToken f = parseOne ( \t -> case t of
+		Lexer.Token (Lexer.Operator op) l -> case f op of
+			Just x	-> Just (x (constructP1 l))
+			Nothing	-> Nothing
+		_ -> Nothing
+	)
+
+parseOp2Mult :: ParseFuncD (P1 AST.BinaryOperator)
+parseOp2Mult = operatorToken (\op -> case op of
+		Lexer.Multiplication	-> Just AST.Multiplication
+		Lexer.Division		-> Just AST.Division
+		Lexer.Modulo		-> Just AST.Modulo
+		_			-> Nothing
+	)
+
+parseOp2Add :: ParseFuncD (P1 AST.BinaryOperator)
+parseOp2Add = operatorToken (\op -> case op of
+		Lexer.Plus	-> Just AST.Plus
+		Lexer.Minus	-> Just AST.Minus
+		Lexer.Cons	-> Just AST.Cons
+		_		-> Nothing
+	)
+
+parseOp2Equal :: ParseFuncD (P1 AST.BinaryOperator)
+parseOp2Equal = operatorToken (\op -> case op of
+		Lexer.Equals		-> Just AST.Equals
+		Lexer.LesserThan	-> Just AST.LesserThan
+		Lexer.GreaterThan	-> Just AST.GreaterThan
+		Lexer.LesserEqualThan	-> Just AST.LesserEqualThan
+		Lexer.GreaterEqualThan	-> Just AST.GreaterEqualThan
+		Lexer.Nequals		-> Just AST.Nequals
+		_ -> Nothing
+	)
+
+parseOp2Bool :: ParseFuncD (P1 AST.BinaryOperator)
+parseOp2Bool = operatorToken (\op -> case op of
+		Lexer.And		-> Just AST.And
+		Lexer.Or		-> Just AST.Or
+		_ -> Nothing
+	)
+
+parseOpNot :: ParseFuncD (P1 AST.UnaryOperator)
+parseOpNot = operatorToken (\op -> case op of
+		Lexer.Not		-> Just AST.Not
+		_ -> Nothing
+	)
+
+parseOpNegative :: ParseFuncD (P1 AST.UnaryOperator)
+parseOpNegative = operatorToken (\op -> case op of
+		Lexer.Minus -> Just AST.Negative
+		_ -> Nothing
 	)
 
 parseIdentifier :: ParseFuncD AST.Identifier

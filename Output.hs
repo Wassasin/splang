@@ -11,11 +11,11 @@ tabs :: Int -> String
 tabs x = take x (repeat '\t')
 
 outputProgram :: Program a -> String
-outputProgram (Program _ xs) = join (outputDecl 0) "\n\n" xs
+outputProgram (Program xs _) = join (outputDecl 0) "\n\n" xs
 
 outputDecl :: Int -> Decl a -> String
-outputDecl n (VarDecl _ t i e) = tabs n ++ outputType t ++ " " ++ i ++ " = " ++ outputExpr e ++ ";"
-outputDecl n (FunDecl _ t i args vdecls stmts) = tabs n ++ outputType t ++ " " ++ i ++ "(" ++ join outputArg ", " args ++ "){\n" ++ join (outputDecl (n+1)) "\n" vdecls ++ "\n" ++ join (outputStmt (n+1)) "\n" stmts ++ tabs n ++ "\n}"
+outputDecl n (VarDecl t i e _) = tabs n ++ outputType t ++ " " ++ i ++ " = " ++ outputExpr e ++ ";"
+outputDecl n (FunDecl t i args vdecls stmts _) = tabs n ++ outputType t ++ " " ++ i ++ "(" ++ join outputArg ", " args ++ "){\n" ++ join (outputDecl (n+1)) "\n" vdecls ++ "\n" ++ join (outputStmt (n+1)) "\n" stmts ++ tabs n ++ "\n}"
 
 outputArg :: (Type a, Identifier) -> String
 outputArg (t, i) = outputType t ++ " " ++ i
@@ -24,28 +24,28 @@ outputType :: Type a -> String
 outputType (Void _)		= "Void"
 outputType (Int _)		= "Int"
 outputType (Bool _)		= "Bool"
-outputType (Identifier _ i)	= i
-outputType (Product _ t1 t2)	= "(" ++ outputType t1 ++ ", " ++ outputType t2 ++ ")"
-outputType (ListType _ t)	= "[" ++ outputType t ++ "]"
+outputType (Identifier i _)	= i
+outputType (Product t1 t2 _)	= "(" ++ outputType t1 ++ ", " ++ outputType t2 ++ ")"
+outputType (ListType t _)	= "[" ++ outputType t ++ "]"
 
 outputStmt :: Int -> Stmt a -> String
-outputStmt n (Expr _ e)		= tabs n ++ outputExpr e ++ ";"
-outputStmt n (Scope _ stmts)	= tabs n ++ "{\n" ++ join (outputStmt (n+1)) "\n" stmts ++ "\n" ++ tabs n ++ "}"
-outputStmt n (If _ e stmt)	= tabs n ++ "if(" ++ outputExpr e ++ ")\n" ++ outputStmt (n+1) stmt
-outputStmt n (IfElse _ e s1 s2)	= tabs n ++ "if(" ++ outputExpr e ++ ")\n" ++ outputStmt (n+1) s1 ++ "\n" ++ tabs n ++ "else\n" ++ outputStmt (n+1) s2
-outputStmt n (While _ e stmt)	= tabs n ++ "while(" ++ outputExpr e ++ ")\n" ++ tabs n ++ outputStmt (n+1) stmt
-outputStmt n (Assignment _ i e)	= tabs n ++ i ++ " = " ++ outputExpr e ++ ";"
-outputStmt n (Return _ e)	= tabs n ++ "return " ++ outputExpr e ++ ";"
+outputStmt n (Expr e _)		= tabs n ++ outputExpr e ++ ";"
+outputStmt n (Scope stmts _)	= tabs n ++ "{\n" ++ join (outputStmt (n+1)) "\n" stmts ++ "\n" ++ tabs n ++ "}"
+outputStmt n (If e stmt _)	= tabs n ++ "if(" ++ outputExpr e ++ ")\n" ++ outputStmt (n+1) stmt
+outputStmt n (IfElse e s1 s2 _)	= tabs n ++ "if(" ++ outputExpr e ++ ")\n" ++ outputStmt (n+1) s1 ++ "\n" ++ tabs n ++ "else\n" ++ outputStmt (n+1) s2
+outputStmt n (While e stmt _)	= tabs n ++ "while(" ++ outputExpr e ++ ")\n" ++ tabs n ++ outputStmt (n+1) stmt
+outputStmt n (Assignment i e _)	= tabs n ++ i ++ " = " ++ outputExpr e ++ ";"
+outputStmt n (Return e _)	= tabs n ++ "return " ++ outputExpr e ++ ";"
 
 outputExpr :: Expr a -> String
-outputExpr (Var _ i) 		= i
-outputExpr (Binop _ e1 bop e2)	= "(" ++ outputExpr e1 ++ outputBinaryOperator bop ++ outputExpr e2 ++ ")"
-outputExpr (Unop _ uop e)	= "(" ++ outputUnaryOperator uop ++ outputExpr e ++ ")"
-outputExpr (Kint _ n)		= show n
-outputExpr (Kbool _ b)		= show b
-outputExpr (FunCall _ i exprs)	= i ++ "(" ++ join outputExpr ", " exprs ++ ")"
-outputExpr (Pair _ e1 e2)	= "(" ++ outputExpr e1 ++ ", " ++ outputExpr e2 ++ ")"
-outputExpr (List _ exprs)	= "[" ++ join outputExpr ", " exprs ++ "]"
+outputExpr (Var i _) 		= i
+outputExpr (Binop e1 bop e2 _)	= "(" ++ outputExpr e1 ++ outputBinaryOperator bop ++ outputExpr e2 ++ ")"
+outputExpr (Unop uop e _)	= "(" ++ outputUnaryOperator uop ++ outputExpr e ++ ")"
+outputExpr (Kint n _)		= show n
+outputExpr (Kbool b _)		= show b
+outputExpr (FunCall i exprs _)	= i ++ "(" ++ join outputExpr ", " exprs ++ ")"
+outputExpr (Pair e1 e2 _)	= "(" ++ outputExpr e1 ++ ", " ++ outputExpr e2 ++ ")"
+outputExpr (List exprs _)	= "[" ++ join outputExpr ", " exprs ++ "]"
 
 outputBinaryOperator :: BinaryOperator a -> String
 outputBinaryOperator (Multiplication _)		= " * "
