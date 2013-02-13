@@ -90,9 +90,12 @@ parseStmt = newObject (
 		expr <- parseExpr
 		equalsToken Lexer.Semicolon
 		produceP1 (AST.Return expr)
+	<|> do
+		expr <- parseExpr
+		equalsToken Lexer.Semicolon
+		produceP1 (AST.Expr expr)
 	)
 
--- TODO: add FunCall
 parseExpr :: ParseFuncD (P1 AST.Expr)
 parseExpr = newObject parseTerm1
 
@@ -153,8 +156,14 @@ parseTerm4 = parseVar
 		equalsToken Lexer.FalseT
 		produceP1 (AST.Kbool False)
 	<|> do
+		i <- parseIdentifier
+		equalsToken Lexer.ParenthesesOpen
+		args <- parseActArgs
+		equalsToken Lexer.ParenthesesClose
+		produceP1 (AST.FunCall i args)
+	<|> do
 		equalsToken Lexer.SquareBracketsOpen
-		equalsToken Lexer.SquareBracketsOpen
+		equalsToken Lexer.SquareBracketsClose
 		produceP1 (AST.List [])
 
 parseVar :: ParseFuncD (P1 AST.Expr)
@@ -168,6 +177,16 @@ parseKint = newObject ( do
 		n <- parseInteger
 		produceP1 (AST.Kint n)
 	)
+	
+parseActArgs :: ParseFuncD [P1 AST.Expr]
+parseActArgs = do
+		e <- parseExpr
+		return [e]
+	<|> do
+		e <- parseExpr
+		equalsToken Lexer.Comma
+		es <- parseActArgs
+		return (e:es)
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
 parseBasicType = parseOne ( \x -> case x of
