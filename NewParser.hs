@@ -65,12 +65,12 @@ bestNoMatch (Unexpected (Lexer.Token x (Source.IndexSpan xx xy))) (Unexpected (L
 
 instance Monad ParseFuncD where
 --	(>>=) :: ParseFuncD a -> (a -> ParseFuncD b) -> ParseFuncD b
-	(>>=) fd gm = mo (\ i -> case (bo fd) i of
+	(>>=) fd gm = mo (\ (l0, xs) -> case (bo fd) (l0, xs) of
 			NoMatch e -> NoMatch e
 			Match xms -> case dualmap (
 					\(a, (l1, ys)) -> case bo (gm a) (l1, ys) of
 						NoMatch e -> Left e
-						Match yms -> Right (map (\ (b, (l2, zs)) -> (b, (Source.merge l1 l2, zs))) yms)
+						Match yms -> Right (map (\ (b, (l2, zs)) -> (b, (foldr1 Source.merge [l0, l1, l2], zs))) yms)
 				) xms of
 					(errors, []) -> NoMatch (foldr1 bestNoMatch errors)
 					(_, matchesSet) -> Match (concat matchesSet)
@@ -82,11 +82,19 @@ instance Monad ParseFuncD where
 produce :: (Source.IndexSpan -> a) -> ParseFuncD a
 produce f = mo (\ (l, xs) -> Match [(f l, (l, xs))])
 
+newObject :: ParseFuncD a -> ParseFuncD a
+newObject fd = mo (\ (Source.IndexSpan from to, is) -> case (bo fd) (Source.IndexSpan to to, is) of
+		NoMatch e	-> NoMatch e
+		Match xs	-> Match (map (\output -> case output of
+				(x, (Source.IndexSpan _ rto, os)) -> (x, (Source.IndexSpan from rto, os))
+			) xs)
+	)
+
 parseToken :: (Lexer.TokenE -> Bool) -> ParseFuncD Lexer.TokenE
 parseToken f = mo (\ i -> case i of
 		(l, [])				-> NoMatch EndOfStream
-		(_, (Lexer.Token t l:xs))	-> case f t of
-			True -> Match [(t, (l, xs))]
+		(il, (Lexer.Token t l:xs))	-> case f t of
+			True -> Match [(t, (Source.merge il l, xs))]
 			False -> NoMatch (Unexpected (Lexer.Token t l))
 	)
 	
@@ -94,9 +102,9 @@ equalsToken :: Lexer.TokenE -> ParseFuncD Lexer.TokenE
 equalsToken t = parseToken ((==) t)
 
 parseOne :: (Token -> Maybe a) -> ParseFunc a
-parseOne f (_, (Lexer.Token t l):xs) = case f (Lexer.Token t l) of
+parseOne f (il, (Lexer.Token t l):xs) = case f (Lexer.Token t l) of
 	Nothing -> NoMatch (Unexpected (Lexer.Token t l))
-	Just result -> Match [(result, (l, xs))]
+	Just result -> Match [(result, (Source.merge il l, xs))]
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
 parseBasicType = mo (parseOne ( \x -> case x of
@@ -108,27 +116,24 @@ parseBasicType = mo (parseOne ( \x -> case x of
 	))
 
 parseType :: ParseFuncD (P1 AST.Type)
-parseType = parseBasicType
-	<|>	do
-		equalsToken Lexer.ParenthesesOpen
-		t1 <- parseType
-		equalsToken Lexer.Comma
-		t2 <- parseType
-		equalsToken Lexer.ParenthesesClose
-		produce (\l -> AST.Product (constructP1 l) t1 t2)
-	<|>	do
-		equalsToken Lexer.SquareBracketsOpen
-		t <- parseType
-		equalsToken Lexer.SquareBracketsClose
-		produce (\l -> AST.ListType (constructP1 l) t)
-	<|>	do
-		equalsToken Lexer.SquareBracketsOpen
-		t <- parseType;
-		equalsToken Lexer.SquareBracketsClose
-		produce (\l -> AST.ListType (constructP1 l) t)
-	<|>	do
-		i <- parseIdentifier
-		produce (\l -> AST.Identifier (constructP1 l) i)
+parseType = newObject (
+			parseBasicType
+		<|>	do
+			equalsToken Lexer.ParenthesesOpen
+			t1 <- parseType
+			equalsToken Lexer.Comma
+			t2 <- parseType
+			equalsToken Lexer.ParenthesesClose
+			produce (\l -> AST.Product (constructP1 l) t1 t2)
+		<|>	do
+			equalsToken Lexer.SquareBracketsOpen
+			t <- parseType
+			equalsToken Lexer.SquareBracketsClose
+			produce (\l -> AST.ListType (constructP1 l) t)
+		<|>	do
+			i <- parseIdentifier
+			produce (\l -> AST.Identifier (constructP1 l) i)
+	)
 
 parseIdentifier :: ParseFuncD AST.Identifier
 parseIdentifier = mo (parseOne ( \x -> case x of
