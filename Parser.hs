@@ -49,7 +49,6 @@ parseFargs = do
 	(equalsToken Lexer.Comma >> parseFargs >>= return . (farg:)) <|> return [farg]
 	<|> return []
 
--- TODO: Add if-else
 parseStmt :: ParseFuncD (P1 AST.Stmt)
 parseStmt = newObject (
 	do
@@ -64,6 +63,15 @@ parseStmt = newObject (
 		equalsToken Lexer.ParenthesesClose
 		stmt <- parseStmt
 		produceP1 (AST.If expr stmt)
+	<|> do
+		equalsToken Lexer.If
+		equalsToken Lexer.ParenthesesOpen
+		expr <- parseExpr
+		equalsToken Lexer.ParenthesesClose
+		tstmt <- parseStmt
+		equalsToken Lexer.Else
+		estmt <- parseStmt
+		produceP1 (AST.IfElse expr tstmt estmt)
 	<|> do
 		equalsToken Lexer.While
 		equalsToken Lexer.ParenthesesOpen
