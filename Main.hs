@@ -46,6 +46,9 @@ mkOptions argv =
 main :: IO ()
 main = test
 
+interleave file [] = []
+interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpreatation:" : x : interleave file xs
+
 test = do
 	(opts, [file]) <- getArgs >>= mkOptions
 	s <- readFile file
@@ -60,7 +63,7 @@ test = do
 					Left [x]		-> when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
 					Left xs			-> do
 						Console.putMessage Console.Error file (-1, -1) "Ambiguous input - able to derive multiple programs"
-						--putStrLn (concat (map ((\str -> "Option:\n" ++ str ++ "\n") . (prettyPrint (astPrinter opts))) xs))
+						sequence (interleave file $ fmap (prettyPrint (astPrinter opts)) xs) >> return ()
 					Right EndOfStream	-> putStrLn "Error on end of stream"
 					Right (Unexpected (Lexer.Token t l)) -> do
 						Console.putMessage Console.Error file (-1, -1) ("Unexpected token " ++ show t)
