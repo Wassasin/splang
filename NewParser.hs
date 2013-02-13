@@ -86,7 +86,7 @@ newObject fd = mo (\ (Source.IndexSpan from to, is) -> case (bo fd) (Source.Inde
 
 parseToken :: (Lexer.TokenE -> Bool) -> ParseFuncD Lexer.TokenE
 parseToken f = mo (\ i -> case i of
-		(l, [])				-> NoMatch EndOfStream
+		(_, [])				-> NoMatch EndOfStream
 		(il, (Lexer.Token t l:xs))	-> case f t of
 			True -> Match [(t, (Source.merge il l, xs))]
 			False -> NoMatch (Unexpected (Lexer.Token t l))
@@ -95,19 +95,22 @@ parseToken f = mo (\ i -> case i of
 equalsToken :: Lexer.TokenE -> ParseFuncD Lexer.TokenE
 equalsToken t = parseToken ((==) t)
 
-parseOne :: (Token -> Maybe a) -> ParseFunc a
-parseOne f (il, (Lexer.Token t l):xs) = case f (Lexer.Token t l) of
-	Nothing -> NoMatch (Unexpected (Lexer.Token t l))
-	Just result -> Match [(result, (Source.merge il l, xs))]
+parseOne :: (Token -> Maybe a) -> ParseFuncD a
+parseOne f = mo (\ i -> case i of
+		(_, [])				-> NoMatch EndOfStream
+		(il, (Lexer.Token t l):xs)	-> case f (Lexer.Token t l) of
+			Nothing -> NoMatch (Unexpected (Lexer.Token t l))
+			Just result -> Match [(result, (Source.merge il l, xs))]
+	)
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
-parseBasicType = mo (parseOne ( \x -> case x of
+parseBasicType = parseOne ( \x -> case x of
 		Lexer.Token (Lexer.Type t) l -> Just (case t of
 			Lexer.Void	-> AST.Void (constructP1 l)
 			Lexer.Int	-> AST.Int (constructP1 l)
 			Lexer.Bool	-> AST.Bool (constructP1 l))
 		_ -> Nothing
-	))
+	)
 
 parseType :: ParseFuncD (P1 AST.Type)
 parseType = newObject (
@@ -130,7 +133,13 @@ parseType = newObject (
 	)
 
 parseIdentifier :: ParseFuncD AST.Identifier
-parseIdentifier = mo (parseOne ( \x -> case x of
+parseIdentifier = parseOne ( \x -> case x of
 		(Lexer.Token (Lexer.Identifier str) l) -> Just str
 		_ -> Nothing
-	))
+	)
+
+parseInteger :: ParseFuncD AST.Integer
+parseInteger = parseOne ( \x -> case x of
+		(Lexer.Token (Lexer.Integer n) _) -> Just n
+		_ -> Nothing
+	)
