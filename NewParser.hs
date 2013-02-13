@@ -33,12 +33,6 @@ parse f is = (case (bo f) (Source.IndexSpan 0 0, is) of
 			)
 	)
 
-fap :: (a -> Maybe b) -> [a] -> [b]
-fap f [] = []
-fap f (x:xs) = case f x of
-	Just y	-> y:(fap f xs)
-	Nothing	-> fap f xs
-
 dualmap :: (a -> Either b c) -> [a] -> ([b], [c])
 dualmap f xs = dualmapr f xs ([], [])
 	where
