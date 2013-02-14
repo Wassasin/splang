@@ -1,0 +1,7 @@
+Void foo(){
+	if(True)
+	if(False)
+	x = x;
+	else
+	y = y;
+}

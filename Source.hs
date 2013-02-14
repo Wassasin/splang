@@ -33,11 +33,6 @@ pointOutLocationSpan :: LocationSpan -> String -> IO()
 pointOutLocationSpan (LocationSpan (fLine, fCol) (tLine, tCol)) str
 	| fLine < tLine = pointOutLocation (fLine, fCol) str -- Drawing span is not possible over multiple lines, fall back
 	| otherwise = do
-		putStr "from "
-		describe (fLine, fCol) str
-		putStr " to "
-		describe (tLine, tCol) str
-		putStrLn ":"
 		putStrLn strLine
 		putStr (blank (substr strLine 0 fCol))
 		putStr "^"

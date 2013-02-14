@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Tests all files in ./tests/ and output whether we accept it or not
+# Extra arguments are passed to our compiler (such as --plain for less colors)
+
+ghc Main.hs -o Main -O2
+rm -f run_tests.log
+
+for f in ./tests/*.spl
+do
+	echo "*** Compiling $f" >> run_tests.log
+	./Main "$@" $f >> run_tests.log
+
+	if [ $? -ne 0 ]; then
+		echo -e "\033[31m$f failed parsing\033[0m"
+	else
+		echo -e "\033[32m$f succeeded parsing\033[0m"
+	fi
+done
+echo "See run_tests.log for the details"
+
