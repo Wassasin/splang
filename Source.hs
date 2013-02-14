@@ -2,11 +2,11 @@ module Source where
 
 type Index = Int
 data IndexSpan = IndexSpan Index Index
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 type Location = (Int, Int)
 data LocationSpan = LocationSpan Location Location
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 describe :: Location -> String -> IO ()
 describe (line, col) str = putStr ("line " ++ (show (line+1)) ++ ", column " ++ (show (col+1)))

@@ -5,13 +5,10 @@ import qualified Source
 import Data.List (sortBy)
 import Data.Char (isDigit, isAlpha, isAlphaNum)
 
-data Location = Location Int Int
-	deriving (Show, Eq)
-
 data TypeE = Void
 	| Int
 	| Bool
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 data OperatorE = Plus
 	| Minus
@@ -28,7 +25,7 @@ data OperatorE = Plus
 	| Or
 	| Cons
 	| Not
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 data TokenE = Comment String
 	| CurlyBracketOpen
@@ -50,10 +47,10 @@ data TokenE = Comment String
 	| TrueT
 	| FalseT
 	| Operator OperatorE
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 data Token loc = Token TokenE loc
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 data LexerResult = Match [Token Source.IndexSpan] (String, Source.Index)
 	| NoMatch Source.Index

@@ -4,7 +4,7 @@ import qualified Source
 import AST
 
 data P1Meta = P1 {src :: Source.IndexSpan}
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 type P1 a = a P1Meta
 

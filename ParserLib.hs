@@ -7,7 +7,7 @@ import Meta
 type Token = Lexer.Token Source.IndexSpan
 
 data Error = Unexpected Token | EndOfStream | Ambiguity
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 type ParseInput = (Source.IndexSpan, [Token])
 
 data ParseResult a = Match [(a, ParseInput)] | NoMatch
