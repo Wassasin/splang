@@ -1,0 +1,5 @@
+/* Void */ test foo()
+{
+if /* extra space */ (True)
+	x = 5 /* test */ * x;
+}

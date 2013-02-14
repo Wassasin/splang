@@ -1,0 +1,21 @@
+a fetch(Int i, [a] xs)
+{
+	while(i > 0)
+	{
+		xs = tail(xs);
+		i = i - 1;
+	}
+	
+	return head(xs);	
+}
+
+Void main(Int argc, [String] argv)
+{
+	Int i = 0;
+	
+	while(i < argc)
+	{
+		print(fetch(i, argv))
+		i = i + 1;
+	}
+}
