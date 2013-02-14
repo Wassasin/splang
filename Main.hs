@@ -61,13 +61,13 @@ test = do
 				let lResult = filterComment xs
 				when (showLexingResult opts) $ print lResult
 				when (showParsingResult opts) $ Console.highLight "Parsing result:"
-				case (parse parseProgram xs) of
+				case (parse parseProgram lResult) of
 					Left [x]		-> do
 						when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
 						exitSuccess
-					Left xs			-> do
+					Left ys			-> do
 						Console.putMessage Console.Error file (-1, -1) "Ambiguous input - able to derive multiple programs"
-						sequence (interleave file $ fmap (prettyPrint (astPrinter opts)) xs)
+						sequence (interleave file $ fmap (prettyPrint (astPrinter opts)) ys)
 						exitFailure
 					Right EndOfStream	-> putStrLn "Error on end of stream"
 					Right (Unexpected (Lexer.Token t l)) -> do
