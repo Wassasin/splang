@@ -63,6 +63,16 @@ bestMError Nothing Nothing	= Nothing
 				(NoMatch, Match ys)	-> (Match ys, e)
 				(NoMatch, NoMatch)	-> (NoMatch, e)))
 
+(<!>) :: ParseFuncD a -> ParseFuncD a -> ParseFuncD a
+(<!>) fd gd = mo (\ i -> case (bo fd) i of
+	(xr, xe) -> case xr of
+		Match xs	-> (Match xs, xe)
+		NoMatch		-> case (bo gd) i of
+			(yr, ye) -> case bestMError xe ye of
+				e -> case yr of
+					Match ys	-> (Match ys, e)
+					NoMatch		-> (NoMatch, e))
+
 many1 :: ParseFuncD a -> ParseFuncD [a]
 many1 fd = do
 	t <- fd

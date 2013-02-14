@@ -97,77 +97,78 @@ parseExpr :: ParseFuncD (P1 AST.Expr)
 parseExpr = newObject parseTerm1
 
 parseTerm1 :: ParseFuncD (P1 AST.Expr)
-parseTerm1 = parseTerm2
-	<|> do
-		expr1 <- parseTerm2
-		b <- parseOp2Bool
-		expr2 <- parseTerm1
-		produceP1 (AST.Binop expr1 b expr2)
-	<|> do
+parseTerm1 = do
 		b <- parseOpNot;
 		expr <- parseTerm3;
-		produceP1 (AST.Unop b expr)
+		produceP1 (AST.Unop b expr)	
+	<!> do	expr1 <- parseTerm2
+		(do
+				b <- parseOp2Bool
+				expr2 <- parseTerm1
+				produceP1 (AST.Binop expr1 b expr2)
+			<!>	return expr1)
 
 parseTerm2 :: ParseFuncD (P1 AST.Expr)
-parseTerm2 = parseTerm3
-	<|> do
+parseTerm2 = do
 		expr1 <- parseTerm3
-		b <- parseOp2Equal
-		expr2 <- parseTerm2
-		produceP1 (AST.Binop expr1 b expr2)
+		(do
+				b <- parseOp2Equal
+				expr2 <- parseTerm2
+				produceP1 (AST.Binop expr1 b expr2)
+			<!>	return expr1)
 
 parseTerm3 :: ParseFuncD (P1 AST.Expr)
-parseTerm3 = parseTerm4
-	<|> do
-		expr1 <- parseTerm4
-		b <- parseOp2Add
-		expr2 <- parseTerm3
-		produceP1 (AST.Binop expr1 b expr2)
-	<|> do
+parseTerm3 = do
 		b <- parseOpNegative
 		expr <- parseTerm3
 		produceP1 (AST.Unop b expr)
+	<!> do	expr1 <- parseTerm4
+		(do
+				b <- parseOp2Add
+				expr2 <- parseTerm3
+				produceP1 (AST.Binop expr1 b expr2)
+			<!>	return expr1)
 
 parseTerm4 :: ParseFuncD (P1 AST.Expr)
-parseTerm4 = parseTerm5
-	<|> do
+parseTerm4 = do
 		x <- parseTerm5
-		b <- parseOp2Mult
-		y <- parseTerm4
-		produceP1 (AST.Binop x b y)
+		(do
+				b <- parseOp2Mult
+				y <- parseTerm4
+				produceP1 (AST.Binop x b y)
+			<!>	return x)
 		
 parseTerm5 :: ParseFuncD (P1 AST.Expr)
-parseTerm5 = parseVar
-	<|> parseKint
-	<|> do
-		equalsToken Lexer.ParenthesesOpen
-		expr <- parseExpr
-		equalsToken Lexer.ParenthesesClose
-		return expr
-	<|> do
-		equalsToken Lexer.TrueT
-		produceP1 (AST.Kbool True)
-	<|> do
-		equalsToken Lexer.FalseT
-		produceP1 (AST.Kbool False)
-	<|> do
-		i <- parseIdentifier
-		equalsToken Lexer.ParenthesesOpen
-		args <- parseActArgs
-		equalsToken Lexer.ParenthesesClose
-		produceP1 (AST.FunCall i args)
-	<|> do
+parseTerm5 = parseKint
+	<!> (do
 		equalsToken Lexer.ParenthesesOpen
 		e1 <- parseExpr
-		equalsToken Lexer.Comma
-		e2 <- parseExpr
-		equalsToken Lexer.ParenthesesClose
-		produceP1 (AST.Pair e1 e2)
-	<|> do
+		do
+				equalsToken Lexer.ParenthesesClose
+				return e1
+			<!> do
+				equalsToken Lexer.Comma
+				e2 <- parseExpr
+				equalsToken Lexer.ParenthesesClose
+				produceP1 (AST.Pair e1 e2))
+	<!> do
+		equalsToken Lexer.TrueT
+		produceP1 (AST.Kbool True)
+	<!> do
+		equalsToken Lexer.FalseT
+		produceP1 (AST.Kbool False)
+	<!> (do
+			parseVar
+		<|> do
+			i <- parseIdentifier
+			equalsToken Lexer.ParenthesesOpen
+			args <- parseActArgs
+			equalsToken Lexer.ParenthesesClose
+			produceP1 (AST.FunCall i args))
+	<!> do
 		equalsToken Lexer.SquareBracketsOpen
 		equalsToken Lexer.SquareBracketsClose
 		produceP1 (AST.List [])
-
 
 parseVar :: ParseFuncD (P1 AST.Expr)
 parseVar = newObject ( do
