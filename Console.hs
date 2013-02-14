@@ -18,7 +18,7 @@ stringForMessageE Note = "note: "
 putMessage :: MessageE -> String -> Source.Location -> String -> IO ()
 putMessage kind file loc err = do
 	setSGR [SetConsoleIntensity BoldIntensity]
-	putStr (file ++ ":" ++ show (fst loc) ++ ":" ++ show (snd loc) ++ ": ")
+	putStr (file ++ ":" ++ show (1 + fst loc) ++ ":" ++ show (1 + snd loc) ++ ": ")
 	setSGR [SetColor Foreground Vivid (colorForMessageE kind), SetConsoleIntensity BoldIntensity]
 	putStr (stringForMessageE kind)
 	setSGR [Reset, SetConsoleIntensity BoldIntensity]
