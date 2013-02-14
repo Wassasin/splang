@@ -6,7 +6,7 @@
 ghc Main.hs -o Main -O2
 rm -f run_tests.log
 
-for f in ./tests/*.spl
+for f in ./tests/*/*.spl
 do
 	echo "*** Compiling $f" >> run_tests.log
 	./Main "$@" $f >> run_tests.log
