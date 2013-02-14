@@ -1,0 +1,26 @@
+Int a = 1;
+Int b = 1;
+
+// GCD with global variables. BAH!
+Void main()
+{
+	a = 25;
+	b = 18;
+	gcd();
+	print(a);
+}
+
+Void gcd()
+{
+	Int t = b;
+	
+	while(True)
+	{
+		if(b == 0)
+			return;
+		
+		t = b;
+		b = a % b;
+		a = t;
+	}
+}

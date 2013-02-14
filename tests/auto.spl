@@ -1,0 +1,11 @@
+auto a = 5;
+
+Bool f(auto arg)
+{
+	return True;
+}
+
+test g = f;
+
+blaat x = y;
+blaat y = x;

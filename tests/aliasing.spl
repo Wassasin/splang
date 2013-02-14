@@ -1,0 +1,19 @@
+auto aint = 5;
+
+Bool f(auto arg)
+{
+	return arg;
+}
+
+test h = g;
+test g = f;
+test z = h;
+
+Void main()
+{
+	test i = f;
+	test j = g;
+	test k = h;
+
+	return;
+}

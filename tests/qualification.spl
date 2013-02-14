@@ -1,0 +1,12 @@
+t id(t x)
+{
+	return x;
+}
+
+Void main()
+{
+	v f = id(True);
+	w g = id(5);
+	return g;
+}
+

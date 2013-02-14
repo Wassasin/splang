@@ -1,0 +1,9 @@
+Int main()
+{
+	return f(1);
+}
+
+Int f(Int x)
+{
+	return x+1;
+}

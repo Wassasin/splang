@@ -1,0 +1,10 @@
+[t] reverse([t] list)
+{
+	[t] accu = [];
+	while(!isEmpty(list))
+	{
+		accu = head(list) : accu;
+		list = tail(list);
+	}
+	return accu;
+}
