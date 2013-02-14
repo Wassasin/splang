@@ -1,5 +1,6 @@
 import System.Environment
 
+import System.Exit
 import Control.Monad
 import System.Console.GetOpt
 
@@ -61,19 +62,24 @@ test = do
 				when (showLexingResult opts) $ print lResult
 				when (showParsingResult opts) $ Console.highLight "Parsing result:"
 				case (parse parseProgram xs) of
-					Left [x]		-> when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
+					Left [x]		-> do
+						when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
+						exitSuccess
 					Left xs			-> do
 						Console.putMessage Console.Error file (-1, -1) "Ambiguous input - able to derive multiple programs"
-						sequence (interleave file $ fmap (prettyPrint (astPrinter opts)) xs) >> return ()
+						sequence (interleave file $ fmap (prettyPrint (astPrinter opts)) xs)
+						exitFailure
 					Right EndOfStream	-> putStrLn "Error on end of stream"
 					Right (Unexpected (Lexer.Token t l)) -> do
 						let loc = Source.convert (case l of Source.IndexSpan start _ -> start) s
 						Console.putMessage Console.Error file loc ("Unexpected token " ++ show t)
 						Source.pointOutIndexSpan l s
+						exitFailure
 
 		Lexer.NoMatch lError -> do
 			Console.putMessage Console.Error file (Source.convert lError s) "Unexpected sequence of characters starting"
 			Source.pointOutIndex lError s
+			exitFailure
 
 convertToken :: String -> Lexer.Token Source.IndexSpan -> Lexer.Token Source.LocationSpan
 convertToken s (Lexer.Token t (Source.IndexSpan from to)) = Lexer.Token t (Source.LocationSpan (Source.convert from s) (Source.convert to s))
