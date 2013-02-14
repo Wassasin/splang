@@ -132,18 +132,16 @@ parseTerm3 = parseTerm4
 		produceP1 (AST.Unop b expr)
 
 parseTerm4 :: ParseFuncD (P1 AST.Expr)
-parseTerm4 = parseVar
+parseTerm4 = parseTerm5
+	<|> do
+		x <- parseTerm5
+		b <- parseOp2Mult
+		y <- parseTerm4
+		produceP1 (AST.Binop x b y)
+		
+parseTerm5 :: ParseFuncD (P1 AST.Expr)
+parseTerm5 = parseVar
 	<|> parseKint
-	<|> do
-		v <- parseVar
-		b <- parseOp2Mult
-		t <- parseTerm4
-		produceP1 (AST.Binop v b t)
-	<|> do
-		n <- parseKint
-		b <- parseOp2Mult
-		t <- parseTerm4
-		produceP1 (AST.Binop n b t)
 	<|> do
 		equalsToken Lexer.ParenthesesOpen
 		expr <- parseExpr
@@ -172,6 +170,7 @@ parseTerm4 = parseVar
 		equalsToken Lexer.SquareBracketsOpen
 		equalsToken Lexer.SquareBracketsClose
 		produceP1 (AST.List [])
+
 
 parseVar :: ParseFuncD (P1 AST.Expr)
 parseVar = newObject ( do
