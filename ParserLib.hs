@@ -45,7 +45,7 @@ bestNoMatch :: Error -> Error -> Error
 bestNoMatch EndOfStream _ = EndOfStream
 bestNoMatch _ EndOfStream = EndOfStream
 bestNoMatch (Unexpected (Lexer.Token x (Source.IndexSpan xx xy))) (Unexpected (Lexer.Token y (Source.IndexSpan yx yy)))
-	| xx <= yx	= Unexpected (Lexer.Token y (Source.IndexSpan yx yy))
+	| xy <= yy	= Unexpected (Lexer.Token y (Source.IndexSpan yx yy))
 	| otherwise	= Unexpected (Lexer.Token x (Source.IndexSpan xx xy))
 
 (<|>) :: ParseFuncD a -> ParseFuncD a -> ParseFuncD a

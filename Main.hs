@@ -47,7 +47,7 @@ main :: IO ()
 main = test
 
 interleave file [] = []
-interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpreatation:" : x : interleave file xs
+interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
 
 test = do
 	(opts, [file]) <- getArgs >>= mkOptions
