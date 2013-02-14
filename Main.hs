@@ -56,7 +56,8 @@ test = do
 
 	when (showLexingResult opts) $ Console.highLight "Lexing result:"
 	case Lexer.lexer (s, 0) of
-		Lexer.Match xs _ -> let lResult = filterComment xs in do
+		Lexer.Match xs _ -> do
+				let lResult = filterComment xs
 				when (showLexingResult opts) $ print lResult
 				when (showParsingResult opts) $ Console.highLight "Parsing result:"
 				case (parse parseProgram xs) of
@@ -66,7 +67,8 @@ test = do
 						sequence (interleave file $ fmap (prettyPrint (astPrinter opts)) xs) >> return ()
 					Right EndOfStream	-> putStrLn "Error on end of stream"
 					Right (Unexpected (Lexer.Token t l)) -> do
-						Console.putMessage Console.Error file (-1, -1) ("Unexpected token " ++ show t)
+						let loc = Source.convert (case l of Source.IndexSpan start _ -> start) s
+						Console.putMessage Console.Error file loc ("Unexpected token " ++ show t)
 						Source.pointOutIndexSpan l s
 
 		Lexer.NoMatch lError -> do
