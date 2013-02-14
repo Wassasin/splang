@@ -2,3 +2,5 @@
 build
 *.hi
 *.o
+*.log
+Main
