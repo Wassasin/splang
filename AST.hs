@@ -25,7 +25,7 @@ data Stmt a = Expr (Expr a) a
 	| IfElse (Expr a) (Stmt a) (Stmt a) a
 	| While (Expr a) (Stmt a) a
 	| Assignment Identifier (Expr a) a
-	| Return (Expr a) a
+	| Return (Maybe (Expr a)) a
 	deriving (Show, Eq, Read)
 
 data Expr a = Var Identifier a

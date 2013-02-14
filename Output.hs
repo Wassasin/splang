@@ -63,7 +63,8 @@ outputStmt n (If e stmt _)		= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr e
 outputStmt n (IfElse e s1 s2 _)	= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr e ++ lift ")\n" ++ outputStmt (n+1) s1 ++ lift "\n" ++ tabs n ++ keyword "else" ++ lift "\n" ++ outputStmt (n+1) s2
 outputStmt n (While e stmt _)	= tabs n ++ keyword "while(" ++ outputExpr e ++ lift ")\n" ++ tabs n ++ outputStmt (n+1) stmt
 outputStmt n (Assignment i e _)	= tabs n ++ variable i ++ lift " = " ++ outputExpr e ++ lift ";"
-outputStmt n (Return e _)		= tabs n ++ keyword "return " ++ outputExpr e ++ lift ";"
+outputStmt n (Return (Just e) _)		= tabs n ++ keyword "return " ++ outputExpr e ++ lift ";"
+outputStmt n (Return Nothing _)		= tabs n ++ keyword "return" ++ lift ";"
 
 outputExpr :: Expr a -> MarkupString Styles
 outputExpr (Var i _) 			= variable i

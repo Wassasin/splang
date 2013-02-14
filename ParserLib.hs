@@ -66,7 +66,10 @@ bestMError Nothing Nothing	= Nothing
 many1 :: ParseFuncD a -> ParseFuncD [a]
 many1 fd = do
 	t <- fd
-	(many1 fd >>= return . (t:)) <|> return [t]
+	do
+		ts <- many1 fd
+		return (t:ts)
+		<|> return [t]
 
 many :: ParseFuncD a -> ParseFuncD [a]
 many fd = do
@@ -84,6 +87,12 @@ manyd1 fd gd = do
 manyd :: ParseFuncD a -> ParseFuncD b -> ParseFuncD [a]
 manyd fd gd = do
 	manyd1 fd gd <|> return []
+
+opt :: ParseFuncD a -> ParseFuncD (Maybe a)
+opt fd = return Nothing
+	<|> do
+		x <- fd
+		return (Just x)
 
 instance Monad ParseFuncD where
 --	(>>=) :: ParseFuncD a -> (a -> ParseFuncD b) -> ParseFuncD b

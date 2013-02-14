@@ -84,7 +84,7 @@ parseStmt = newObject (
 		produceP1 (AST.Assignment i expr)
 	<|> do
 		equalsToken Lexer.Return
-		expr <- parseExpr
+		expr <- opt parseExpr
 		equalsToken Lexer.Semicolon
 		produceP1 (AST.Return expr)
 	<|> do
