@@ -71,6 +71,19 @@ many1 fd = do
 many :: ParseFuncD a -> ParseFuncD [a]
 many fd = do
 	many1 fd <|> return []
+	
+manyd1 :: ParseFuncD a -> ParseFuncD b -> ParseFuncD [a]
+manyd1 fd gd = do
+	t <- fd
+	do
+		gd
+		ts <- manyd1 fd gd
+		return (t:ts)
+		<|> return [t]
+	
+manyd :: ParseFuncD a -> ParseFuncD b -> ParseFuncD [a]
+manyd fd gd = do
+	manyd1 fd gd <|> return []
 
 instance Monad ParseFuncD where
 --	(>>=) :: ParseFuncD a -> (a -> ParseFuncD b) -> ParseFuncD b

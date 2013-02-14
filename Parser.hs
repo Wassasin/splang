@@ -44,10 +44,7 @@ parseFarg = do
 	return (t, i)
 
 parseFargs :: ParseFuncD [(P1 AST.Type, AST.Identifier)]
-parseFargs = do
-	farg <- parseFarg
-	(equalsToken Lexer.Comma >> parseFargs >>= return . (farg:)) <|> return [farg]
-	<|> return []
+parseFargs = manyd parseFarg (equalsToken Lexer.Comma)
 
 parseStmt :: ParseFuncD (P1 AST.Stmt)
 parseStmt = newObject (
@@ -185,14 +182,7 @@ parseKint = newObject ( do
 	)
 	
 parseActArgs :: ParseFuncD [P1 AST.Expr]
-parseActArgs = do
-		e <- parseExpr
-		return [e]
-	<|> do
-		e <- parseExpr
-		equalsToken Lexer.Comma
-		es <- parseActArgs
-		return (e:es)
+parseActArgs = manyd parseExpr (equalsToken Lexer.Comma)
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
 parseBasicType = parseOne ( \x -> case x of
