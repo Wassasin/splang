@@ -34,6 +34,10 @@ join f s [] = []
 join f s [x] = f x
 join f s (x:xs) = f x ++ s ++ join f s xs
 
+delim :: (a -> [b]) -> [b] -> [a] -> [b]
+delim f s [] = []
+delim f s (x:xs) = f x ++ s ++ delim f s xs
+
 tabs :: Int -> MarkupString Styles
 tabs x = lift (take x (repeat '\t'))
 
@@ -42,7 +46,7 @@ outputProgram (Program pr _) = join (outputDecl 0) (lift "\n\n") pr
 
 outputDecl :: Int -> Decl a -> MarkupString Styles
 outputDecl n (VarDecl t i e _) = tabs n ++ outputType t ++ lift " " ++ variable i ++ lift " = " ++ outputExpr e ++ lift ";"
-outputDecl n (FunDecl t i args vdecls stmts _) = tabs n ++ outputType t ++ lift " " ++ lift i ++ lift "(" ++ join outputArg (lift ", ") args ++ lift "){\n" ++ join (outputDecl (n+1)) (lift "\n") vdecls ++ lift "\n" ++ join (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "\n}"
+outputDecl n (FunDecl t i args vdecls stmts _) = tabs n ++ outputType t ++ lift " " ++ lift i ++ lift "(" ++ join outputArg (lift ", ") args ++ lift "){\n" ++ delim (outputDecl (n+1)) (lift "\n") vdecls ++ delim (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
 
 outputArg :: (Type a, Identifier) -> MarkupString Styles
 outputArg (t, i) = outputType t ++ lift " " ++ variable i
@@ -56,12 +60,30 @@ outputType t = open Type ++ lift (outputType' t) ++ close Type where
 	outputType' (Product t1 t2 _)	= "(" ++ erase (outputType t1) ++ ", " ++ erase (outputType t2) ++ ")"
 	outputType' (ListType t _)		= "[" ++ erase (outputType t) ++ "]"
 
+isBlock :: Stmt a -> Bool
+isBlock (Scope _ _) = True
+isBlock _ = False
+
+-- Exception for scope after if/else/while
+outputStmt2 :: Int -> Stmt a -> MarkupString Styles
+outputStmt2 n (Scope stmts _) = delim (outputStmt n) (lift "\n") stmts
+outputStmt2 n y = outputStmt n y
+
+rest :: Int -> Stmt a -> MarkupString Styles
+rest n stmt = case stmt of
+	(Scope stmts _) -> lift "{\n" ++ delim (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
+	y -> lift "\n"  ++ outputStmt (n+1) stmt
+
 outputStmt :: Int -> Stmt a -> MarkupString Styles
 outputStmt n (Expr e _)			= tabs n ++ outputExpr e ++ lift ";"
-outputStmt n (Scope stmts _)	= tabs n ++ lift "{\n" ++ join (outputStmt (n+1)) (lift "\n") stmts ++ lift "\n" ++ tabs n ++ lift "}"
-outputStmt n (If e stmt _)		= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr e ++ lift ")\n" ++ outputStmt (n+1) stmt
-outputStmt n (IfElse e s1 s2 _)	= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr e ++ lift ")\n" ++ outputStmt (n+1) s1 ++ lift "\n" ++ tabs n ++ keyword "else" ++ lift "\n" ++ outputStmt (n+1) s2
-outputStmt n (While e stmt _)	= tabs n ++ keyword "while(" ++ outputExpr e ++ lift ")\n" ++ tabs n ++ outputStmt (n+1) stmt
+outputStmt n (Scope [] _)		= tabs n ++ lift "{}"
+outputStmt n (Scope stmts _)	= tabs n ++ lift "{\n" ++ delim (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
+outputStmt n (If e stmt _)		= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr e ++ lift ")" ++ rest n stmt
+outputStmt n (IfElse e s1 s2 _)	= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr e ++ lift ")" ++ rest n s1 ++ between ++ rest n s2
+	where between = if isBlock s1
+		then keyword " else "
+		else lift "\n" ++ tabs n ++ keyword "else"
+outputStmt n (While e stmt _)	= tabs n ++ keyword "while" ++ lift "(" ++ outputExpr e ++ lift ")" ++ rest n stmt
 outputStmt n (Assignment i e _)	= tabs n ++ variable i ++ lift " = " ++ outputExpr e ++ lift ";"
 outputStmt n (Return (Just e) _)		= tabs n ++ keyword "return " ++ outputExpr e ++ lift ";"
 outputStmt n (Return Nothing _)		= tabs n ++ keyword "return" ++ lift ";"
