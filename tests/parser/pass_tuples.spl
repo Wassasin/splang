@@ -1,3 +1,5 @@
+// Test: tuple-types and tuple-values
+
 (b, a) swap((a, b) t)
 {
 	return (snd(t), fst(t));

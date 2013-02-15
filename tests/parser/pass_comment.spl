@@ -1,3 +1,5 @@
+// Test: ignore comments
+
 /* Void */ test foo()
 {
 if /* extra space */ (True)

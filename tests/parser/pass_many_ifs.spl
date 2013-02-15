@@ -1,0 +1,7 @@
+// Test: should parse quickly (many but unambiguous ifs)
+
+Void main(){
+	Bool x = True;
+	if(x)if(x)if(x)if(x)if(x)if(x)if(x)if(x)if(x)if(x)if(x)if(x)if(x)if(x) return;
+	else return;else return;else return;else return;else return;else return;else return;else return;else return;else return;else return;else return;else return;else return;
+}

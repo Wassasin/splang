@@ -1,3 +1,5 @@
+// Test: should fail because program is ambiguous (dangling else)
+
 Void foo(){
 	if(True)
 	if(False)
