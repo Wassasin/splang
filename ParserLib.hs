@@ -1,10 +1,10 @@
-module ParserLib where
+module ParserLib (Error(..), ParseFuncD(..), parse, (<|>), (<!>), many1, many, manyd1, manyd, opt, produceP1, newObject, parseToken, equalsToken, parseOne) where
 
 import qualified Source
 import qualified Lexer
 import Meta
 
-type Token = Lexer.Token Source.IndexSpan
+type Token = Lexer.Token
 
 data Error = Unexpected Token | EndOfStream | Ambiguity
 	deriving (Show, Eq, Read)

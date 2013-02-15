@@ -1,4 +1,4 @@
-module Parser (parseProgram) where
+module Parser (ParserLib.Error(..), parseSPL) where
 
 import ParserLib
 
@@ -6,6 +6,9 @@ import qualified Source
 import qualified Lexer
 import qualified AST
 import Meta
+
+parseSPL :: [Lexer.Token] -> Either [P1 AST.Program] Error
+parseSPL tokens = parse parseProgram tokens
 
 parseProgram :: ParseFuncD (P1 AST.Program)
 parseProgram = do
