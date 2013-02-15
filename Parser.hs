@@ -50,7 +50,7 @@ parseStmt :: ParseFuncD (P1 AST.Stmt)
 parseStmt = newObject (
 	do
 		equalsToken Lexer.CurlyBracketOpen
-		stmts <- many1 parseStmt
+		stmts <- many parseStmt
 		equalsToken Lexer.CurlyBracketClose
 		produceP1 (AST.Scope stmts)
 	<|> do
