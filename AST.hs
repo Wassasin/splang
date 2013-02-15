@@ -1,13 +1,18 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module AST where
+
+-- Deriving functor makes it possible to transform Program a into Program b whenever we have a function a -> b
+-- For example we can do (fmap (const ()) program) to get rid of all meta-information
 
 -- Derived from the original grammar
 data Program a = Program [Decl a] a
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Functor)
 
 -- I have inlined both VarDecl, FunDecl and FArgs
 data Decl a = VarDecl (Type a) Identifier (Expr a) a
 	| FunDecl (Type a) Identifier [(Type a, Identifier)] [Decl a] [Stmt a] a
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Functor)
 
 -- I have merged RetType and Type
 data Type a = Void a
@@ -16,7 +21,7 @@ data Type a = Void a
 	| Identifier Identifier a
 	| Product (Type a) (Type a) a
 	| ListType (Type a) a
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Functor)
 
 -- We allow an Expr to be an statement, for example we dont need an extra FunCall now
 data Stmt a = Expr (Expr a) a
@@ -26,7 +31,7 @@ data Stmt a = Expr (Expr a) a
 	| While (Expr a) (Stmt a) a
 	| Assignment Identifier (Expr a) a
 	| Return (Maybe (Expr a)) a
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Functor)
 
 data Expr a = Var Identifier a
 	| Binop (Expr a) (BinaryOperator a) (Expr a) a
@@ -36,16 +41,16 @@ data Expr a = Var Identifier a
 	| FunCall Identifier [Expr a] a
 	| Pair (Expr a) (Expr a) a
 	| List [Expr a] a
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Functor)
 
 data BinaryOperator a = Multiplication a | Division a | Modulo a
 	| Plus a | Minus a | Cons a
 	| Equals a | LesserThan a | GreaterThan a | LesserEqualThan a | GreaterEqualThan a | Nequals a
 	| And a | Or a
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Functor)
 
 data UnaryOperator a = Not a | Negative a
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Functor)
 
 type Identifier = String
 type Integer = Int

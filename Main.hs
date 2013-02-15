@@ -20,7 +20,7 @@ main = do
 
 	lResult <- mlex opts file source
 	pResult <- mparse opts file source (filterComment lResult)
-	when (showAST opts) $ print pResult
+	when (showAST opts) $ print (fmap (const ()) pResult)
 	exitSuccess
 
 -- filename is needed for error-messaging! Returns a list of tokens or errors.
