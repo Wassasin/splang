@@ -9,6 +9,7 @@ data Options = Options
 	, showInput :: Bool
 	, showLexingResult :: Bool
 	, showParsingResult :: Bool
+	, showAST :: Bool
 	}
 
 defaultOptions :: Options
@@ -17,6 +18,7 @@ defaultOptions = Options
 	, showInput = False
 	, showLexingResult = False
 	, showParsingResult = False
+	, showAST = False
 	}
 
 options :: [OptDescr (Options -> Options)]
@@ -26,7 +28,8 @@ options =
 	, Option [] ["minimizer"] (NoArg (\o -> o { astPrinter = miniPrettyPrinter })) "prints the AST without tabs and newlines"
 	, Option [] ["show-input"] (NoArg (\o -> o { showInput = True })) "shows the input-file"
 	, Option [] ["show-lexing"] (NoArg (\o -> o { showLexingResult = True })) "shows the in-between lexing result"
-	, Option [] ["show-parsing"] (NoArg (\o -> o { showParsingResult = True })) "shows the in-between AST"
+	, Option [] ["show-parsing"] (NoArg (\o -> o { showParsingResult = True })) "prettyprints the in-between AST"
+	, Option [] ["show-splast"] (NoArg (\o -> o { showAST = True })) "dumps the in-between AST"
 	]
 
 mkOptions :: [String] -> IO (Options, [String])
