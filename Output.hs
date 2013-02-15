@@ -60,20 +60,6 @@ outputType t = open Type ++ lift (outputType' t) ++ close Type where
 	outputType' (Product t1 t2 _)	= "(" ++ erase (outputType t1) ++ ", " ++ erase (outputType t2) ++ ")"
 	outputType' (ListType t _)		= "[" ++ erase (outputType t) ++ "]"
 
-isBlock :: Stmt a -> Bool
-isBlock (Scope _ _) = True
-isBlock _ = False
-
--- Exception for scope after if/else/while
-outputStmt2 :: Int -> Stmt a -> MarkupString Styles
-outputStmt2 n (Scope stmts _) = delim (outputStmt n) (lift "\n") stmts
-outputStmt2 n y = outputStmt n y
-
-rest :: Int -> Stmt a -> MarkupString Styles
-rest n stmt = case stmt of
-	(Scope stmts _) -> lift "{\n" ++ delim (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
-	y -> lift "\n"  ++ outputStmt (n+1) stmt
-
 outputStmt :: Int -> Stmt a -> MarkupString Styles
 outputStmt n (Expr e _)			= tabs n ++ outputExpr e ++ lift ";"
 outputStmt n (Scope [] _)		= tabs n ++ lift "{}"
@@ -87,6 +73,16 @@ outputStmt n (While e stmt _)	= tabs n ++ keyword "while" ++ lift "(" ++ outputE
 outputStmt n (Assignment i e _)	= tabs n ++ variable i ++ lift " = " ++ outputExpr e ++ lift ";"
 outputStmt n (Return (Just e) _)		= tabs n ++ keyword "return " ++ outputExpr e ++ lift ";"
 outputStmt n (Return Nothing _)		= tabs n ++ keyword "return" ++ lift ";"
+
+-- Exception for scope after if/else/while
+rest :: Int -> Stmt a -> MarkupString Styles
+rest n stmt = case stmt of
+	(Scope stmts _) -> lift "{\n" ++ delim (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
+	y -> lift "\n"  ++ outputStmt (n+1) stmt
+
+isBlock :: Stmt a -> Bool
+isBlock (Scope _ _) = True
+isBlock _ = False
 
 outputExpr :: Expr a -> MarkupString Styles
 outputExpr (Var i _) 			= variable i
