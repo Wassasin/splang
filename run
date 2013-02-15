@@ -1,2 +1,6 @@
 #!/bin/bash
-ghc Main.hs -o Main -O2 && ./Main --show-parsing --colored "$@"
+
+mkdir -p build
+ghc Main.hs -outputdir build/ -o build/slih -O || exit 1
+
+./build/slih "$@"
