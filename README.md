@@ -3,6 +3,8 @@ slih
 
 Simple Language compiler in Haskell
 
+![Example of output](http://i.imgur.com/s4WgGJH.png)
+
 Dependencies
 ============
 
