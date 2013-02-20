@@ -1,3 +1,5 @@
+// Test: Should parse quickly (with monadic LL* parsers, this would be slow)
+
 Void main()
 {
 	(((((((((((((5)))))))))))));

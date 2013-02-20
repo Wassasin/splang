@@ -49,10 +49,12 @@ data TokenE = Comment String
 	| Operator OperatorE
 	deriving (Show, Eq, Read)
 
-data Token loc = Token TokenE loc
+data TokenMeta loc = Token TokenE loc
 	deriving (Show, Eq, Read)
 
-data LexerResult = Match [Token Source.IndexSpan] (String, Source.Index)
+type Token = TokenMeta Source.IndexSpan
+
+data LexerResult = Match [Token] (String, Source.Index)
 	| NoMatch Source.Index
 
 type LexerFunc = (String, Source.Index) -> LexerResult
@@ -164,3 +166,9 @@ lexer x		= case lextok x of
 			Match ts y -> case lexer y of
 				NoMatch i -> NoMatch i
 				Match us ([], n) -> Match (ts ++ us) ([], n)
+
+filterComment :: [TokenMeta a] -> [TokenMeta a]
+filterComment = filter (\t -> case t of
+	Lexer.Token (Lexer.Comment _) _	-> False
+	_				-> True
+	)

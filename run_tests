@@ -3,13 +3,15 @@
 # Tests all files in ./tests/ and output whether we accept it or not
 # Extra arguments are passed to our compiler (such as --plain for less colors)
 
-ghc Main.hs -o Main -O2
+mkdir -p build
+ghc Main.hs -outputdir build/ -o build/slih -O || exit 1
+
 rm -f run_tests.log
 
 for f in ./tests/*/*.spl
 do
 	echo "*** Compiling $f" >> run_tests.log
-	./Main "$@" $f >> run_tests.log
+	./build/slih "$@" $f >> run_tests.log
 
 	if [ $? -ne 0 ]; then
 		echo -e "\033[31m$f failed parsing\033[0m"

@@ -1,3 +1,5 @@
+// Test: right types are infered in main
+
 t id(t x)
 {
 	return x;

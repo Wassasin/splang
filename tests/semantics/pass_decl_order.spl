@@ -1,3 +1,5 @@
+// Test: order of decls doesn't matter
+
 Int main()
 {
 	return f(1);

@@ -1,4 +1,6 @@
+// Test: nested and empty curly brackets
+
 Void main()
 {
-	{{{{{{{{{{ return; }}}}}}}}}}
+	{{{{{}{{{{}{{{}{ return; }}}}}}{}}}}{}}{}
 }

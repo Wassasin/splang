@@ -2,90 +2,62 @@ import System.Environment
 
 import System.Exit
 import Control.Monad
-import System.Console.GetOpt
 
-import qualified Lexer
-import qualified Source
-import ParserLib
-import Parser
-import PrettyPrinter
 import qualified Console
-
-data Options = Options
-	{ astPrinter :: Printer (IO ())
-	, showInput :: Bool
-	, showLexingResult :: Bool
-	, showParsingResult :: Bool
-	}
-
-defaultOptions :: Options
-defaultOptions = Options
-	{ astPrinter = coloredPrettyPrinter
-	, showInput = False
-	, showLexingResult = False
-	, showParsingResult = False
-	}
-
-options :: [OptDescr (Options -> Options)]
-options =
-	[ Option [] ["colored"] (NoArg (\o -> o { astPrinter = coloredPrettyPrinter })) "prints the AST with colored text"
-	, Option [] ["plain"] (NoArg (\o -> o { astPrinter = plainPrettyPrinter })) "prints the AST in plain text"
-	, Option [] ["minimizer"] (NoArg (\o -> o { astPrinter = miniPrettyPrinter })) "prints the AST without tabs and newlines"
-	, Option [] ["show-input"] (NoArg (\o -> o { showInput = True })) "shows the input-file"
-	, Option [] ["show-lexing"] (NoArg (\o -> o { showLexingResult = True })) "shows the in-between lexing result"
-	, Option [] ["show-parsing"] (NoArg (\o -> o { showParsingResult = True })) "shows the in-between AST"
-	]
-
-mkOptions :: [String] -> IO (Options, [String])
-mkOptions argv =
-	case getOpt Permute options argv of
-		(o, n, []  ) -> return (foldl (flip id) defaultOptions o, n)
-		(_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
-	where header = "slih [OPTION...] file"
+import Options
+import Source
+import Lexer
+import Parser
+import AST
+import Meta
+import PrettyPrinter
 
 
 main :: IO ()
-main = test
+main = do
+	(opts, [file]) <- getArgs >>= mkOptions
+	source <- readFile file
+
+	lResult <- mlex opts file source
+	pResult <- mparse opts file source (filterComment lResult)
+	when (showAST opts) $ print (fmap (const ()) pResult)
+	exitSuccess
+
+-- filename is needed for error-messaging! Returns a list of tokens or errors.
+mlex :: Options -> String -> String -> IO [Token]
+mlex opts filename source = do
+	when (showLexingResult opts) $ Console.highLight "Lexing result:"
+	let lResult = lexer (source, 0)
+	case lResult of
+		Match xs _ -> do
+			when (showLexingResult opts) $ print xs
+			return xs
+		NoMatch lError -> do
+			Console.putMessage Console.Error filename (Source.convert lError source) "Unexpected sequence of characters starting"
+			Source.pointOutIndex lError source
+			exitFailure
+
+-- filename and source are needed for error-messaging! Returns an AST or errors.
+mparse :: Options -> String -> String -> [Token] -> IO (P1 Program)
+mparse opts filename source tokens = do
+	when (showParsingResult opts) $ Console.highLight "Parsing result:"
+	let pResult = parseSPL tokens
+	case pResult of
+		Left [x]			-> do
+			when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
+			return x
+		Left ys				-> do
+			Console.putMessage Console.Error filename (-1, -1) "Ambiguous input - able to derive multiple programs"
+			sequence (interleave filename $ fmap (prettyPrint (astPrinter opts)) ys)
+			exitFailure
+		Right EndOfStream	-> do
+			putStrLn "Error on end of stream"
+			exitFailure
+		Right (Unexpected (Token t l)) -> do
+			let loc = Source.convert (case l of Source.IndexSpan start _ -> start) source
+			Console.putMessage Console.Error filename loc ("Unexpected token " ++ show t)
+			Source.pointOutIndexSpan l source
+			exitFailure
 
 interleave file [] = []
 interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
-
-test = do
-	(opts, [file]) <- getArgs >>= mkOptions
-	s <- readFile file
-	when (showInput opts) $ Console.highLight "File:" >> putStrLn s
-
-	when (showLexingResult opts) $ Console.highLight "Lexing result:"
-	case Lexer.lexer (s, 0) of
-		Lexer.Match xs _ -> do
-				let lResult = filterComment xs
-				when (showLexingResult opts) $ print lResult
-				when (showParsingResult opts) $ Console.highLight "Parsing result:"
-				case (parse parseProgram lResult) of
-					Left [x]		-> do
-						when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
-						exitSuccess
-					Left ys			-> do
-						Console.putMessage Console.Error file (-1, -1) "Ambiguous input - able to derive multiple programs"
-						sequence (interleave file $ fmap (prettyPrint (astPrinter opts)) ys)
-						exitFailure
-					Right EndOfStream	-> putStrLn "Error on end of stream"
-					Right (Unexpected (Lexer.Token t l)) -> do
-						let loc = Source.convert (case l of Source.IndexSpan start _ -> start) s
-						Console.putMessage Console.Error file loc ("Unexpected token " ++ show t)
-						Source.pointOutIndexSpan l s
-						exitFailure
-
-		Lexer.NoMatch lError -> do
-			Console.putMessage Console.Error file (Source.convert lError s) "Unexpected sequence of characters starting"
-			Source.pointOutIndex lError s
-			exitFailure
-
-convertToken :: String -> Lexer.Token Source.IndexSpan -> Lexer.Token Source.LocationSpan
-convertToken s (Lexer.Token t (Source.IndexSpan from to)) = Lexer.Token t (Source.LocationSpan (Source.convert from s) (Source.convert to s))
-
-filterComment :: [Lexer.Token a] -> [Lexer.Token a]
-filterComment = filter (\t -> case t of
-	Lexer.Token (Lexer.Comment _) _	-> False
-	_				-> True
-	)

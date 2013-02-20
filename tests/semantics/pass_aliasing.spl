@@ -1,5 +1,9 @@
+// Test: right types are infered
+
+// Should infere Int
 auto aint = 5;
 
+// Should infer Bool
 Bool f(auto arg)
 {
 	return arg;

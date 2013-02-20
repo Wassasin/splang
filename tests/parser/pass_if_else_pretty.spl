@@ -1,0 +1,22 @@
+// Test: prettyprinter if-else curly brackets
+
+Void main(){
+	if(x) x=x;
+	if(x) {x=x;}
+	if(x) {}
+
+	if(x) x=x;
+	else y=y;
+
+	if(x) {x=x;}
+	else {y=y;}
+
+	if(x) {x=x;}
+	else y=y;
+
+	if(x) x=x;
+	else {y=y;}
+
+	while(x) x=x;
+	while(x) {x=x;}
+}

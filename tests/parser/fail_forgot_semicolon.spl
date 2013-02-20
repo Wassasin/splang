@@ -1,3 +1,5 @@
+// Test: forgot semicolon (should point to right location)
+
 a fetch(Int i, [a] xs)
 {
 	while(i > 0)

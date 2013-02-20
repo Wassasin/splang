@@ -1,3 +1,5 @@
+// Test: should treat newlines as regular whitespace
+
 a
 f
 (

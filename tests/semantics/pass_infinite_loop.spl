@@ -1,0 +1,16 @@
+// Test: infinite while loop
+
+// Type should be [Int]
+auto l = 1:[];
+
+// extends global l and prints it
+Void f(){
+	auto x = head(l);
+	l = (x+1):l;
+	print(l);
+}
+
+// Infinite loop (without body), calling f each time
+Void main(){
+	while(fst (True, f())){}
+}

@@ -1,3 +1,5 @@
+// Test: source code from pdf file (should format nicely)
+
 /*
 Three ways to implement the factorial function in SPL.
 First the recursive version.

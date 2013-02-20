@@ -1,0 +1,6 @@
+// Test: lexer should fail here
+
+Void main(){
+	Int x = #5;
+	return;
+}
