@@ -11,6 +11,8 @@ import Parser
 import AST
 import Meta
 import PrettyPrinter
+import Typing
+import SemanticAnalysis
 
 
 main :: IO ()
@@ -21,7 +23,8 @@ main = do
 	when (showInput opts) $ putStrLn source
 	lResult <- mlex opts file source
 	pResult <- mparse opts file source (filterComment lResult)
-	when (showAST opts) $ print (fmap (const ()) pResult)
+	pResult2 <- midentifiers opts file source pResult
+	when (showAST opts) $ print (fmap (const ()) pResult2)
 	exitSuccess
 
 -- filename is needed for error-messaging! Returns a list of tokens or errors.
@@ -58,6 +61,20 @@ mparse opts filename source tokens = do
 			let loc = Source.convert (Source.beginOfSpan l) source
 			Console.putMessage Console.Error filename loc ("Unexpected token " ++ show t)
 			Source.pointOutIndexSpan l source
+			exitFailure
+
+midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P1 Program)
+midentifiers opts filename source program = do
+	let x = assignGlobs program
+	case x of
+		SemanticAnalysis.Result newProgram -> return newProgram
+		SemanticAnalysis.Fail (DuplicateDeclaration id1 id2) -> do
+			let loc1 = Source.convert (Source.beginOfSpan . src . getMeta $ id1) source
+			Console.putMessage Console.Error filename loc1 ("Redeclaration of identifier \"" ++ getIdentifierString id1 ++ "\"")
+			Source.pointOutIndexSpan (src $ getMeta id1) source
+			let loc2 = Source.convert (Source.beginOfSpan . src . getMeta $ id2) source
+			Console.putMessage Console.Note filename loc2 "Previous declaration here:"
+			Source.pointOutIndexSpan (src $ getMeta id2) source
 			exitFailure
 
 interleave file [] = []

@@ -1,40 +1,35 @@
 module SemanticAnalysis where
 
 import qualified AST
-import qualified Typing
-import qualified Data.Map as Map
 
-type IdentId = Int
-data Ident a = Var IdentId a | Func IdentId a
+type Context a = [AST.Identifier a]
 
-type IdentMap a = Map.Map String (Ident a)
+idLookup :: AST.Identifier a -> Context a -> Maybe (AST.Identifier a)
+idLookup ident [] = Nothing
+idLookup ident (x:xs)
+	| AST.getIdentifierString ident == AST.getIdentifierString x = Just x
+	| otherwise = idLookup ident xs
 
-data SAContext = SAC {identId :: IdentId, freeTypeId :: Typing.FTid}
+data ScopingError a = DuplicateDeclaration (AST.Identifier a) (AST.Identifier a)
+	| UndeclaredIdentifier (AST.Identifier a)
+data ScopingResult a = Result (AST.Program a) | Fail (ScopingError a) 
 
-incrementIdent :: SAContext -> SAContext
-incrementIdent c = c {identId = (identId c) + 1}
-
-createContext :: SAContext
-createContext = SAC {identId = 0, freeTypeId = 0}
-
-data GlobResult a = Result SAContext (IdentMap a) | Fail String (Ident a) (Ident a)
-
-assignGlobs :: AST.Program a -> SAContext -> GlobResult a
-assignGlobs (AST.Program decls _) c = f decls c Map.empty
+assignGlobs :: AST.Program a -> ScopingResult a
+assignGlobs (AST.Program decls m) = case (f decls [] 0) of
+	Right newDecls -> Result (AST.Program newDecls m)
+	Left e -> Fail e
 	where
-		f :: [AST.Decl a] -> SAContext -> IdentMap a -> GlobResult a
-		f [] c m	= Result c m
-		f (x:xs) c m	= let
-			(str, ix) = createIdent x c in 
-				case Map.lookup str m of
-					Just iy	-> Fail str ix iy
-					Nothing	-> Result (incrementIdent c) (Map.insert str ix m)
-			where
-				createIdent :: AST.Decl a -> SAContext -> (String, Ident a)
-				createIdent (AST.VarDecl _ str _ mx) c = (str, Var (identId c) mx)
-				createIdent (AST.FunDecl _ str _ _ _ mx) c = (str, Func (identId c) mx)
-
--- assignLocals :: AST.Program a -> SAContext -> 
--- read functions
--- read globaldecls (in order)
--- read function bodies
+		--f :: [AST.Decl a] -> [AST.Identifier a] -> Int -> Either (ScopingError a) [AST.Decl a]
+		f [] _ _ = Right []
+		f (x:xs) context n = do
+			let ix = (AST.getIdentifier x)
+			case (idLookup ix context) of
+				Just iy -> Left $ DuplicateDeclaration ix iy
+				Nothing -> do
+					let y = case x of
+						AST.VarDecl a ident b m ->	AST.VarDecl a (AST.assignUniqueID ix n) b m
+						AST.FunDecl a ident b c d mx ->	AST.FunDecl a (AST.assignUniqueID ix n) b c d m
+					let rest = f xs (ix:context) (n + 1)
+					case rest of
+						Right xs -> Right (y:xs)
+						Left e -> Left e
