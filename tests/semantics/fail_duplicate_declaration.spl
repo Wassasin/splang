@@ -1,0 +1,8 @@
+// Test: Fails because we define foo twice
+
+Int foo = 5;
+
+Void foo(){
+	Int x = 5;
+	x = x;
+}
