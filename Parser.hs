@@ -29,7 +29,7 @@ parseVarDecl = do
 
 parseFunDecl :: ParseFuncD (P1 AST.Decl)
 parseFunDecl = do
-	t <- parseType
+	t <- parseVoidType <!> parseType
 	i <- parseIdentifier
 	equalsToken Lexer.ParenthesesOpen
 	fargs <- parseFargs
@@ -188,12 +188,20 @@ parseKint = newObject ( do
 parseActArgs :: ParseFuncD [P1 AST.Expr]
 parseActArgs = manyd parseExpr (equalsToken Lexer.Comma)
 
+parseVoidType :: ParseFuncD (P1 AST.Type)
+parseVoidType = parseOne ( \x -> case x of
+		Lexer.Token (Lexer.Type t) l -> case t of
+			Lexer.Void -> Just $ AST.Void (constructP1 l)
+			_ -> Nothing
+		_ -> Nothing
+	)
+
 parseBasicType :: ParseFuncD (P1 AST.Type)
 parseBasicType = parseOne ( \x -> case x of
-		Lexer.Token (Lexer.Type t) l -> Just (case t of
-			Lexer.Void	-> AST.Void (constructP1 l)
-			Lexer.Int	-> AST.Int (constructP1 l)
-			Lexer.Bool	-> AST.Bool (constructP1 l))
+		Lexer.Token (Lexer.Type t) l -> case t of
+			Lexer.Int	-> Just $ AST.Int (constructP1 l)
+			Lexer.Bool	-> Just $ AST.Bool (constructP1 l)
+			_ -> Nothing
 		_ -> Nothing
 	)
 
