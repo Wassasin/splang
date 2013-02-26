@@ -25,10 +25,14 @@ main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
 	source <- readFile file
-
 	when (showInput opts) $ putStrLn source
+
 	lResult <- mlex opts file source
+	when (lexOnly opts) $ exitSuccess
+
 	pResult <- mparse opts file source (filterComment lResult)
+	when (parseOnly opts) $ exitSuccess
+
 	pResult2 <- midentifiers opts file source pResult
 	when (showAST opts) $ print (fmap (const ()) pResult2)
 	exitSuccess
