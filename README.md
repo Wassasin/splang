@@ -4,6 +4,7 @@ slih
 Simple Language compiler in Haskell
 
 ![Example of output](http://i.imgur.com/s4WgGJH.png)
+![Friendly error messages](http://i.imgur.com/ChGOKrN.png)
 
 Dependencies
 ============
@@ -19,6 +20,7 @@ To install the software required to compile `slih`, use the following commands:
 ```
 $ cabal update
 $ cabal install ansi-terminal
+$ cabal install edit-distance
 ```
 
 How to use it

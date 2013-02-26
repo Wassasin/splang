@@ -2,6 +2,9 @@ import System.Environment
 
 import System.Exit
 import Control.Monad
+import Text.EditDistance
+import Data.List
+import Data.Ord
 
 import qualified Console
 import Options
@@ -14,6 +17,9 @@ import PrettyPrinter
 import Typing
 import SemanticAnalysis
 
+bestMatch :: [AST.Identifier a] -> AST.Identifier a -> Maybe (AST.Identifier a)
+bestMatch l search = let (cost, best) = minimumBy (comparing fst) . map (\ident -> (restrictedDamerauLevenshteinDistance defaultEditCosts (getIdentifierString search) (getIdentifierString ident), ident)) $ l in
+	if cost<3 then Just best else Nothing
 
 main :: IO ()
 main = do
@@ -65,7 +71,7 @@ mparse opts filename source tokens = do
 
 midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P1 Program)
 midentifiers opts filename source program = do
-	let x = assignGlobs program
+	let x = assignUniqueIDs program
 	case x of
 		SemanticAnalysis.Result newProgram -> return newProgram
 		SemanticAnalysis.Fail (DuplicateDeclaration id1 id2) -> do
@@ -76,6 +82,17 @@ midentifiers opts filename source program = do
 			Console.putMessage Console.Note filename loc2 "Previous declaration here:"
 			Source.pointOutIndexSpan (src $ getMeta id2) source
 			exitFailure
+		SemanticAnalysis.Fail (UndeclaredIdentifier ident context) -> do
+			let loc1 = Source.convert (Source.beginOfSpan . src . getMeta $ ident) source
+			Console.putMessage Console.Error filename loc1 ("Undeclared identifier \"" ++ getIdentifierString ident ++ "\"")
+			Source.pointOutIndexSpan (src $ getMeta ident) source
+			case bestMatch (fst (unzip context)) ident of
+				Nothing -> exitFailure
+				Just bm -> do
+					let loc2 = Source.convert (Source.beginOfSpan . src . getMeta $ bm) source
+					Console.putMessage Console.Note filename loc2 ("Did you mean \"" ++ getIdentifierString bm ++ "\"?")
+					Source.pointOutIndexSpan (src $ getMeta bm) source
+					exitFailure
 
 interleave file [] = []
 interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
