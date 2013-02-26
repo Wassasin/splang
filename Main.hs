@@ -18,6 +18,7 @@ main = do
 	(opts, [file]) <- getArgs >>= mkOptions
 	source <- readFile file
 
+	when (showInput opts) $ putStrLn source
 	lResult <- mlex opts file source
 	pResult <- mparse opts file source (filterComment lResult)
 	when (showAST opts) $ print (fmap (const ()) pResult)
@@ -54,7 +55,7 @@ mparse opts filename source tokens = do
 			putStrLn "Error on end of stream"
 			exitFailure
 		Right (Unexpected (Token t l)) -> do
-			let loc = Source.convert (case l of Source.IndexSpan start _ -> start) source
+			let loc = Source.convert (Source.beginOfSpan l) source
 			Console.putMessage Console.Error filename loc ("Unexpected token " ++ show t)
 			Source.pointOutIndexSpan l source
 			exitFailure

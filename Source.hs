@@ -4,6 +4,9 @@ type Index = Int
 data IndexSpan = IndexSpan Index Index
 	deriving (Show, Eq, Read)
 
+beginOfSpan :: IndexSpan -> Index
+beginOfSpan (IndexSpan a _) = a
+
 type Location = (Int, Int)
 data LocationSpan = LocationSpan Location Location
 	deriving (Show, Eq, Read)
