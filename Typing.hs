@@ -2,7 +2,8 @@ module Typing where
 
 import Data.List (union)
 
-data FreeType a = FT Int a
+type FTid = Int
+data FreeType a = FT FTid a
 	deriving (Show, Read)
 	
 data PolyType a = Poly (FreeType a) (PolyType a) a | Mono (MonoType a) a
