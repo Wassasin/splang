@@ -28,8 +28,8 @@ close a = return $ Right $ Close a
 
 keyword str = open Keyword ++ lift str ++ close Keyword
 constant str = open Constant ++ lift str ++ close Constant
-variable str = open Variable ++ lift str ++ close Variable
-function str = open Function ++ lift str ++ close Function
+variable ident = open Variable ++ lift (getIdentifier ident) ++ close Variable
+function ident = open Function ++ lift (getIdentifier ident) ++ close Function
 
 join :: (a -> [b]) -> [b] -> [a] -> [b]
 join f s [] = []
@@ -50,7 +50,7 @@ outputDecl :: Int -> Decl a -> MarkupString Styles
 outputDecl n (VarDecl t i e _) = tabs n ++ outputType t ++ lift " " ++ variable i ++ lift " = " ++ outputExpr False e ++ lift ";"
 outputDecl n (FunDecl t i args vdecls stmts _) = tabs n ++ outputType t ++ lift " " ++ function i ++ lift "(" ++ join outputArg (lift ", ") args ++ lift "){\n" ++ delim (outputDecl (n+1)) (lift "\n") vdecls ++ delim (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
 
-outputArg :: (Type a, Identifier) -> MarkupString Styles
+outputArg :: (Type a, Identifier a) -> MarkupString Styles
 outputArg (t, i) = outputType t ++ lift " " ++ variable i
 
 outputType :: Type a -> MarkupString Styles
@@ -58,7 +58,7 @@ outputType t = open Type ++ lift (outputType' t) ++ close Type where
 	outputType' (Void _)			= "Void"
 	outputType' (Int _)				= "Int"
 	outputType' (Bool _)			= "Bool"
-	outputType' (Identifier i _)	= i
+	outputType' (TypeIdentifier i _)	= getIdentifier i
 	outputType' (Product t1 t2 _)	= "(" ++ erase (outputType t1) ++ ", " ++ erase (outputType t2) ++ ")"
 	outputType' (ListType t _)		= "[" ++ erase (outputType t) ++ "]"
 
@@ -119,3 +119,6 @@ outputBinaryOperator (Or _)					= lift " || "
 outputUnaryOperator :: UnaryOperator a -> MarkupString Styles
 outputUnaryOperator (Not _) 		= lift "!"
 outputUnaryOperator (Negative _)	= lift "-"
+
+getIdentifier :: Identifier a -> String
+getIdentifier (Identifier str _ _) = str

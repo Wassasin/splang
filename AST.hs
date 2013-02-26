@@ -10,15 +10,15 @@ data Program a = Program [Decl a] a
 	deriving (Show, Eq, Read, Functor)
 
 -- I have inlined both VarDecl, FunDecl and FArgs
-data Decl a = VarDecl (Type a) Identifier (Expr a) a
-	| FunDecl (Type a) Identifier [(Type a, Identifier)] [Decl a] [Stmt a] a
+data Decl a = VarDecl (Type a) (Identifier a) (Expr a) a
+	| FunDecl (Type a) (Identifier a) [(Type a, Identifier a)] [Decl a] [Stmt a] a
 	deriving (Show, Eq, Read, Functor)
 
 -- I have merged RetType and Type
 data Type a = Void a
 	| Int a
 	| Bool a
-	| Identifier Identifier a
+	| TypeIdentifier (Identifier a) a
 	| Product (Type a) (Type a) a
 	| ListType (Type a) a
 	deriving (Show, Eq, Read, Functor)
@@ -29,16 +29,16 @@ data Stmt a = Expr (Expr a) a
 	| If (Expr a) (Stmt a) a
 	| IfElse (Expr a) (Stmt a) (Stmt a) a
 	| While (Expr a) (Stmt a) a
-	| Assignment Identifier (Expr a) a
+	| Assignment (Identifier a) (Expr a) a
 	| Return (Maybe (Expr a)) a
 	deriving (Show, Eq, Read, Functor)
 
-data Expr a = Var Identifier a
+data Expr a = Var (Identifier a) a
 	| Binop (Expr a) (BinaryOperator a) (Expr a) a
 	| Unop (UnaryOperator a) (Expr a) a
 	| Kint AST.Integer a
 	| Kbool Boolean a
-	| FunCall Identifier [Expr a] a
+	| FunCall (Identifier a) [Expr a] a
 	| Pair (Expr a) (Expr a) a
 	| List [Expr a] a
 	deriving (Show, Eq, Read, Functor)
@@ -52,6 +52,8 @@ data BinaryOperator a = Multiplication a | Division a | Modulo a
 data UnaryOperator a = Not a | Negative a
 	deriving (Show, Eq, Read, Functor)
 
-type Identifier = String
+data Identifier a = Identifier String (Maybe Int) a
+	deriving (Show, Eq, Read, Functor)
+
 type Integer = Int
 type Boolean = Bool

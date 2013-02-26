@@ -25,7 +25,7 @@ instance ASTMeta Type where
 	getMeta (Void m) = m
 	getMeta (Int m) = m
 	getMeta (Bool m) = m
-	getMeta (Identifier _ m) = m
+	getMeta (TypeIdentifier _ m) = m
 	getMeta (Product _ _ m) = m
 	getMeta (ListType _ m) = m
 
@@ -67,3 +67,6 @@ instance ASTMeta BinaryOperator where
 instance ASTMeta UnaryOperator where
 	getMeta (Not m) = m
 	getMeta (Negative m) = m
+
+instance ASTMeta Identifier where
+	getMeta (Identifier _ _ m) = m

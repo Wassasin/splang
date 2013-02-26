@@ -40,13 +40,13 @@ parseFunDecl = do
 	equalsToken Lexer.CurlyBracketClose
 	produceP1 (AST.FunDecl t i fargs vdecls stmts)
 
-parseFarg :: ParseFuncD (P1 AST.Type, AST.Identifier)
+parseFarg :: ParseFuncD (P1 AST.Type, P1 AST.Identifier)
 parseFarg = do
 	t <- newObject parseType
 	i <- newObject parseIdentifier
 	return (t, i)
 
-parseFargs :: ParseFuncD [(P1 AST.Type, AST.Identifier)]
+parseFargs :: ParseFuncD [(P1 AST.Type, P1 AST.Identifier)]
 parseFargs = manyd parseFarg (equalsToken Lexer.Comma)
 
 parseStmt :: ParseFuncD (P1 AST.Stmt)
@@ -222,7 +222,7 @@ parseType = newObject (
 			produceP1 (AST.ListType t)
 		<|>	do
 			i <- parseIdentifier
-			produceP1 (AST.Identifier i)
+			produceP1 (AST.TypeIdentifier i)
 	)
 
 operatorToken :: (Lexer.OperatorE -> Maybe (P1Meta -> a)) -> ParseFuncD a
@@ -279,9 +279,9 @@ parseOpNegative = operatorToken (\op -> case op of
 		_ -> Nothing
 	)
 
-parseIdentifier :: ParseFuncD AST.Identifier
+parseIdentifier :: ParseFuncD (P1 AST.Identifier)
 parseIdentifier = parseOne ( \x -> case x of
-		(Lexer.Token (Lexer.Identifier str) l) -> Just str
+		(Lexer.Token (Lexer.Identifier str) l) -> Just (AST.Identifier str Nothing (constructP1 l))
 		_ -> Nothing
 	)
 
