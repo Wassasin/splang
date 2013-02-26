@@ -28,8 +28,8 @@ close a = return $ Right $ Close a
 
 keyword str = open Keyword ++ lift str ++ close Keyword
 constant str = open Constant ++ lift str ++ close Constant
-variable ident = open Variable ++ lift (getIdentifier ident) ++ close Variable
-function ident = open Function ++ lift (getIdentifier ident) ++ close Function
+variable ident = open Variable ++ lift (getIdentifierString ident) ++ close Variable
+function ident = open Function ++ lift (getIdentifierString ident) ++ close Function
 
 join :: (a -> [b]) -> [b] -> [a] -> [b]
 join f s [] = []
@@ -58,7 +58,7 @@ outputType t = open Type ++ lift (outputType' t) ++ close Type where
 	outputType' (Void _)			= "Void"
 	outputType' (Int _)				= "Int"
 	outputType' (Bool _)			= "Bool"
-	outputType' (TypeIdentifier i _)	= getIdentifier i
+	outputType' (TypeIdentifier i _)	= getIdentifierString i
 	outputType' (Product t1 t2 _)	= "(" ++ erase (outputType t1) ++ ", " ++ erase (outputType t2) ++ ")"
 	outputType' (ListType t _)		= "[" ++ erase (outputType t) ++ "]"
 
@@ -119,6 +119,3 @@ outputBinaryOperator (Or _)					= lift " || "
 outputUnaryOperator :: UnaryOperator a -> MarkupString Styles
 outputUnaryOperator (Not _) 		= lift "!"
 outputUnaryOperator (Negative _)	= lift "-"
-
-getIdentifier :: Identifier a -> String
-getIdentifier (Identifier str _ _) = str

@@ -14,6 +14,10 @@ data Decl a = VarDecl (Type a) (Identifier a) (Expr a) a
 	| FunDecl (Type a) (Identifier a) [(Type a, Identifier a)] [Decl a] [Stmt a] a
 	deriving (Show, Eq, Read, Functor)
 
+getIdentifier :: Decl a -> Identifier a
+getIdentifier (VarDecl _ i _ _) = i
+getIdentifier (FunDecl _ i _ _ _ _) = i
+
 -- I have merged RetType and Type
 data Type a = Void a
 	| Int a
@@ -54,6 +58,12 @@ data UnaryOperator a = Not a | Negative a
 
 data Identifier a = Identifier String (Maybe Int) a
 	deriving (Show, Eq, Read, Functor)
+
+assignUniqueID :: Identifier a -> Int -> Identifier a
+assignUniqueID (Identifier str _ m) n = (Identifier str (Just n) m)
+
+getIdentifierString :: Identifier a -> String
+getIdentifierString (Identifier str _ _) = str
 
 type Integer = Int
 type Boolean = Bool
