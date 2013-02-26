@@ -1,4 +1,4 @@
-module SemanticAnalysis where
+module SemanticAnalysis (Context, ScopingError(..), ScopingResult(..), assignUniqueIDs) where
 
 import AST
 
@@ -23,6 +23,7 @@ instance Monad (ScopingResult a) where
 		Fail e -> Fail e
 		Result y -> f y
 
+-- Will rewrite AST such that all identifiers have an unique name (represented by an Int)
 assignUniqueIDs :: AST.Program a -> ScopingResult a (AST.Program a)
 assignUniqueIDs program = do
 	(program2, context) <- assignGlobs program
@@ -35,16 +36,15 @@ assignGlobs (AST.Program decls m) = case (f decls [] 0) of
 	Right (newDecls, context) -> Result (AST.Program newDecls m, context)
 	Left e -> Fail e
 	where
-		--f :: [AST.Decl a] -> [AST.Identifier a] -> Int -> Either (ScopingError a) [AST.Decl a]
 		f [] context _ = Right ([], context)
 		f (x:xs) context n = do
-			let ix = (AST.getIdentifier x)
+			let ix = AST.assignUniqueID (AST.getIdentifier x) n
 			case (idLookup ix context) of
 				Just (iy,_) -> Left $ DuplicateDeclaration ix iy
 				Nothing -> do
 					let y = case x of
-						AST.VarDecl a ident b m2 ->	AST.VarDecl a (AST.assignUniqueID ix n) b m2
-						AST.FunDecl a ident b c d m2 ->	AST.FunDecl a (AST.assignUniqueID ix n) b c d m2
+						AST.VarDecl a ident b m2 ->	AST.VarDecl a ix b m2
+						AST.FunDecl a ident b c d m2 ->	AST.FunDecl a ix b c d m2
 					let rest = f xs ((ix,()):context) (n + 1)
 					case rest of
 						Right (xs, context2) -> Right ((y:xs), context2)
