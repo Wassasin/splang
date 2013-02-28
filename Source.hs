@@ -1,5 +1,7 @@
 module Source where
 
+import System.Console.ANSI
+
 type Index = Int
 data IndexSpan = IndexSpan Index Index
 	deriving (Show, Eq, Read)
@@ -21,8 +23,10 @@ pointOutIndex i str = case convert i str of
 pointOutLocation :: Location -> String -> IO ()
 pointOutLocation (line, col) str = do
 	putStrLn strLine
+	setSGR [SetColor Foreground Vivid Green, SetConsoleIntensity BoldIntensity]
 	putStr (blank (substr (fetchLine line str) 0 col))
 	putStrLn "^"
+	setSGR []
 		where strLine = fetchLine line str
 
 pointOutIndexSpan :: IndexSpan -> String -> IO ()
@@ -37,9 +41,11 @@ pointOutLocationSpan (LocationSpan (fLine, fCol) (tLine, tCol)) str
 	| fLine < tLine = pointOutLocation (fLine, fCol) str -- Drawing span is not possible over multiple lines, fall back
 	| otherwise = do
 		putStrLn strLine
+		setSGR [SetColor Foreground Vivid Green, SetConsoleIntensity BoldIntensity]
 		putStr (blank (substr strLine 0 fCol))
 		putStr "^"
 		putStrLn (repeatstr (tCol - fCol - 1) '~')
+		setSGR []
 		where strLine = fetchLine fLine str
 		
 class Span a where
