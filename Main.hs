@@ -21,6 +21,12 @@ bestMatch :: [AST.Identifier a] -> AST.Identifier a -> Maybe (AST.Identifier a)
 bestMatch l search = let (cost, best) = minimumBy (comparing fst) . map (\ident -> (restrictedDamerauLevenshteinDistance defaultEditCosts (getIdentifierString search) (getIdentifierString ident), ident)) $ l in
 	if cost<3 then Just best else Nothing
 
+standardMessage :: String -> String -> IndexSpan -> Console.MessageE -> String -> IO ()
+standardMessage filename source idx kind message = do
+	let loc = Source.convert (Source.beginOfSpan idx) source
+	Console.putMessage kind filename loc message
+	Source.pointOutIndexSpan idx source
+
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
@@ -47,8 +53,7 @@ mlex opts filename source = do
 			when (showLexingResult opts) $ print xs
 			return xs
 		NoMatch lError -> do
-			Console.putMessage Console.Error filename (Source.convert lError source) "Unexpected sequence of characters starting"
-			Source.pointOutIndex lError source
+			standardMessage filename source (IndexSpan lError lError) Console.Error "Unexpected sequence of characters starting"
 			exitFailure
 
 -- filename and source are needed for error-messaging! Returns an AST or errors.
@@ -62,15 +67,15 @@ mparse opts filename source tokens = do
 			return x
 		Left ys				-> do
 			Console.putMessage Console.Error filename (-1, -1) "Ambiguous input - able to derive multiple programs"
-			sequence (interleave filename $ fmap (prettyPrint (astPrinter opts)) ys)
+			sequence (interleave filename $ fmap (prettyPrint (astPrinter opts)) (take 2 ys))
+			Console.putMessage Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out")
 			exitFailure
 		Right EndOfStream	-> do
 			putStrLn "Error on end of stream"
 			exitFailure
 		Right (Unexpected (Token t l)) -> do
 			let loc = Source.convert (Source.beginOfSpan l) source
-			Console.putMessage Console.Error filename loc ("Unexpected token " ++ show t)
-			Source.pointOutIndexSpan l source
+			standardMessage filename source l Console.Error ("Unexpected token " ++ show t)
 			exitFailure
 
 midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P1 Program)
@@ -79,23 +84,15 @@ midentifiers opts filename source program = do
 	case x of
 		SemanticAnalysis.Result newProgram -> return newProgram
 		SemanticAnalysis.Fail (DuplicateDeclaration id1 id2) -> do
-			let loc1 = Source.convert (Source.beginOfSpan . src . getMeta $ id1) source
-			Console.putMessage Console.Error filename loc1 ("Redeclaration of identifier \"" ++ getIdentifierString id1 ++ "\"")
-			Source.pointOutIndexSpan (src $ getMeta id1) source
-			let loc2 = Source.convert (Source.beginOfSpan . src . getMeta $ id2) source
-			Console.putMessage Console.Note filename loc2 "Previous declaration here:"
-			Source.pointOutIndexSpan (src $ getMeta id2) source
+			standardMessage filename source (src $ getMeta id1) Console.Error ("Redeclaration of identifier \"" ++ getIdentifierString id1 ++ "\"")
+			standardMessage filename source (src $ getMeta id2) Console.Note "Previous declaration here:"
 			exitFailure
 		SemanticAnalysis.Fail (UndeclaredIdentifier ident context) -> do
-			let loc1 = Source.convert (Source.beginOfSpan . src . getMeta $ ident) source
-			Console.putMessage Console.Error filename loc1 ("Undeclared identifier \"" ++ getIdentifierString ident ++ "\"")
-			Source.pointOutIndexSpan (src $ getMeta ident) source
+			standardMessage filename source (src $ getMeta ident) Console.Error ("Undeclared identifier \"" ++ getIdentifierString ident ++ "\"")
 			case bestMatch (fst (unzip context)) ident of
 				Nothing -> exitFailure
 				Just bm -> do
-					let loc2 = Source.convert (Source.beginOfSpan . src . getMeta $ bm) source
-					Console.putMessage Console.Note filename loc2 ("Did you mean \"" ++ getIdentifierString bm ++ "\"?")
-					Source.pointOutIndexSpan (src $ getMeta bm) source
+					standardMessage filename source (src $ getMeta bm) Console.Note ("Did you mean \"" ++ getIdentifierString bm ++ "\"?")
 					exitFailure
 
 interleave file [] = []
