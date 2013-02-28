@@ -1,0 +1,9 @@
+// Test: Show more errors in one pass
+
+Int bar = 5;
+Int foo = 6;
+Int blaat = goo + baz * blaat(fool);
+
+Int blaat(){
+	return bat + foo + blaat;
+}
