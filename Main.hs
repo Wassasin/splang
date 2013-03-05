@@ -78,7 +78,7 @@ mparse opts filename source tokens = do
 			standardMessage filename source l Console.Error ("Unexpected token " ++ show t)
 			exitFailure
 
-midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P1 Program)
+midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P2 Program)
 midentifiers opts filename source program = do
 	let x = assignUniqueIDs program
 	case x of
@@ -90,7 +90,7 @@ midentifiers opts filename source program = do
 			sequence $ map (printSemanticsError filename source) errors
 			exitFailure
 
-printSemanticsError :: String -> String -> ScopingError P1Meta c -> IO ()
+printSemanticsError :: String -> String -> ScopingError P1Meta -> IO ()
 printSemanticsError filename source (DuplicateDeclaration id1 id2) = do
 	standardMessage filename source (src $ getMeta id1) Console.Error ("Redeclaration of identifier \"" ++ getIdentifierString id1 ++ "\"")
 	standardMessage filename source (src $ getMeta id2) Console.Note "Previous declaration here:"
