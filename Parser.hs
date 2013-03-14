@@ -122,11 +122,8 @@ parseTerm2 = do
 
 parseTerm3 :: ParseFuncD (P1 AST.Expr)
 parseTerm3 = do
-		b <- parseOpNegative
-		e <- parseTerm3
-		produceP1 (AST.Unop b e)
-	<!> do	e1 <- parseTerm4
-		parseTerm3b e1
+		e <- parseTerm4
+		parseTerm3b e
 		
 
 parseTerm3b :: (P1 AST.Expr) -> ParseFuncD (P1 AST.Expr)
@@ -140,15 +137,25 @@ parseTerm3b e1 = (do
 
 parseTerm4 :: ParseFuncD (P1 AST.Expr)
 parseTerm4 = do
-		x <- parseTerm5
-		(do
-				b <- parseOp2Mult
-				y <- parseTerm4
-				produceP1 (AST.Binop x b y)
-			<!>	return x)
-		
-parseTerm5 :: ParseFuncD (P1 AST.Expr)
-parseTerm5 = parseKint
+		e <- parseTerm5
+		parseTerm4b e
+
+parseTerm4b e1 = (do
+		b <- parseOp2Mult
+		e2 <- parseTerm5
+		result <- produceP1 (AST.Binop e1 b e2)
+		parseTerm4b result)
+	<!> do
+		return e1
+
+parseTerm5 = parseTerm6
+	<!> do
+		b <- parseOpNegative
+		e <- parseTerm5
+		produceP1 (AST.Unop b e)
+
+parseTerm6 :: ParseFuncD (P1 AST.Expr)
+parseTerm6 = parseKint
 	<!> (do
 		equalsToken Lexer.ParenthesesOpen
 		e1 <- parseExpr

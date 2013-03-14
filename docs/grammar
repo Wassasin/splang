@@ -14,28 +14,36 @@ Stmt		:= '{' Stmt* '}'
 			 | FunCall ';'
 			 | 'return' Exp ';'
 
-Exp			:= Term
+Exp			:= Term1
 
 FunCall		:= id '(' ')'
 			 | id '(' ActArgs ')'
 
 ActArgs		:= Exp | Exp ',' ActArgs
 
-Term		:= Term2 Op2Bool Term
-			 | OpNot Term
+Term1		:= Term2 Op2Bool Term1
+			 | OpNot Term1
 			 | Term2
 
 Term2		:= Term3 Op2Equal Term2
 			 | Term3
 
-Term3		:= OpNegative Term3
+Term3		:= Term4
 			 | Term4 Term3b
 
 Term3b		:= Op2Add Term4 Term3b
 			 | \epsilon
 
-Term4		:= id Op2Mult Term4
-			 | int Op2Mult Term4
+Term4		:= Term5
+			 | Term5 Term4b
+
+Term4b		:= Op2Mult Term5 Term4b
+			 | \epsilon
+			 
+Term5		:= OpNegative Term5
+			 | Term6
+
+Term6		:= id Op2Mult Term4
 			 | id
 			 | int
 			 | '(' Exp ')'
