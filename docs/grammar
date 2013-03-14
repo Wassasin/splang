@@ -28,9 +28,11 @@ Term		:= Term2 Op2Bool Term
 Term2		:= Term3 Op2Equal Term2
 			 | Term3
 
-Term3		:= Term4 Op2Add Term3
-			 | OpNegative Term3
-			 | Term4
+Term3		:= OpNegative Term3
+			 | Term4 Term3b
+
+Term3b		:= Op2Add Term4 Term3b
+			 | \epsilon
 
 Term4		:= id Op2Mult Term4
 			 | int Op2Mult Term4

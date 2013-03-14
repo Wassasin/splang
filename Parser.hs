@@ -123,14 +123,20 @@ parseTerm2 = do
 parseTerm3 :: ParseFuncD (P1 AST.Expr)
 parseTerm3 = do
 		b <- parseOpNegative
-		expr <- parseTerm3
-		produceP1 (AST.Unop b expr)
-	<!> do	expr1 <- parseTerm4
-		(do
-				b <- parseOp2Add
-				expr2 <- parseTerm3
-				produceP1 (AST.Binop expr1 b expr2)
-			<!>	return expr1)
+		e <- parseTerm3
+		produceP1 (AST.Unop b e)
+	<!> do	e1 <- parseTerm4
+		parseTerm3b e1
+		
+
+parseTerm3b :: (P1 AST.Expr) -> ParseFuncD (P1 AST.Expr)
+parseTerm3b e1 = (do
+		b <- parseOp2Add
+		e2 <- parseTerm4
+		result <- produceP1 (AST.Binop e1 b e2)
+		parseTerm3b result)
+	<!> do
+		return e1
 
 parseTerm4 :: ParseFuncD (P1 AST.Expr)
 parseTerm4 = do
