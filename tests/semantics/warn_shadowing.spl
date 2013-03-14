@@ -2,7 +2,7 @@
 
 Int x = 5;
 
-void foo(Bool x, [t] x){
-	(Int, Int) x = (5, 4);
+void foo(Bool x){
+	(Bool, Int) x = (x, 4);
 	x = (1, 2);
 }
