@@ -1,5 +1,0 @@
-// Test: undeclared id, fuzzy string match?
-
-Int foo = 5;
-Int bar = 6;
-Int bla = baz;

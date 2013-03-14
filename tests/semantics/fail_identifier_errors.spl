@@ -2,8 +2,11 @@
 
 Int bar = 5;
 Int foo = 6;
+
+// Undefined identifiers
 Int blaat = goo + baz * blaat(fool);
 
+// Redeclaration
 Int blaat(){
 	return bat + foo + blaat;
 }
