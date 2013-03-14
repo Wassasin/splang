@@ -8,15 +8,29 @@ ghc Main.hs -outputdir build/ -o build/slih -O || exit 1
 
 rm -f run_tests.log
 
-for f in ./tests/*/*.spl
+echo "Parsing tests"
+for f in ./tests/parser/*.spl
 do
-	echo "*** Compiling $f" >> run_tests.log
-	./build/slih "$@" $f >> run_tests.log
+	echo "*** Parsing $f" >> run_tests.log
+	./build/slih --parse-only "$@" $f >> run_tests.log
 
 	if [ $? -ne 0 ]; then
 		echo -e "\033[31m$f failed parsing\033[0m"
 	else
 		echo -e "\033[32m$f succeeded parsing\033[0m"
+	fi
+done
+
+echo "Semantics tests"
+for f in ./tests/semantics/*.spl
+do
+	echo "*** Compiling $f" >> run_tests.log
+	./build/slih "$@" $f >> run_tests.log
+
+	if [ $? -ne 0 ]; then
+		echo -e "\033[31m$f failed compiling\033[0m"
+	else
+		echo -e "\033[32m$f succeeded compiling\033[0m"
 	fi
 done
 echo "See run_tests.log for the details"

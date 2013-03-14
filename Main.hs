@@ -112,6 +112,8 @@ interleave file [] = []
 interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
 
 printSemanticsWarning :: String -> String -> ScopingWarning -> IO ()
-printSemanticsWarning filename source (ShadowsDeclaration id1 id2) = do
+printSemanticsWarning filename source (ShadowsDeclaration id1 id2 scope) = do
 	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getIdentifierString id1 ++ "\" shadows previous declaration.")
-	standardMessage filename source (src $ getMeta id2) Console.Note "Previous declaration here:"
+	standardMessage filename source (src $ getMeta id2) Console.Note (case scope of
+		Global -> "Previous declaration was a global:"
+		Argument -> "Previous declaration was used as argument to function:")
