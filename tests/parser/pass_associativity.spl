@@ -1,0 +1,14 @@
+// Test: associativity of binary operators
+
+Void main(){
+	t x = 0;
+
+	x = 4 * 3 + 5;
+	x = 5 + 4 * 3;
+
+	x = 5 - 3 - 2;
+	x = 5 / 3 / 2;
+	x = 5 % 3 % 2;
+	
+	x = 1 : 2 : 3 : [];
+}
