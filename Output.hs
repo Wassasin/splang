@@ -7,6 +7,7 @@ data Styles = Type
 	| Constant
 	| Keyword
 	| Function
+	| UniqueID
 
 data OpenClose a = Open a | Close a
 type Markup a = Either Char (OpenClose a)
@@ -26,10 +27,14 @@ open a = return $ Right $ Open a
 close :: a -> MarkupString a
 close a = return $ Right $ Close a
 
+getIdentifierUniqueID :: Identifier a -> String
+getIdentifierUniqueID (Identifier _ (Just n) _) = show n
+getIdentifierUniqueID (Identifier _ Nothing _) = ""
+
 keyword str = open Keyword ++ lift str ++ close Keyword
 constant str = open Constant ++ lift str ++ close Constant
-variable ident = open Variable ++ lift (getIdentifierString ident) ++ close Variable
-function ident = open Function ++ lift (getIdentifierString ident) ++ close Function
+variable ident = open Variable ++ lift (getIdentifierString ident) ++ close Variable ++ open UniqueID ++ lift (getIdentifierUniqueID ident) ++ close UniqueID
+function ident = open Function ++ lift (getIdentifierString ident) ++ close Function ++ open UniqueID ++ lift (getIdentifierUniqueID ident) ++ close UniqueID
 
 join :: (a -> [b]) -> [b] -> [a] -> [b]
 join f s [] = []

@@ -33,6 +33,7 @@ syntaxColor Variable = Yellow
 syntaxColor Constant = Red
 syntaxColor Keyword = Black
 syntaxColor Function = Green
+syntaxColor UniqueID = Magenta
 
 color :: OpenClose Styles -> IO ()
 color (Open s) = setSGR [SetColor Foreground Vivid (syntaxColor s)]
