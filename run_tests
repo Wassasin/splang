@@ -4,7 +4,7 @@
 # Extra arguments are passed to our compiler (such as --plain for less colors)
 
 mkdir -p build
-ghc Main.hs -outputdir build/ -o build/slih -O || exit 1
+ghc Main.hs -outputdir build/ -o build/splang -O || exit 1
 
 rm -f run_tests.log
 
@@ -12,7 +12,7 @@ echo "Parsing tests"
 for f in ./tests/parser/*.spl
 do
 	echo "*** Parsing $f" >> run_tests.log
-	./build/slih --parse-only "$@" $f >> run_tests.log
+	./build/splang --parse-only "$@" $f >> run_tests.log
 
 	if [ $? -ne 0 ]; then
 		echo -e "\033[31m$f failed parsing\033[0m"
@@ -25,7 +25,7 @@ echo "Semantics tests"
 for f in ./tests/semantics/*.spl
 do
 	echo "*** Compiling $f" >> run_tests.log
-	./build/slih "$@" $f >> run_tests.log
+	./build/splang "$@" $f >> run_tests.log
 
 	if [ $? -ne 0 ]; then
 		echo -e "\033[31m$f failed compiling\033[0m"

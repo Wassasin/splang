@@ -1,6 +1,6 @@
 #!/bin/bash
 
 mkdir -p build
-ghc Main.hs -outputdir build/ -o build/slih -O || exit 1
+ghc Main.hs -outputdir build/ -o build/splang -O || exit 1
 
-./build/slih --show-parsing --parse-only "$@"
+./build/splang --show-parsing --parse-only "$@"

@@ -43,4 +43,4 @@ mkOptions argv =
 	case getOpt Permute options argv of
 		(o, n, []  ) -> return (foldl (flip id) defaultOptions o, n)
 		(_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
-	where header = "slih [OPTION...] file"
+	where header = "splang [OPTION...] file"
