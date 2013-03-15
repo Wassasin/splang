@@ -28,23 +28,24 @@ Term1		:= Term2 Op2Bool Term1
 Term2		:= Term3 Op2Equal Term2
 			 | Term3
 
-Term3		:= Term4
-			 | Term4 Term3b
-
-Term3b		:= Op2Add Term4 Term3b
-			 | \epsilon
+Term3		:= Term4 OpColon Term3
 
 Term4		:= Term5
 			 | Term5 Term4b
 
-Term4b		:= Op2Mult Term5 Term4b
+Term4b		:= Op2Add Term5 Term4b
+			 | \epsilon
+
+Term5		:= Term6
+			 | Term6 Term5b
+
+Term5b		:= Op2Mult Term6 Term5b
 			 | \epsilon
 			 
-Term5		:= OpNegative Term5
-			 | Term6
+Term6		:= OpNegative Term6
+			 | Term7
 
-Term6		:= id Op2Mult Term4
-			 | id
+Term7		:= id
 			 | int
 			 | '(' Exp ')'
 			 | 'False'

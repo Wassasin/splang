@@ -122,40 +122,48 @@ parseTerm2 = do
 
 parseTerm3 :: ParseFuncD (P1 AST.Expr)
 parseTerm3 = do
-		e <- parseTerm4
-		parseTerm3b e
-		
-
-parseTerm3b :: (P1 AST.Expr) -> ParseFuncD (P1 AST.Expr)
-parseTerm3b e1 = (do
-		b <- parseOp2Add
-		e2 <- parseTerm4
-		result <- produceP1 (AST.Binop e1 b e2)
-		parseTerm3b result)
-	<!> do
-		return e1
+		e1 <- parseTerm4
+		(do
+				b <- parseOp2Cons
+				e2 <- parseTerm3
+				produceP1 (AST.Binop e1 b e2)
+			<!>	return e1)
 
 parseTerm4 :: ParseFuncD (P1 AST.Expr)
 parseTerm4 = do
 		e <- parseTerm5
 		parseTerm4b e
 
+parseTerm4b :: (P1 AST.Expr) -> ParseFuncD (P1 AST.Expr)
 parseTerm4b e1 = (do
-		b <- parseOp2Mult
+		b <- parseOp2Add
 		e2 <- parseTerm5
 		result <- produceP1 (AST.Binop e1 b e2)
 		parseTerm4b result)
 	<!> do
 		return e1
 
-parseTerm5 = parseTerm6
+parseTerm5 :: ParseFuncD (P1 AST.Expr)
+parseTerm5 = do
+		e <- parseTerm6
+		parseTerm5b e
+
+parseTerm5b e1 = (do
+		b <- parseOp2Mult
+		e2 <- parseTerm6
+		result <- produceP1 (AST.Binop e1 b e2)
+		parseTerm5b result)
+	<!> do
+		return e1
+
+parseTerm6 = parseTerm7
 	<!> do
 		b <- parseOpNegative
-		e <- parseTerm5
+		e <- parseTerm6
 		produceP1 (AST.Unop b e)
 
-parseTerm6 :: ParseFuncD (P1 AST.Expr)
-parseTerm6 = parseKint
+parseTerm7 :: ParseFuncD (P1 AST.Expr)
+parseTerm7 = parseKint
 	<!> (do
 		equalsToken Lexer.ParenthesesOpen
 		e1 <- parseExpr
@@ -258,6 +266,11 @@ parseOp2Add :: ParseFuncD (P1 AST.BinaryOperator)
 parseOp2Add = operatorToken (\op -> case op of
 		Lexer.Plus	-> Just AST.Plus
 		Lexer.Minus	-> Just AST.Minus
+		_		-> Nothing
+	)
+
+parseOp2Cons :: ParseFuncD (P1 AST.BinaryOperator)
+parseOp2Cons = operatorToken (\op -> case op of
 		Lexer.Cons	-> Just AST.Cons
 		_		-> Nothing
 	)
