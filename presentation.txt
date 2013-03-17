@@ -1,0 +1,10 @@
+open presentation/splang.pdf
+
+cat presentation/first_assignment.spl
+./parse presentation/first_assignment.spl
+
+cat presentation/ambi_pretty.spl
+./parse presentation/ambi_pretty.spl
+
+cat presentation/next_phase.spl
+./run presentation/next_phase.spl
