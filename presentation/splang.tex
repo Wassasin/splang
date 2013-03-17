@@ -7,6 +7,7 @@
 \usepackage{color}
 \usepackage{listings}
 \usepackage{xspace}
+\usepackage{url}
 
 \newcommand{\splang}{\textsc{Splang}\xspace}
 
@@ -41,22 +42,37 @@ Cons:
 
 
 \begin{frame}
-We made our own parser combinators (non-deterministic).
+Scanner:
+\begin{itemize}
+	\item Skips the whitespace and comments
+	\item Recognizes keywords, number and identifiers
+\end{itemize}
+\bigskip
+
+Parser: own library, LL($\ast$).
 \begin{itemize}
 	\item Propagates source-information
 	\item Nice error messages (see demo)
 \end{itemize}
+\bigskip
 
-Scanner skips the whitespace and comments and recognizes keywords, number and identifiers.
-
-Changes in parser consist of prioritizing operators.
+Grammar changes: prioritizing operators.
 \end{frame}
 
 
 \begin{frame}
-We used \texttt{ansi-terminal} and \texttt{edit-distance} for colors and suggestions (see demo).
+We used:
+\begin{itemize}
+	\item \texttt{ansi-terminal}: Colors in terminal
+	\item \texttt{edit-distance}: For suggestions
+\end{itemize}
+(see demo)
+\bigskip
 
-We spent quite some time to make \splang your best friend :). (Aka $x$ hours.)
+We spent quite some time to make \splang your best friend :), around 50 hours.
+\bigskip
+
+Github: \url{https://github.com/Wassasin/splang}
 \end{frame}
 
 
