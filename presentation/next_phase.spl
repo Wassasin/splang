@@ -1,0 +1,6 @@
+Int bar = 5;
+Int foo = 6;
+
+Int blaat = goo + baz;
+
+Int blaat = 5;

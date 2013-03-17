@@ -3,4 +3,11 @@ build
 *.hi
 *.o
 *.log
-Main
+
+*.aux
+*.nav
+*.out
+*.pdf
+*.snm
+*.toc
+
