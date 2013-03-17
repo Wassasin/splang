@@ -72,7 +72,7 @@ mparse opts filename source tokens = do
 		Left ys				-> do
 			Console.putMessage Console.Error filename (-1, -1) "Ambiguous input - able to derive multiple programs"
 			sequence (interleave filename $ fmap (prettyPrint (astPrinter opts)) (take 2 ys))
-			Console.putMessage Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out")
+			when (length ys > 2) (Console.putMessage Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out"))
 			exitFailure
 		Right EndOfStream	-> do
 			putStrLn "Error on end of stream"
