@@ -1,5 +1,6 @@
 module Options (Warnings(..), Options(..), mkOptions) where
 
+import Control.Monad.Instances
 import System.Console.GetOpt
 
 import PrettyPrinter
@@ -36,22 +37,26 @@ defaultOptions = Options
 	, enabledWarnings = allWarnings
 	}
 
-warningsOptions :: String -> Options -> Options
-warningsOptions "no-shadow" o = o { enabledWarnings = (enabledWarnings o){ shadowing = False } }
-warningsOptions other o = o
+warningsOptions :: String -> Warnings -> Warnings
+warningsOptions "no-shadow" w = w { shadowing = False }
+warningsOptions other w = w
+
+-- Apply changes on Warnings to Options
+lift :: (Warnings -> Warnings) -> (Options -> Options)
+lift f o = o { enabledWarnings = f (enabledWarnings o) }
 
 options :: [OptDescr (Options -> Options)]
 options =
-	[ Option [] ["colored"] (NoArg (\o -> o { astPrinter = coloredPrettyPrinter })) "prints the AST with colored text"
-	, Option [] ["plain"] (NoArg (\o -> o { astPrinter = plainPrettyPrinter })) "prints the AST in plain text"
-	, Option [] ["minimizer"] (NoArg (\o -> o { astPrinter = miniPrettyPrinter })) "prints the AST without tabs and newlines"
-	, Option [] ["show-input"] (NoArg (\o -> o { showInput = True })) "shows the input-file"
-	, Option [] ["show-lexing"] (NoArg (\o -> o { showLexingResult = True })) "shows the in-between lexing result"
-	, Option [] ["show-parsing"] (NoArg (\o -> o { showParsingResult = True })) "prettyprints the AST"
-	, Option [] ["show-splast"] (NoArg (\o -> o { showAST = True })) "dumps the in-between AST after some pass"
-	, Option [] ["lex-only"] (NoArg (\o -> o { lexOnly = True })) "stops after the lexing pass"
-	, Option [] ["parse-only"] (NoArg (\o -> o { parseOnly = True })) "stops after the parsing pass"
-	, Option "W" [] (ReqArg warningsOptions "test") "Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
+	[ Option [] ["colored"]		(NoArg (\o -> o { astPrinter = coloredPrettyPrinter }))	"prints the AST with colored text"
+	, Option [] ["plain"]		(NoArg (\o -> o { astPrinter = plainPrettyPrinter }))	"prints the AST in plain text"
+	, Option [] ["minimizer"]	(NoArg (\o -> o { astPrinter = miniPrettyPrinter }))	"prints the AST without tabs and newlines"
+	, Option [] ["show-input"]	(NoArg (\o -> o { showInput = True }))			"shows the input-file"
+	, Option [] ["show-lexing"]	(NoArg (\o -> o { showLexingResult = True }))		"shows the in-between lexing result"
+	, Option [] ["show-parsing"]	(NoArg (\o -> o { showParsingResult = True }))		"prettyprints the AST"
+	, Option [] ["show-splast"]	(NoArg (\o -> o { showAST = True }))			"dumps the in-between AST after some pass"
+	, Option [] ["lex-only"]	(NoArg (\o -> o { lexOnly = True }))			"stops after the lexing pass"
+	, Option [] ["parse-only"]	(NoArg (\o -> o { parseOnly = True }))			"stops after the parsing pass"
+	, Option "W" []			(ReqArg (fmap lift warningsOptions) "warning")		"Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
 	]
 
 mkOptions :: [String] -> IO (Options, [String])
