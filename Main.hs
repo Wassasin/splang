@@ -87,22 +87,22 @@ midentifiers opts filename source program = do
 	let x = assignUniqueIDs program
 	case x of
 		Errors.Result newProgram [] warnings -> do
-			sequence $ map (printSemanticsWarning filename source) warnings
+			sequence $ map (printSemanticsWarning opts filename source) warnings
 			return newProgram
 		Errors.Result _ errors warnings -> do
-			sequence $ map (printSemanticsWarning filename source) warnings
-			sequence $ map (printSemanticsError filename source) errors
+			sequence $ map (printSemanticsWarning opts filename source) warnings
+			sequence $ map (printSemanticsError opts filename source) errors
 			exitFailure
 		Errors.FatalError fe errors warnings -> do
-			sequence $ map (printSemanticsWarning filename source) warnings
-			sequence $ map (printSemanticsError filename source) (errors ++ [fe])
+			sequence $ map (printSemanticsWarning opts filename source) warnings
+			sequence $ map (printSemanticsError opts filename source) (errors ++ [fe])
 			exitFailure
 
-printSemanticsError :: String -> String -> ScopingError -> IO ()
-printSemanticsError filename source (DuplicateDeclaration id1 id2) = do
+printSemanticsError :: Options -> String -> String -> ScopingError -> IO ()
+printSemanticsError opts filename source (DuplicateDeclaration id1 id2) = do
 	standardMessage filename source (src $ getMeta id1) Console.Error ("Redeclaration of identifier \"" ++ getIdentifierString id1 ++ "\"")
 	standardMessage filename source (src $ getMeta id2) Console.Note "Previous declaration here:"
-printSemanticsError filename source (UndeclaredIdentifier ident context) = do
+printSemanticsError opts filename source (UndeclaredIdentifier ident context) = do
 	standardMessage filename source (src $ getMeta ident) Console.Error ("Undeclared identifier \"" ++ getIdentifierString ident ++ "\"")
 	case bestMatch (fst (unzip context)) ident of
 		Nothing -> return ()
@@ -111,8 +111,10 @@ printSemanticsError filename source (UndeclaredIdentifier ident context) = do
 interleave file [] = []
 interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
 
-printSemanticsWarning :: String -> String -> ScopingWarning -> IO ()
-printSemanticsWarning filename source (ShadowsDeclaration id1 id2 scope) = do
+ifWarning kind opts = when (kind . enabledWarnings $ opts)
+
+printSemanticsWarning :: Options -> String -> String -> ScopingWarning -> IO ()
+printSemanticsWarning opts filename source (ShadowsDeclaration id1 id2 scope) = ifWarning shadowing opts $ do
 	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getIdentifierString id1 ++ "\" shadows previous declaration.")
 	standardMessage filename source (src $ getMeta id2) Console.Note (case scope of
 		Global -> "Previous declaration was a global:"

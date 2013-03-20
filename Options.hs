@@ -1,8 +1,17 @@
-module Options (Options(..), mkOptions) where
+module Options (Warnings(..), Options(..), mkOptions) where
 
 import System.Console.GetOpt
 
 import PrettyPrinter
+
+data Warnings = Warnings
+	{ shadowing :: Bool
+	}
+
+allWarnings :: Warnings
+allWarnings = Warnings
+	{ shadowing = True
+	}
 
 data Options = Options
 	{ astPrinter :: Printer (IO ())
@@ -12,6 +21,7 @@ data Options = Options
 	, showAST :: Bool
 	, lexOnly :: Bool
 	, parseOnly :: Bool
+	, enabledWarnings :: Warnings
 	}
 
 defaultOptions :: Options
@@ -23,7 +33,12 @@ defaultOptions = Options
 	, showAST = False
 	, lexOnly = False
 	, parseOnly = False
+	, enabledWarnings = allWarnings
 	}
+
+warningsOptions :: String -> Options -> Options
+warningsOptions "no-shadow" o = o { enabledWarnings = (enabledWarnings o){ shadowing = False } }
+warningsOptions other o = o
 
 options :: [OptDescr (Options -> Options)]
 options =
@@ -36,6 +51,7 @@ options =
 	, Option [] ["show-splast"] (NoArg (\o -> o { showAST = True })) "dumps the in-between AST after some pass"
 	, Option [] ["lex-only"] (NoArg (\o -> o { lexOnly = True })) "stops after the lexing pass"
 	, Option [] ["parse-only"] (NoArg (\o -> o { parseOnly = True })) "stops after the parsing pass"
+	, Option "W" [] (ReqArg warningsOptions "test") "Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
 	]
 
 mkOptions :: [String] -> IO (Options, [String])
