@@ -32,7 +32,7 @@ idLookup ident (x:xs)
 updateIdentifier :: AST.Identifier a -> AST.Identifier b -> AST.Identifier a
 updateIdentifier (AST.Identifier str n a) (AST.Identifier str2 m b) = AST.Identifier str m a
 
-maximalUniqueID :: Context (AST.Identifier a) b -> Maybe Int
+maximalUniqueID :: Context (AST.Identifier a) b -> Maybe IdentID
 maximalUniqueID [] = Nothing
 maximalUniqueID ((Identifier _ n _, _):xs) = case maximalUniqueID xs of
 	Nothing -> n
@@ -40,7 +40,7 @@ maximalUniqueID ((Identifier _ n _, _):xs) = case maximalUniqueID xs of
 		Nothing -> Just m1
 		Just m2 -> Just $ max m1 m2
 
-nextUniqueID :: Context (AST.Identifier a) b -> Int
+nextUniqueID :: Context (AST.Identifier a) b -> IdentID
 nextUniqueID context = case maximalUniqueID context of
 	Nothing -> 0
 	Just n -> n+1
@@ -51,7 +51,7 @@ data ScopingWarning = ShadowsDeclaration (P1 AST.Identifier) (P1 AST.Identifier)
 -- a is used for error messages
 type ScopingResult b = ErrorContainer ScopingError ScopingWarning b
 
--- Will rewrite AST such that all identifiers have an unique name (represented by an Int)
+-- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID)
 assignUniqueIDs :: P1 AST.Program -> ScopingResult (P2 AST.Program)
 assignUniqueIDs program = do
 	(program2, context) <- assignGlobs program		-- 1) determine everything in global scope

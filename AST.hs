@@ -56,10 +56,11 @@ data BinaryOperator a = Multiplication a | Division a | Modulo a
 data UnaryOperator a = Not a | Negative a
 	deriving (Show, Eq, Read, Functor)
 
-data Identifier a = Identifier String (Maybe Int) a
+type IdentID = Int
+data Identifier a = Identifier String (Maybe IdentID) a
 	deriving (Show, Eq, Read, Functor)
 
-assignUniqueID :: Identifier a -> Int -> Identifier a
+assignUniqueID :: Identifier a -> IdentID -> Identifier a
 assignUniqueID (Identifier str _ m) n = (Identifier str (Just n) m)
 
 getIdentifierString :: Identifier a -> String
