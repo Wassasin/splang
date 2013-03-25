@@ -26,7 +26,7 @@ data Builtins
 	| Tail
 	| Fst
 	| Snd
-	deriving (Show, Eq, Read)
+	deriving (Show, Eq, Read, Enum)
 
 -- Something in our context is either a builtin or a user defined thing
 data GeneralIdentifier a = Builtin Builtins | User (AST.Identifier a)
@@ -97,14 +97,9 @@ data ScopingError = DuplicateDeclaration (P1 AST.Identifier) (P1 GeneralIdentifi
 data ScopingWarning = ShadowsDeclaration (P1 AST.Identifier) (P1 GeneralIdentifier) Scope
 type ScopingResult b = ErrorContainer ScopingError ScopingWarning b
 
+-- Empty context = all builtins
 emptyContext :: P1Context
-emptyContext =
-	[ (Builtin Print	, Global)
-	, (Builtin IsEmpty	, Global)
-	, (Builtin Head		, Global)
-	, (Builtin Tail		, Global)
-	, (Builtin Fst		, Global)
-	, (Builtin Snd		, Global)]
+emptyContext = map (\x -> (Builtin x, Global)) [Print ..]
 
 -- Will rewrite AST such that all identifiers have an unique name (represented by an Int)
 assignUniqueIDs :: P1 AST.Program -> ScopingResult (P2 AST.Program)
