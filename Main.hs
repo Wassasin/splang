@@ -2,9 +2,6 @@ import System.Environment
 
 import System.Exit
 import Control.Monad
-import Text.EditDistance
-import Data.List
-import Data.Ord
 
 import qualified Console
 import Options
@@ -17,10 +14,6 @@ import PrettyPrinter
 import Typing
 import SemanticAnalysis
 import Errors
-
-bestMatch :: [AST.Identifier a] -> AST.Identifier a -> Maybe (AST.Identifier a)
-bestMatch l search = let (cost, best) = minimumBy (comparing fst) . map (\ident -> (restrictedDamerauLevenshteinDistance defaultEditCosts (getIdentifierString search) (getIdentifierString ident), ident)) $ l in
-	if cost<3 then Just best else Nothing
 
 standardMessage :: String -> String -> IndexSpan -> Console.MessageE -> String -> IO ()
 standardMessage filename source idx kind message = do
@@ -82,6 +75,9 @@ mparse opts filename source tokens = do
 			standardMessage filename source l Console.Error ("Unexpected token " ++ show t)
 			exitFailure
 
+interleave file [] = []
+interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
+
 midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P2 Program)
 midentifiers opts filename source program = do
 	let x = assignUniqueIDs program
@@ -99,23 +95,30 @@ midentifiers opts filename source program = do
 			exitFailure
 
 printSemanticsError :: Options -> String -> String -> ScopingError -> IO ()
-printSemanticsError opts filename source (DuplicateDeclaration id1 id2) = do
-	standardMessage filename source (src $ getMeta id1) Console.Error ("Redeclaration of identifier \"" ++ getIdentifierString id1 ++ "\"")
-	standardMessage filename source (src $ getMeta id2) Console.Note "Previous declaration here:"
+printSemanticsError opts filename source (DuplicateDeclaration id1 gid) = case gid of
+	Builtin b	-> do
+		standardMessage filename source (src $ getMeta id1) Console.Error ("Redeclaration of builtin \"" ++ getString gid ++ "\"")
+	User id2	-> do
+		standardMessage filename source (src $ getMeta id1) Console.Error ("Redeclaration of identifier \"" ++ getString id1 ++ "\"")
+		standardMessage filename source (src $ getMeta id2) Console.Note "Previous declaration here:"
 printSemanticsError opts filename source (UndeclaredIdentifier ident context) = do
-	standardMessage filename source (src $ getMeta ident) Console.Error ("Undeclared identifier \"" ++ getIdentifierString ident ++ "\"")
-	case bestMatch (fst (unzip context)) ident of
+	let span = (src $ getMeta ident)
+	let beginloc = Source.convert (Source.beginOfSpan span) source
+	standardMessage filename source span Console.Error ("Undeclared identifier \"" ++ getString ident ++ "\"")
+	case bestMatch ident context of
 		Nothing -> return ()
-		Just bm -> standardMessage filename source (src $ getMeta bm) Console.Note ("Did you mean \"" ++ getIdentifierString bm ++ "\"?")
-
-interleave file [] = []
-interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
-
-ifWarning kind opts = when (kind . enabledWarnings $ opts)
+		Just (User user, _) -> standardMessage filename source (src $ getMeta user) Console.Note ("Did you mean \"" ++ getString user ++ "\"?")
+		Just (Builtin b, _) -> Console.putMessage Console.Note filename beginloc ("Did you mean \"" ++ getString b ++ "\"?")
 
 printSemanticsWarning :: Options -> String -> String -> ScopingWarning -> IO ()
-printSemanticsWarning opts filename source (ShadowsDeclaration id1 id2 scope) = ifWarning shadowing opts $ do
-	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getIdentifierString id1 ++ "\" shadows previous declaration.")
+printSemanticsWarning opts filename source (ShadowsDeclaration id1 (User id2) scope) = ifWarning shadowing opts $ do
+	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getString id1 ++ "\" shadows previous declaration.")
 	standardMessage filename source (src $ getMeta id2) Console.Note (case scope of
 		Global -> "Previous declaration was a global:"
 		Argument -> "Previous declaration was used as argument to function:")
+printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) scope) = ifWarning shadowing opts $ do
+	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getString id1 ++ "\" shadows builtin.")
+
+
+ifWarning kind opts = when (kind . enabledWarnings $ opts)
+
