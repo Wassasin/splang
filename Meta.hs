@@ -46,7 +46,7 @@ instance ASTMeta Expr where
 	getMeta (Kbool _ m) = m
 	getMeta (FunCall _ _ m) = m
 	getMeta (Pair _ _ m) = m
-	getMeta (List _ m) = m
+	getMeta (Nil m) = m
 
 instance ASTMeta BinaryOperator where
 	getMeta (Multiplication m) = m

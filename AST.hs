@@ -44,7 +44,7 @@ data Expr a = Var (Identifier a) a
 	| Kbool Boolean a
 	| FunCall (Identifier a) [Expr a] a
 	| Pair (Expr a) (Expr a) a
-	| List [Expr a] a
+	| Nil a
 	deriving (Show, Eq, Read, Functor)
 
 data BinaryOperator a = Multiplication a | Division a | Modulo a
