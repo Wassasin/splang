@@ -72,15 +72,16 @@ bestMatch :: StringIdentifiable a1 => a1 -> Context (GeneralIdentifier a2) b -> 
 bestMatch search context = let (cost, best) = minimumBy (comparing fst) . map (\(ident, b) -> (restrictedDamerauLevenshteinDistance defaultEditCosts (getString search) (getString ident), (ident, b))) $ context in
 	if cost<5 then Just best else Nothing
 
--- Updates a identifier to reflect a previous declared one
--- TODO: Think of what to do with the Builtins
+-- Updates a identifier to reflect a previous declared one (or builtin one)
 updateIdentifier :: AST.Identifier a -> GeneralIdentifier b -> AST.Identifier a
-updateIdentifier ident (Builtin _) = ident
-updateIdentifier (AST.Identifier str n a) (User (AST.Identifier str2 m b)) = AST.Identifier str m a
+updateIdentifier (AST.Identifier str n a) (Builtin b) = AST.Identifier str (Just $ fromEnum b) a
+updateIdentifier (AST.Identifier str _ a) (User (AST.Identifier _ m _)) = AST.Identifier str m a
 
 maximalUniqueID :: Context (GeneralIdentifier a) b -> Maybe Int
 maximalUniqueID [] = Nothing
-maximalUniqueID ((Builtin _, _):xs) = maximalUniqueID xs
+maximalUniqueID ((Builtin b, _):xs) = case maximalUniqueID xs of
+	Nothing -> Just $ fromEnum b
+	Just m1 -> Just $ max (fromEnum b) m1
 maximalUniqueID ((User (Identifier _ n _), _):xs) = case maximalUniqueID xs of
 	Nothing -> n
 	Just m1 -> case n of
