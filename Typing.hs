@@ -26,7 +26,7 @@ instance Eq (FreeType m) where
 
 instance Eq (MonoType m) where
 	(==) (Func xs xr _) (Func ys yr _)	= xs == ys && xr == yr
-	(==) (Pair xx xy _) (Pair yx yy _)	= xx == yx && yx == yy
+	(==) (Pair xx xy _) (Pair yx yy _)	= xx == yx && xy == yy
 	(==) (List x _) (List y _)		= x == y
 	(==) (Free x _) (Free y _)		= x == y
 	(==) (Int _) (Int _)			= True
@@ -65,7 +65,7 @@ instance Monad (InferMonadD m) where
 	return a = mo $ \st -> return (a, st)
 	
 returnInferError :: InferError m -> InferMonadD m a
-returnInferError e = mo $ \st -> returnFatal e
+returnInferError e = mo $ \_ -> returnFatal e
 
 substitute :: MonoType m -> MonoType m -> Substitution m
 substitute x y z
@@ -136,11 +136,11 @@ genMgu t1 t2 = case mgu t1 t2 of
 genFresh :: m -> InferMonadD m (MonoType m)
 genFresh m = mo $ \st -> return (Free (FT st m) m, st+1)
 
-genBind :: PolyType m -> InferMonadD m (MonoType m)
-genBind (Mono t m) = return t
-genBind (Poly a t m) = do
+genBind :: m -> PolyType m -> InferMonadD m (MonoType m)
+genBind _ (Mono t _) = return t
+genBind m (Poly a t _) = do
 	b <- genFresh m
-	t <- genBind t
+	t <- genBind m t
 	return $ substitute b (Free a m) t
 
 (.>) :: InferMonadD m (Substitution m) -> Substitution m -> InferMonadD m (Substitution m)
@@ -148,41 +148,52 @@ genBind (Poly a t m) = do
 	s1 <- fd
 	return $ s1 . s2
 
-matchOp :: m -> AST.BinaryOperator m -> InferMonadD m (MonoType m, MonoType m, MonoType m)
-matchOp m (AST.Multiplication _)	= return (Int m, Int m, Int m)
-matchOp m (AST.Division _)		= return (Int m, Int m, Int m)
-matchOp m (AST.Modulo _)		= return (Int m, Int m, Int m)
-matchOp m (AST.Plus _)			= return (Int m, Int m, Int m)
-matchOp m (AST.Minus _)			= return (Int m, Int m, Int m)
-matchOp m (AST.Cons _)			= do
+matchBinOp :: m -> AST.BinaryOperator m -> InferMonadD m (MonoType m, MonoType m, MonoType m)
+matchBinOp m (AST.Multiplication _)	= return (Int m, Int m, Int m)
+matchBinOp m (AST.Division _)		= return (Int m, Int m, Int m)
+matchBinOp m (AST.Modulo _)		= return (Int m, Int m, Int m)
+matchBinOp m (AST.Plus _)		= return (Int m, Int m, Int m)
+matchBinOp m (AST.Minus _)		= return (Int m, Int m, Int m)
+matchBinOp m (AST.Cons _)		= do
 						a <- genFresh m
 						return (a, List a m, List a m)
-matchOp m (AST.Equals _)		= do
+matchBinOp m (AST.Equals _)		= do
 						a <- genFresh m
 						return (a, a, Bool m)
-matchOp m (AST.LesserThan _)		= return (Int m, Int m, Bool m)
-matchOp m (AST.GreaterThan _)		= return (Int m, Int m, Bool m)
-matchOp m (AST.LesserEqualThan _)	= return (Int m, Int m, Bool m)
-matchOp m (AST.GreaterEqualThan _)	= return (Int m, Int m, Bool m)
-matchOp m (AST.Nequals _)		= do
+matchBinOp m (AST.LesserThan _)		= return (Int m, Int m, Bool m)
+matchBinOp m (AST.GreaterThan _)	= return (Int m, Int m, Bool m)
+matchBinOp m (AST.LesserEqualThan _)	= return (Int m, Int m, Bool m)
+matchBinOp m (AST.GreaterEqualThan _)	= return (Int m, Int m, Bool m)
+matchBinOp m (AST.Nequals _)		= do
 						a <- genFresh m
 						return (a, a, Bool m)
-matchOp m (AST.And _)			= return (Bool m, Bool m, Bool m)
-matchOp m (AST.Or _)			= return (Bool m, Bool m, Bool m)
+matchBinOp m (AST.And _)		= return (Bool m, Bool m, Bool m)
+matchBinOp m (AST.Or _)			= return (Bool m, Bool m, Bool m)
+
+matchUnOp :: m -> AST.UnaryOperator m -> InferMonadD m (MonoType m, MonoType m)
+matchUnOp m (AST.Not _)		= return (Bool m, Bool m)
+matchUnOp m (AST.Negative _)	= return (Int m, Int m)
 
 inferExpr :: InferFunc P2Meta (P2 AST.Expr)
 inferExpr c (AST.Var (AST.Identifier _ (Just i) _) m) t = do
 	u <- fromContext c i
-	u <- genBind u
+	u <- genBind m u
 	s <- genMgu u t
 	return s
 inferExpr c (AST.Binop e1 op e2 m) t = do
-	(s1, s2, u) <- matchOp m op
-	s <- inferExpr c e1 s1
+	(x, y, u) <- matchBinOp m op
+	s <- inferExpr c e1 x
 	c <- apply s c
-	s <- inferExpr c e2 s2 .> s
+	s <- inferExpr c e2 y .> s
 	s <- genMgu (s t) u .> s
 	return s
+inferExpr c (AST.Unop op e m) t = do
+	(x, u) <- matchUnOp m op
+	s <- inferExpr c e x
+	s <- genMgu (s t) u .> s
+	return s
+--inferExpr c (AST.Kint _ m) t = do
+	
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFresh $ getMeta e1
 	s <- inferExpr c e1 a1
