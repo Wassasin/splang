@@ -102,23 +102,55 @@ mgu (Int _) (Int _)			= Success id
 mgu (Bool _) (Bool _)			= Success id
 mgu x y					= Fail x y
 
-apply :: InferContext m -> Substitution m -> InferContext m
-apply c s = map (\(i, t) -> (i, s t)) c
+apply :: Substitution m -> InferContext m -> InferContext m
+apply s c = map (\(i, t) -> (i, s t)) c
 
 genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
 genMgu t1 t2 = mo $ \st -> case mgu t1 t2 of
 	Fail u1 u2 -> returnFatal $ CannotUnify u1 u2
 	Success s -> return (s, st)
 
-genFresh :: ASTMeta a => a m -> InferMonadD m (MonoType m)
-genFresh x = let m = getMeta x in mo $ \st -> return (Free (FT st m) m, st+1)
+genFresh :: m -> InferMonadD m (MonoType m)
+genFresh m = mo $ \st -> return (Free (FT st m) m, st+1)
+
+(.>) :: InferMonadD m (Substitution m) -> Substitution m -> InferMonadD m (Substitution m)
+(.>) fd s2 = do
+	s1 <- fd
+	return $ s1 . s2
+
+matchOp :: m -> AST.BinaryOperator m -> InferMonadD m (MonoType m, MonoType m, MonoType m)
+matchOp m (AST.Multiplication _)	= return (Int m, Int m, Int m)
+matchOp m (AST.Division _)		= return (Int m, Int m, Int m)
+matchOp m (AST.Modulo _)		= return (Int m, Int m, Int m)
+matchOp m (AST.Plus _)			= return (Int m, Int m, Int m)
+matchOp m (AST.Minus _)			= return (Int m, Int m, Int m)
+matchOp m (AST.Cons _)			= do
+						a <- genFresh m
+						return (a, List a m, List a m)
+matchOp m (AST.Equals _)		= do
+						a <- genFresh m
+						return (a, a, Bool m)
+matchOp m (AST.LesserThan _)		= return (Int m, Int m, Bool m)
+matchOp m (AST.GreaterThan _)		= return (Int m, Int m, Bool m)
+matchOp m (AST.LesserEqualThan _)	= return (Int m, Int m, Bool m)
+matchOp m (AST.GreaterEqualThan _)	= return (Int m, Int m, Bool m)
+matchOp m (AST.Nequals _)		= do
+						a <- genFresh m
+						return (a, a, Bool m)
+matchOp m (AST.And _)			= return (Bool m, Bool m, Bool m)
+matchOp m (AST.Or _)			= return (Bool m, Bool m, Bool m)
 
 inferExpr :: InferFunc P2Meta (P2 AST.Expr)
+inferExpr c (AST.Binop e1 op e2 m) t = do
+	(s1, s2, u) <- matchOp m op
+	s <- inferExpr c e1 s1
+	s <- inferExpr (apply s c) e2 s2 .> s
+	s <- genMgu (s t) u .> s
+	return s
 inferExpr c (AST.Pair e1 e2 m) t = do
-	a1 <- genFresh e1
-	s1 <- inferExpr c e1 a1
-	a2 <- genFresh e2
-	s2 <- inferExpr (apply c s1) e2 a2
-	let s3 = s2 . s1
-	s4 <- genMgu (s3 t) (s3 $ Pair a1 a2 m)
-	return $ s4 . s3
+	a1 <- genFresh $ getMeta e1
+	s <- inferExpr c e1 a1
+	a2 <- genFresh $ getMeta e2
+	s <- inferExpr (apply s c) e2 a2 .> s
+	s <- genMgu (s t) (s $ Pair a1 a2 m) .> s
+	return s
