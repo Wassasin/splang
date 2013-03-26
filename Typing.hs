@@ -37,9 +37,10 @@ type Substitution m = MonoType m -> MonoType m
 data Unification m = Success (Substitution m) | Fail (MonoType m) (MonoType m)
 
 type InferState = FTid
-type InferContext m = [(AST.IdentID, MonoType m)]
+type InferContext m = [(AST.IdentID, PolyType m)]
 
-data InferError m = CannotUnify (MonoType m) (MonoType m)
+-- Cannot unify types | IdentID could not be found in context | A substitution of an unbound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
+data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNullpointer AST.IdentID | PolyViolation (FreeType m) (MonoType m)
 data InferWarning m = Void
 type InferResult m a = ErrorContainer (InferError m) (InferWarning m) (a, InferState)
 
@@ -61,7 +62,10 @@ instance Monad (InferMonadD m) where
 		return (b, st3)
 	
 	-- return :: a -> InferMonadD m a
-	return a = mo $ \st -> return (a, st) 
+	return a = mo $ \st -> return (a, st)
+	
+returnInferError :: InferError m -> InferMonadD m a
+returnInferError e = mo $ \st -> returnFatal e
 
 substitute :: MonoType m -> MonoType m -> Substitution m
 substitute x y z
@@ -102,13 +106,32 @@ mgu (Int _) (Int _)			= Success id
 mgu (Bool _) (Bool _)			= Success id
 mgu x y					= Fail x y
 
-apply :: Substitution m -> InferContext m -> InferContext m
-apply s c = map (\(i, t) -> (i, s t)) c
+apply :: Substitution m -> InferContext m -> InferMonadD m (InferContext m)
+apply s c = sequence $ map ( \(i, t) -> do 
+		t <- applyPoly s t
+		return (i, t)
+	) c
+
+applyPoly :: Substitution m -> PolyType m -> InferMonadD m (PolyType m)
+applyPoly s (Mono t m) = return $ Mono (s t) m
+applyPoly s (Poly a t m) = case s (Free a m) of
+	(Free b n)	-> case a == b of
+		False	-> returnInferError $ PolyViolation a (Free b n)
+		True	-> do
+				u <- applyPoly s t
+				return (Poly a u m)
+	y		-> returnInferError $ PolyViolation a y
+
+fromContext :: InferContext m -> AST.IdentID -> InferMonadD m (PolyType m)
+fromContext [] i	= returnInferError $ ContextNullpointer i
+fromContext ((j,t):cs) i
+	| i == j	= return t
+	| otherwise	= fromContext cs i
 
 genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
-genMgu t1 t2 = mo $ \st -> case mgu t1 t2 of
-	Fail u1 u2 -> returnFatal $ CannotUnify u1 u2
-	Success s -> return (s, st)
+genMgu t1 t2 = case mgu t1 t2 of
+	Fail u1 u2 -> returnInferError $ CannotUnify u1 u2
+	Success s -> return s
 
 genFresh :: m -> InferMonadD m (MonoType m)
 genFresh m = mo $ \st -> return (Free (FT st m) m, st+1)
@@ -141,16 +164,20 @@ matchOp m (AST.And _)			= return (Bool m, Bool m, Bool m)
 matchOp m (AST.Or _)			= return (Bool m, Bool m, Bool m)
 
 inferExpr :: InferFunc P2Meta (P2 AST.Expr)
+--inferExpr c (AST.Var i m) t = do
+	
 inferExpr c (AST.Binop e1 op e2 m) t = do
 	(s1, s2, u) <- matchOp m op
 	s <- inferExpr c e1 s1
-	s <- inferExpr (apply s c) e2 s2 .> s
+	c <- apply s c
+	s <- inferExpr c e2 s2 .> s
 	s <- genMgu (s t) u .> s
 	return s
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFresh $ getMeta e1
 	s <- inferExpr c e1 a1
+	c <- apply s c
 	a2 <- genFresh $ getMeta e2
-	s <- inferExpr (apply s c) e2 a2 .> s
+	s <- inferExpr c e2 a2 .> s
 	s <- genMgu (s t) (s $ Pair a1 a2 m) .> s
 	return s
