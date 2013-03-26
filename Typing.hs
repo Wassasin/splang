@@ -40,7 +40,7 @@ type InferState = FTid
 type InferContext m = [(AST.IdentID, PolyType m)]
 
 -- Cannot unify types | IdentID could not be found in context | A substitution of an unbound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
-data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m)
+data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
 data InferWarning m = Void
 type InferResult m a = ErrorContainer (InferError m) (InferWarning m) (a, InferState)
 
@@ -143,6 +143,10 @@ genBind m (Poly a t _) = do
 	t <- genBind m t
 	return $ substitute b (Free a m) t
 
+fetchIdentID :: AST.Identifier m -> InferMonadD m (AST.IdentID)
+fetchIdentID (AST.Identifier _ (Just i) _)	= return i
+fetchIdentID i					= returnInferError $ UnknownIdentifier i
+
 (.>) :: InferMonadD m (Substitution m) -> Substitution m -> InferMonadD m (Substitution m)
 (.>) fd s2 = do
 	s1 <- fd
@@ -175,10 +179,11 @@ matchUnOp m (AST.Not _)		= return (Bool m, Bool m)
 matchUnOp m (AST.Negative _)	= return (Int m, Int m)
 
 inferExpr :: InferFunc P2Meta (P2 AST.Expr)
-inferExpr c (AST.Var (AST.Identifier _ (Just i) _) m) t = do
+inferExpr c (AST.Var i m) t = do
+	i <- fetchIdentID i
 	u <- fromContext c i
 	u <- genBind m u
-	s <- genMgu u t
+	s <- genMgu t u
 	return s
 inferExpr c (AST.Binop e1 op e2 m) t = do
 	(x, y, u) <- matchBinOp m op
@@ -192,8 +197,23 @@ inferExpr c (AST.Unop op e m) t = do
 	s <- inferExpr c e x
 	s <- genMgu (s t) u .> s
 	return s
---inferExpr c (AST.Kint _ m) t = do
-	
+inferExpr _ (AST.Kint _ m) t = do
+	s <- genMgu (Int m) t
+	return s
+inferExpr _ (AST.Kbool _ m) t = do
+	s <- genMgu (Bool m) t
+	return s
+inferExpr c (AST.FunCall i es m) t = do
+	i <- fetchIdentID i
+	u <- fromContext c i
+	u <- genBind m u
+	let Func as r _ = u
+	s <- genMgu t r
+	s <- foldl (>>=) (return s) $ map (\(e, a) -> \s -> do
+		c <- apply s c
+		s <- inferExpr c e (s a) .> s
+		return s) $ zip es as
+	return s
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFresh $ getMeta e1
 	s <- inferExpr c e1 a1
@@ -201,4 +221,8 @@ inferExpr c (AST.Pair e1 e2 m) t = do
 	a2 <- genFresh $ getMeta e2
 	s <- inferExpr c e2 a2 .> s
 	s <- genMgu (s t) (s $ Pair a1 a2 m) .> s
+	return s
+inferExpr _ (AST.Nil m) t = do
+	a <- genFresh m
+	s <- genMgu t (List a m)
 	return s
