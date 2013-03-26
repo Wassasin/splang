@@ -19,6 +19,7 @@ data MonoType m = Func [MonoType m] (MonoType m) m
 	| Free (FreeType m) m
 	| Int m
 	| Bool m
+	| Void m
 	deriving (Show, Read)
 	
 instance Eq (FreeType m) where
@@ -31,6 +32,7 @@ instance Eq (MonoType m) where
 	(==) (Free x _) (Free y _)		= x == y
 	(==) (Int _) (Int _)			= True
 	(==) (Bool _) (Bool _)			= True
+	(==) (Void _) (Void _)			= True
 	(==) _ _				= False
 	
 type Substitution m = MonoType m -> MonoType m
@@ -41,8 +43,7 @@ type InferContext m = [(AST.IdentID, PolyType m)]
 
 -- Cannot unify types | IdentID could not be found in context | A substitution of an unbound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
 data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
-data InferWarning m = Void
-type InferResult m a = ErrorContainer (InferError m) (InferWarning m) (a, InferState)
+type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
 data InferMonadD m a = IM (InferMonad m a)
@@ -104,6 +105,7 @@ mgu (Pair xx xy _) (Pair yx yy _)	= case mgu xy yy of
 mgu (List x _) (List y _)		= mgu x y
 mgu (Int _) (Int _)			= Success id
 mgu (Bool _) (Bool _)			= Success id
+mgu (Void _) (Void _)			= Success id
 mgu x y					= Fail x y
 
 apply :: Substitution m -> InferContext m -> InferMonadD m (InferContext m)
