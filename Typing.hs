@@ -154,6 +154,25 @@ fetchIdentID i					= returnInferError $ UnknownIdentifier i
 	s1 <- fd
 	return $ s1 . s2
 
+inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
+inferStmt c (AST.Expr e m) _ = do
+	a <- genFresh m
+	s <- inferExpr c e a
+	return s
+inferStmt c (AST.Scope stmts _) t = do
+	s <- foldl (>>=) (return id) $ map (\stmt -> \s -> do
+		c <- apply s c
+		s <- inferStmt c stmt (s t) .> s
+		return s) stmts
+	return s
+inferStmt c (AST.IfElse e stmtt stmte m) t = do
+	s <- inferStmt c stmtt t
+	c <- apply s c
+	s <- inferStmt c stmte (s t) .> s
+	c <- apply s c
+	s <- inferExpr c e (Bool $ getMeta e) .> s
+	return s
+
 matchBinOp :: m -> AST.BinaryOperator m -> InferMonadD m (MonoType m, MonoType m, MonoType m)
 matchBinOp m (AST.Multiplication _)	= return (Int m, Int m, Int m)
 matchBinOp m (AST.Division _)		= return (Int m, Int m, Int m)
