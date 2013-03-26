@@ -170,17 +170,36 @@ inferStmt c (AST.Scope stmts _) t = do
 		s <- inferStmt c stmt (s t) .> s
 		return s) stmts
 	return s
-inferStmt c (AST.If e stmtt m) t = do
+inferStmt c (AST.If e stmtt _) t = do
 	s <- inferStmt c stmtt t
 	c <- apply s c
 	s <- inferExpr c e (Bool $ getMeta e) .> s
 	return s
-inferStmt c (AST.IfElse e stmtt stmte m) t = do
+inferStmt c (AST.IfElse e stmtt stmte _) t = do
 	s <- inferStmt c stmtt t
 	c <- apply s c
 	s <- inferStmt c stmte (s t) .> s
 	c <- apply s c
 	s <- inferExpr c e (Bool $ getMeta e) .> s
+	return s
+inferStmt c (AST.While e stmt _) t = do
+	s <- inferStmt c stmt t
+	c <- apply s c
+	s <- inferExpr c e (Bool $ getMeta e) .> s
+	return s
+inferStmt c (AST.Assignment i e m) _ = do
+	i <- fetchIdentID i
+	u <- fromContext c i
+	u <- genBind m u
+	s <- inferExpr c e u
+	return s
+inferStmt _ (AST.Return Nothing m) t = do
+	s <- genMgu t (Void m)
+	return s
+inferStmt c (AST.Return (Just e) m) t = do
+	a <- genFreshConcrete m
+	s <- inferExpr c e a
+	s <- genMgu (s t) a .> s
 	return s
 
 matchBinOp :: AST.BinaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoType m, m -> MonoType m)
