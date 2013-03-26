@@ -1,0 +1,4 @@
+#!/bin/bash
+
+pdflatex "assignment2.tex" || exit 1
+pdflatex "assignment2.tex"
