@@ -1,6 +1,6 @@
 module Typing where
 
-import Data.List (union)
+import Data.List (union, (\\))
 import SemanticAnalysis (P2, P2Meta)
 import Errors
 import Meta (ASTMeta, getMeta)
@@ -158,6 +158,32 @@ fetchIdentID i					= returnInferError $ UnknownIdentifier i
 (.>) fd s2 = do
 	s1 <- fd
 	return $ s1 . s2
+
+inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
+inferDecl c (AST.VarDecl _ i e m) = do
+	i <- fetchIdentID i
+	a <- genFreshConcrete m
+	let ce = (i, (Mono a m)):c
+	s <- inferExpr ce e a
+	c <- apply s c
+	let bs = ftvm (s a) \\ (concat $ map (ftv . snd) c)
+	a <- return $ foldr (\a t -> Poly a t m) (Mono (s a) m) bs
+	return (s, (i,a):c)
+inferDecl c (AST.FunDecl _ i args decls stmts m) = do
+	i <- fetchIdentID i
+	u <- fromContext c i
+	u <- genBind m u
+	b <- genFreshConcrete m
+	as <- sequence $ map (\(_, argi) -> do
+		let argm = getMeta argi
+		a <- genFreshConcrete argm
+		return (i, Mono a argm)) args
+	c <- return $ as ++ c
+	s <- foldl (>>=) (return id) $ map (\stmt -> \s -> do
+		c <- apply s c
+		s <- inferStmt c stmt (s b) .> s
+		return s) stmts
+	return (id, as ++ c)
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do
