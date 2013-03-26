@@ -135,13 +135,18 @@ genMgu t1 t2 = case mgu t1 t2 of
 	Fail u1 u2 -> returnInferError $ CannotUnify u1 u2
 	Success s -> return s
 
-genFresh :: m -> InferMonadD m (MonoType m)
-genFresh m = mo $ \st -> return (Free (FT st m) m, st+1)
+genFresh :: InferMonadD m (m -> MonoType m)
+genFresh = mo $ \st -> return (\m -> Free (FT st m) m, st+1)
+
+genFreshConcrete :: m -> InferMonadD m (MonoType m)
+genFreshConcrete m = do
+	a <- genFresh
+	return $ a m
 
 genBind :: m -> PolyType m -> InferMonadD m (MonoType m)
 genBind _ (Mono t _) = return t
 genBind m (Poly a t _) = do
-	b <- genFresh m
+	b <- genFreshConcrete m
 	t <- genBind m t
 	return $ substitute b (Free a m) t
 
@@ -156,7 +161,7 @@ fetchIdentID i					= returnInferError $ UnknownIdentifier i
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do
-	a <- genFresh m
+	a <- genFreshConcrete m
 	s <- inferExpr c e a
 	return s
 inferStmt c (AST.Scope stmts _) t = do
@@ -164,6 +169,11 @@ inferStmt c (AST.Scope stmts _) t = do
 		c <- apply s c
 		s <- inferStmt c stmt (s t) .> s
 		return s) stmts
+	return s
+inferStmt c (AST.If e stmtt m) t = do
+	s <- inferStmt c stmtt t
+	c <- apply s c
+	s <- inferExpr c e (Bool $ getMeta e) .> s
 	return s
 inferStmt c (AST.IfElse e stmtt stmte m) t = do
 	s <- inferStmt c stmtt t
@@ -173,31 +183,31 @@ inferStmt c (AST.IfElse e stmtt stmte m) t = do
 	s <- inferExpr c e (Bool $ getMeta e) .> s
 	return s
 
-matchBinOp :: m -> AST.BinaryOperator m -> InferMonadD m (MonoType m, MonoType m, MonoType m)
-matchBinOp m (AST.Multiplication _)	= return (Int m, Int m, Int m)
-matchBinOp m (AST.Division _)		= return (Int m, Int m, Int m)
-matchBinOp m (AST.Modulo _)		= return (Int m, Int m, Int m)
-matchBinOp m (AST.Plus _)		= return (Int m, Int m, Int m)
-matchBinOp m (AST.Minus _)		= return (Int m, Int m, Int m)
-matchBinOp m (AST.Cons _)		= do
-						a <- genFresh m
-						return (a, List a m, List a m)
-matchBinOp m (AST.Equals _)		= do
-						a <- genFresh m
-						return (a, a, Bool m)
-matchBinOp m (AST.LesserThan _)		= return (Int m, Int m, Bool m)
-matchBinOp m (AST.GreaterThan _)	= return (Int m, Int m, Bool m)
-matchBinOp m (AST.LesserEqualThan _)	= return (Int m, Int m, Bool m)
-matchBinOp m (AST.GreaterEqualThan _)	= return (Int m, Int m, Bool m)
-matchBinOp m (AST.Nequals _)		= do
-						a <- genFresh m
-						return (a, a, Bool m)
-matchBinOp m (AST.And _)		= return (Bool m, Bool m, Bool m)
-matchBinOp m (AST.Or _)			= return (Bool m, Bool m, Bool m)
+matchBinOp :: AST.BinaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoType m, m -> MonoType m)
+matchBinOp (AST.Multiplication _)	= return (Int, Int, Int)
+matchBinOp (AST.Division _)		= return (Int, Int, Int)
+matchBinOp (AST.Modulo _)		= return (Int, Int, Int)
+matchBinOp (AST.Plus _)			= return (Int, Int, Int)
+matchBinOp (AST.Minus _)		= return (Int, Int, Int)
+matchBinOp (AST.Cons _)			= do
+						a <- genFresh
+						return (a, \m -> List (a m) m, \m -> List (a m) m)
+matchBinOp (AST.Equals _)		= do
+						a <- genFresh
+						return (a, a, Bool)
+matchBinOp (AST.LesserThan _)		= return (Int, Int, Bool)
+matchBinOp (AST.GreaterThan _)		= return (Int, Int, Bool)
+matchBinOp (AST.LesserEqualThan _)	= return (Int, Int, Bool)
+matchBinOp (AST.GreaterEqualThan _)	= return (Int, Int, Bool)
+matchBinOp (AST.Nequals _)		= do
+						a <- genFresh
+						return (a, a, Bool)
+matchBinOp (AST.And _)			= return (Bool, Bool, Bool)
+matchBinOp (AST.Or _)			= return (Bool, Bool, Bool)
 
-matchUnOp :: m -> AST.UnaryOperator m -> InferMonadD m (MonoType m, MonoType m)
-matchUnOp m (AST.Not _)		= return (Bool m, Bool m)
-matchUnOp m (AST.Negative _)	= return (Int m, Int m)
+matchUnOp :: AST.UnaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoType m)
+matchUnOp (AST.Not _)		= return (Bool, Bool)
+matchUnOp (AST.Negative _)	= return (Int, Int)
 
 inferExpr :: InferFunc P2Meta (P2 AST.Expr)
 inferExpr c (AST.Var i m) t = do
@@ -207,14 +217,16 @@ inferExpr c (AST.Var i m) t = do
 	s <- genMgu t u
 	return s
 inferExpr c (AST.Binop e1 op e2 m) t = do
-	(x, y, u) <- matchBinOp m op
+	(xf, yf, uf) <- matchBinOp op
+	let (x, y, u) = (xf $ getMeta e1, yf $ getMeta e2, uf m)
 	s <- inferExpr c e1 x
 	c <- apply s c
 	s <- inferExpr c e2 y .> s
 	s <- genMgu (s t) u .> s
 	return s
 inferExpr c (AST.Unop op e m) t = do
-	(x, u) <- matchUnOp m op
+	(xf, uf) <- matchUnOp op
+	let (x, u) = (xf $ getMeta e, uf m)
 	s <- inferExpr c e x
 	s <- genMgu (s t) u .> s
 	return s
@@ -236,14 +248,14 @@ inferExpr c (AST.FunCall i es m) t = do
 		return s) $ zip es as
 	return s
 inferExpr c (AST.Pair e1 e2 m) t = do
-	a1 <- genFresh $ getMeta e1
+	a1 <- genFreshConcrete $ getMeta e1
 	s <- inferExpr c e1 a1
 	c <- apply s c
-	a2 <- genFresh $ getMeta e2
+	a2 <- genFreshConcrete $ getMeta e2
 	s <- inferExpr c e2 a2 .> s
 	s <- genMgu (s t) (s $ Pair a1 a2 m) .> s
 	return s
 inferExpr _ (AST.Nil m) t = do
-	a <- genFresh m
+	a <- genFreshConcrete m
 	s <- genMgu t (List a m)
 	return s
