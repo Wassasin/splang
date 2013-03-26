@@ -40,7 +40,7 @@ type InferState = FTid
 type InferContext m = [(AST.IdentID, PolyType m)]
 
 -- Cannot unify types | IdentID could not be found in context | A substitution of an unbound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
-data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNullpointer AST.IdentID | PolyViolation (FreeType m) (MonoType m)
+data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m)
 data InferWarning m = Void
 type InferResult m a = ErrorContainer (InferError m) (InferWarning m) (a, InferState)
 
@@ -123,7 +123,7 @@ applyPoly s (Poly a t m) = case s (Free a m) of
 	y		-> returnInferError $ PolyViolation a y
 
 fromContext :: InferContext m -> AST.IdentID -> InferMonadD m (PolyType m)
-fromContext [] i	= returnInferError $ ContextNullpointer i
+fromContext [] i	= returnInferError $ ContextNotFound i
 fromContext ((j,t):cs) i
 	| i == j	= return t
 	| otherwise	= fromContext cs i
@@ -135,6 +135,13 @@ genMgu t1 t2 = case mgu t1 t2 of
 
 genFresh :: m -> InferMonadD m (MonoType m)
 genFresh m = mo $ \st -> return (Free (FT st m) m, st+1)
+
+genBind :: PolyType m -> InferMonadD m (MonoType m)
+genBind (Mono t m) = return t
+genBind (Poly a t m) = do
+	b <- genFresh m
+	t <- genBind t
+	return $ substitute b (Free a m) t
 
 (.>) :: InferMonadD m (Substitution m) -> Substitution m -> InferMonadD m (Substitution m)
 (.>) fd s2 = do
@@ -164,8 +171,11 @@ matchOp m (AST.And _)			= return (Bool m, Bool m, Bool m)
 matchOp m (AST.Or _)			= return (Bool m, Bool m, Bool m)
 
 inferExpr :: InferFunc P2Meta (P2 AST.Expr)
---inferExpr c (AST.Var i m) t = do
-	
+inferExpr c (AST.Var (AST.Identifier _ (Just i) _) m) t = do
+	u <- fromContext c i
+	u <- genBind u
+	s <- genMgu u t
+	return s
 inferExpr c (AST.Binop e1 op e2 m) t = do
 	(s1, s2, u) <- matchOp m op
 	s <- inferExpr c e1 s1
