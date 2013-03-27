@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
+module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
 
 import Text.EditDistance
 import Data.List
@@ -253,7 +253,4 @@ assignExpr (Pair e1 e2 m) = do
 	ee1 <- assignExpr e1
 	ee2 <- assignExpr e2
 	return $ Pair ee1 ee2 m
-assignExpr (List exprs m) = do
-	exprs2 <- sequence (map assignExpr exprs)
-	return $ List exprs2 m
 assignExpr x = return x -- ignores constants

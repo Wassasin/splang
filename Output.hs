@@ -103,7 +103,7 @@ outputExpr _ (Kint n _)				= constant (show n)
 outputExpr _ (Kbool b _)			= constant (show b)
 outputExpr _ (FunCall i exprs _)	= function i ++ lift "(" ++ join (outputExpr False) (lift ", ") exprs ++ lift ")"
 outputExpr _ (Pair e1 e2 _)			= lift "(" ++ outputExpr False e1 ++ lift ", " ++ outputExpr False e2 ++ lift ")"
-outputExpr _ (List exprs _)			= lift "[" ++ join (outputExpr False) (lift ", ") exprs ++ lift "]"
+outputExpr _ (Nil _)			= lift "[]"
 
 outputBinaryOperator :: BinaryOperator a -> MarkupString Styles
 outputBinaryOperator (Multiplication _)		= lift " * "

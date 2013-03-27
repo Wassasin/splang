@@ -1,4 +1,4 @@
-module Errors (ErrorContainer(..), returnWithWarning, returnWithError) where
+module Errors (ErrorContainer(..), returnWithWarning, returnWithError, returnFatal) where
 
 -- errors, warnings and data
 data ErrorContainer e w d = Result d [e] [w] | FatalError e [e] [w]
@@ -16,3 +16,6 @@ returnWithWarning x w = Result x [] [w]
 
 returnWithError :: d -> e -> ErrorContainer e w d
 returnWithError x e = Result x [e] []
+
+returnFatal :: e -> ErrorContainer e w d
+returnFatal e = FatalError e [e] []

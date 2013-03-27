@@ -192,7 +192,7 @@ parseTerm7 = parseKint
 	<!> do
 		equalsToken Lexer.SquareBracketsOpen
 		equalsToken Lexer.SquareBracketsClose
-		produceP1 (AST.List [])
+		produceP1 AST.Nil
 
 parseVar :: ParseFuncD (P1 AST.Expr)
 parseVar = newObject ( do
