@@ -217,10 +217,9 @@ inferDecl c (AST.FunDecl _ i args decls stmts m) = do
 	u <- genBind m u
 	b <- genFreshConcrete m
 	-- make for each argument a free type
-	argtup <- sequence $ map (\(_, argi) -> do
-		let argm = getMeta argi
-		a <- genFreshConcrete argm
-		return (i, a)) args
+	argtup <- sequence $ map (\(_, AST.Identifier _ n m) -> do
+		a <- genFreshConcrete m
+		return (fromJust n, a)) args
 	-- set types for arguments in context
 	c <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return c) argtup
 	-- define vardecls
@@ -342,7 +341,9 @@ inferExpr c (AST.FunCall i es m) t = do
 	i <- fetchIdentID i
 	u <- c i
 	u <- genBind m u
-	let Func as r _ = u
+	r <- genFreshConcrete m
+	as <- sequence $ map (\e -> genFreshConcrete $ getMeta e) es
+	u <- return $ Func as r m
 	s <- genMgu t r
 	s <- foldl (>>=) (return s) $ map (\(e, a) -> \s -> do
 		c <- apply s c
