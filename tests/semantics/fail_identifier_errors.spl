@@ -8,5 +8,6 @@ Int blaat = goo + baz * blaat(fool);
 
 // Redeclaration
 Int blaat(){
+	empty([]);
 	return bat + foo + blaat;
 }

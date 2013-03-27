@@ -1,0 +1,64 @@
+\documentclass[14pt]{amsart}
+
+\usepackage[british]{babel}
+
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{listings}
+\usepackage{xspace}
+\usepackage{url}
+
+\newcommand{\splang}{\textsc{Splang}\xspace}
+
+\title{\splang}
+\author{Wouter Geraedts \and Joshua Moerman}
+\date{}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+
+\section{Implementation}
+For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining datastructures. Another nice things is the \emph{\texttt{do}-syntax} of haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperitave language.
+
+One feature we miss out in Haskell is for example \emph{generics} as in \emph{Clean}. Of course there are more minor irritations because of some differences between Clean and Haskell.
+
+\section{Parser}
+We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and sourecode information. It is implemented in a monadic way.
+
+\subsection{Grammar}
+In order to parse the language we had to change the grammar a bit. First of all we added priorities to the different operators, so that the multiplication binds stronger than addition.
+
+Secondly, we generalized the grammar a bit, not only function calls can be an assignment, but also expressions.
+
+We also noted that the given grammar was ambiguous, because of the \emph{dangling else}. We didn't have to change this, nor choose an convention. Our parser has infinite lookahead, so we parse all possibilities and conclude that it is ambiguous, and throw an error.
+
+At last there is the problem of left-recursion in the given grammar. Our parser is left-descent, so we had to do left-factoring. We also had to think about associativity of non-associative operators.
+
+The used grammar is attached in the appendix.
+
+\section{Scoping}
+We distinguish three different scopes (from big to small): \emph{global}, \emph{function argument} and \emph{local}. If two identifiers are being declared in the same scope, an error will be thrown, but compilation will continue (to possibly catch more errors). If a identifier is being declared, but it was already declared in a bigger scope, we allow this, but we will give the user a warning (because it is probably not what you want, and might introduce subtle bugs). This is called shadowing, one can still initialize this shadowing identifier with the previous one, as shown here:
+
+\begin{lstlisting}
+Int x = 5; // Global
+Void foo(){
+    Int x = x; // Warning: x shadows global x
+               // x will be still initialized with the global x,
+               // so: x == 5 is true
+}
+\end{lstlisting}
+
+\section{Typing}
+We infer types.
+
+\section{Tests}
+
+\section{Reflection}
+The work was more or less equally divided, as we seen on github:
+
+\url{https://github.com/Wassasin/splang}
+
+\end{document}

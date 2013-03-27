@@ -1,4 +1,8 @@
-module SemanticAnalysis (Context, Scope(..), P2, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
+module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
+
+import Text.EditDistance
+import Data.List
+import Data.Ord
 
 import AST
 import Meta
@@ -9,78 +13,125 @@ import qualified Source
 -- a will always be (AST.Identifier a)
 type Context a b = [(a, b)]
 
+-- Three levels of scoping (for warnings/errors)
 data Scope = Global | Argument | Local
 	deriving (Show, Eq, Read)
 
-type LocatedIdentifier = P1 AST.Identifier
-type P1Context = Context LocatedIdentifier Scope
+-- Builtin functions
+-- TODO: Add more of them
+data Builtins
+	= Print
+	| IsEmpty
+	| Head
+	| Tail
+	| Fst
+	| Snd
+	deriving (Show, Eq, Read, Enum)
 
+-- Something in our context is either a builtin or a user defined thing
+data GeneralIdentifier a = Builtin Builtins | User (AST.Identifier a)
+	deriving (Show, Eq, Read)
+type P1Context = Context (GeneralIdentifier P1Meta) Scope
 data P2Meta = P2 {src2 :: Source.IndexSpan, context :: P1Context}
 	deriving (Show, Eq, Read)
-
 type P2 a = a P2Meta
 
+-- Forget the new structure (especially useful with fmap)
 forget :: P2Meta -> P1Meta
 forget thing = P1 {src = (src2 thing)}
 
-idLookup :: AST.Identifier c -> Context (AST.Identifier a) b -> Maybe (AST.Identifier a, b)
+-- To compare things in our context, we, in this phase, look at strings
+class StringIdentifiable a where
+	getString :: a -> String
+
+stringEqual :: (StringIdentifiable a, StringIdentifiable b) => a -> b -> Bool
+stringEqual a b = (getString a) == (getString b)
+
+instance StringIdentifiable (AST.Identifier a) where
+	getString = getIdentifierString
+
+instance StringIdentifiable Builtins where
+	getString Print		= "print"
+	getString IsEmpty	= "isEmpty"
+	getString Head		= "head"
+	getString Tail		= "tail"
+	getString Fst		= "fst"
+	getString Snd		= "snd"
+
+instance StringIdentifiable (GeneralIdentifier a) where
+	getString (Builtin b) = getString b
+	getString (User iden) = getString iden
+
+idLookup :: StringIdentifiable a1 => a1 -> Context (GeneralIdentifier a2) b -> Maybe (GeneralIdentifier a2, b)
 idLookup ident [] = Nothing
 idLookup ident (x:xs)
-	| AST.getIdentifierString ident == AST.getIdentifierString (fst x) = Just x
+	| stringEqual ident (fst x) = Just x
 	| otherwise = idLookup ident xs
 
-updateIdentifier :: AST.Identifier a -> AST.Identifier b -> AST.Identifier a
-updateIdentifier (AST.Identifier str n a) (AST.Identifier str2 m b) = AST.Identifier str m a
+bestMatch :: StringIdentifiable a1 => a1 -> Context (GeneralIdentifier a2) b -> Maybe (GeneralIdentifier a2, b)
+bestMatch search context = let (cost, best) = minimumBy (comparing fst) . map (\(ident, b) -> (restrictedDamerauLevenshteinDistance defaultEditCosts (getString search) (getString ident), (ident, b))) $ context in
+	if cost<5 then Just best else Nothing
 
-maximalUniqueID :: Context (AST.Identifier a) b -> Maybe IdentID
+-- Updates a identifier to reflect a previous declared one (or builtin one)
+updateIdentifier :: AST.Identifier a -> GeneralIdentifier b -> AST.Identifier a
+updateIdentifier (AST.Identifier str n a) (Builtin b) = AST.Identifier str (Just $ fromEnum b) a
+updateIdentifier (AST.Identifier str _ a) (User (AST.Identifier _ m _)) = AST.Identifier str m a
+
+maximalUniqueID :: Context (GeneralIdentifier a) b -> Maybe IdentID
 maximalUniqueID [] = Nothing
-maximalUniqueID ((Identifier _ n _, _):xs) = case maximalUniqueID xs of
+maximalUniqueID ((Builtin b, _):xs) = case maximalUniqueID xs of
+	Nothing -> Just $ fromEnum b
+	Just m1 -> Just $ max (fromEnum b) m1
+maximalUniqueID ((User (Identifier _ n _), _):xs) = case maximalUniqueID xs of
 	Nothing -> n
 	Just m1 -> case n of
 		Nothing -> Just m1
 		Just m2 -> Just $ max m1 m2
 
-nextUniqueID :: Context (AST.Identifier a) b -> IdentID
+nextUniqueID :: Context (GeneralIdentifier a) b -> IdentID
 nextUniqueID context = case maximalUniqueID context of
 	Nothing -> 0
 	Just n -> n+1
 
--- a will most probably be some kind of identifier
-data ScopingError = DuplicateDeclaration (P1 AST.Identifier) (P1 AST.Identifier) | UndeclaredIdentifier (P1 AST.Identifier) P1Context
-data ScopingWarning = ShadowsDeclaration (P1 AST.Identifier) (P1 AST.Identifier) Scope
--- a is used for error messages
+-- First identifier is always the one in the source
+data ScopingError = DuplicateDeclaration (P1 AST.Identifier) (P1 GeneralIdentifier) | UndeclaredIdentifier (P1 AST.Identifier) P1Context
+data ScopingWarning = ShadowsDeclaration (P1 AST.Identifier) (P1 GeneralIdentifier) Scope
 type ScopingResult b = ErrorContainer ScopingError ScopingWarning b
+
+-- Empty context = all builtins
+emptyContext :: P1Context
+emptyContext = map (\x -> (Builtin x, Global)) [Print ..]
 
 -- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID)
 assignUniqueIDs :: P1 AST.Program -> ScopingResult (P2 AST.Program)
 assignUniqueIDs program = do
-	(program2, context) <- assignGlobs program		-- 1) determine everything in global scope
+	(program2, context) <- assignGlobs emptyContext program	-- 1) determine everything in global scope
 	let program3 = (addContext context program2)		-- 2) add those things everywehere
 	program4 <- assignAll program3				-- 3) then do the rest (functions/expressions, etc)
 	return program4
 
 -- Part One --
 -- Returns a context with all top-level declarations
-assignGlobs :: P1 AST.Program -> ScopingResult (P1 AST.Program, P1Context)
-assignGlobs (AST.Program decls m) = do
-	(decls2, fcontext) <- assignGlobDecls [] decls
-	return (AST.Program decls2 m, fcontext)
+assignGlobs :: P1Context -> P1 AST.Program -> ScopingResult (P1 AST.Program, P1Context)
+assignGlobs context (AST.Program decls m) = do
+	(decls, context) <- assignGlobDecls context decls
+	return (AST.Program decls m, context)
 
 assignGlobDecls :: P1Context -> [P1 AST.Decl] -> ScopingResult ([P1 AST.Decl], P1Context)
 assignGlobDecls context [] = return ([], context)
 assignGlobDecls context (decl:xs) = do
-	(decl2, context2) <- assignGlobDecl context decl
-	(ys, fcontext) <- assignGlobDecls context2 xs
-	return (decl2:ys, fcontext)
+	(decl, context) <- assignGlobDecl context decl
+	(xs, context) <- assignGlobDecls context xs
+	return (decl:xs, context)
 
 assignGlobDecl :: P1Context -> P1 AST.Decl -> ScopingResult (P1 AST.Decl, P1Context)
 assignGlobDecl context (AST.VarDecl a ident b m) = case idLookup ident context of
-	Just (iy, _) -> Result (AST.VarDecl a ident b m, context) [DuplicateDeclaration ident iy] []
-	Nothing -> return (AST.VarDecl a ident2 b m, (ident2, Global):context)
+	Just (iy, _) -> returnWithError (AST.VarDecl a ident b m, context) (DuplicateDeclaration ident iy)
+	Nothing -> return (AST.VarDecl a ident2 b m, (User ident2, Global):context)
 	where ident2 = AST.assignUniqueID ident (nextUniqueID context)
 assignGlobDecl context (AST.FunDecl a ident b c d m) = case idLookup ident context of
-	Just (iy, _) -> Result (AST.FunDecl a ident b c d m, context) [DuplicateDeclaration ident iy] []
-	Nothing -> return (AST.FunDecl a ident2 b c d m, (ident2, Global):context)
+	Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d m, context) (DuplicateDeclaration ident iy)
+	Nothing -> return (AST.FunDecl a ident2 b c d m, (User ident2, Global):context)
 	where ident2 = AST.assignUniqueID ident (nextUniqueID context)
 
 -- Part Two --
@@ -126,9 +177,9 @@ assignFarg (t, ident) context = do
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
 	case idLookup ident context of
-		Just (iy, Global) -> returnWithWarning ((t, newIdent), (fident, Argument):context) (ShadowsDeclaration fident iy Global)
-		Just (iy, _) -> returnWithError ((t, newIdent), (fident, Argument):context) (DuplicateDeclaration fident iy)
-		Nothing -> return ((t, newIdent), (fident, Argument):context)
+		Just (iy, Global)	-> returnWithWarning ((t, newIdent), (User fident, Argument):context) (ShadowsDeclaration fident iy Global)
+		Just (iy, _)		-> returnWithError ((t, newIdent), (User fident, Argument):context) (DuplicateDeclaration fident iy)
+		Nothing			-> return ((t, newIdent), (User fident, Argument):context)
 
 assignVarDecls :: [P2 AST.Decl] -> P1Context -> ScopingResult ([P2 AST.Decl], P1Context)
 assignVarDecls [] context = return ([], context)
@@ -144,9 +195,9 @@ assignVarDecl (AST.VarDecl a ident b m) context = do
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
 	case idLookup ident context of
-		Just (iy, Local) -> returnWithError ((AST.VarDecl a newIdent b m), (fident, Local):context) (DuplicateDeclaration fident iy)
-		Just (iy, scope) -> returnWithWarning ((AST.VarDecl a newIdent b m), (fident, Local):context) (ShadowsDeclaration fident iy scope)
-		Nothing -> return ((AST.VarDecl a newIdent b m), (fident, Local):context)
+		Just (iy, Local)	-> returnWithError ((AST.VarDecl a newIdent b m), (User fident, Local):context) (DuplicateDeclaration fident iy)
+		Just (iy, scope)	-> returnWithWarning ((AST.VarDecl a newIdent b m), (User fident, Local):context) (ShadowsDeclaration fident iy scope)
+		Nothing			-> return ((AST.VarDecl a newIdent b m), (User fident, Local):context)
 
 -- At this point, all contexts are fixed in the meta info
 assignStmts :: [P2 AST.Stmt] -> ScopingResult ([P2 AST.Stmt])
