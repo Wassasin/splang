@@ -198,10 +198,11 @@ inferDecl c (AST.FunDecl _ i args decls stmts m) = do
 		return (i, a)) args
 	-- set types for arguments in context
 	c <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return c) argtup
+	-- define vardecls
 	(s, c) <- foldl (>>=) (return (id, c)) $ map (\d -> \(s, c) -> do
 		c <- apply s c
 		inferDecl c d) decls
-	-- define vardecls
+	-- process statements
 	s <- foldl (>>=) (return s) $ map (\stmt -> \s -> do
 		c <- apply s c
 		s <- inferStmt c stmt (s b) .> s
