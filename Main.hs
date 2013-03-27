@@ -34,10 +34,9 @@ main = do
 	when (parseOnly opts) $ exitSuccess
 
 	pResult2 <- midentifiers opts file source pResult
-	when (showAST opts) $ print (fmap (const ()) pResult2)
 
-	Console.highLight "Debug result:"
-	prettyPrint (astPrinter opts) pResult2
+	pResult3 <- minfer opts file source pResult2
+
 	exitSuccess
 
 -- filename is needed for error-messaging! Returns a list of tokens or errors.
@@ -122,3 +121,15 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) s
 
 ifWarning kind opts = when (kind . enabledWarnings $ opts)
 
+minfer :: Options -> String -> String -> (P2 Program) -> IO ()
+minfer opts filename source program = do
+	let x = infer program
+	case x of
+		Errors.Result _ [] [] -> do
+			Console.highLight "Woehoe infering succeeded!"
+		Errors.Result _ errors warnings -> do
+			Console.highLight "Shit is going down"
+			exitFailure
+		Errors.FatalError fe errors warnings -> do
+			Console.highLight "Fatal error"
+			exitFailure

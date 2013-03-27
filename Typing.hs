@@ -186,8 +186,8 @@ constructInitialContext m = do
 		return (i, Mono a m)) is
 	foldl (>>=) (return emptyContext) $ map (\(i, a) -> \c -> setContext i a c) tup
 
-infer :: P2 AST.Program -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
-infer p = do
+infer :: P2 AST.Program -> InferResult P2Meta (Substitution P2Meta, InferContext P2Meta)
+infer p = flip bo 0 $ do
 	c <- constructInitialContext $ getMeta p
 	inferProgram c p
 
