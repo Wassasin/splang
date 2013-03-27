@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), P2, P2Meta, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
+module SemanticAnalysis (Context, Scope(..), P2, P2Meta(..), ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
 
 import AST
 import Meta
