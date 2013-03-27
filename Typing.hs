@@ -81,6 +81,9 @@ instance Monad (InferMonadD m) where
 returnFatalInferError :: InferError m -> InferMonadD m a
 returnFatalInferError e = mo $ \_ -> returnFatal e
 
+returnInferError :: a -> InferError m -> InferMonadD m a
+returnInferError x e = mo $ \s -> returnWithError (x, s) e
+
 substitute :: MonoType m -> MonoType m -> Substitution m
 substitute x y z
 	| x == z	= y
@@ -155,7 +158,7 @@ createPoly as t m = foldr (\a t -> Poly a t m) (Mono t m) as
 
 genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
 genMgu t1 t2 = case mgu t1 t2 of
-	Fail u1 u2 -> returnFatalInferError $ CannotUnify u1 u2
+	Fail u1 u2 -> returnInferError id $ CannotUnify u1 u2 -- Cannot infer; assume no substitution, and attempt to continue
 	Success s -> return s
 
 genFresh :: InferMonadD m (m -> MonoType m)
