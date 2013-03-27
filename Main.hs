@@ -128,8 +128,16 @@ minfer opts filename source program = do
 		Errors.Result _ [] [] -> do
 			Console.highLight "Woehoe infering succeeded!"
 		Errors.Result _ errors warnings -> do
-			Console.highLight "Shit is going down"
+			sequence $ map (printTypingError opts filename source) errors
 			exitFailure
 		Errors.FatalError fe errors warnings -> do
-			Console.highLight "Fatal error"
+			sequence $ map (printTypingError opts filename source) (fe:errors)
 			exitFailure
+
+printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
+printTypingError opts filename source (CannotUnify mt1 mt2)	= do
+	standardMessage filename source (src2 $ getMeta mt1) Console.Error "Cannot unify types of"
+	standardMessage filename source (src2 $ getMeta mt2) Console.Note "with"
+printTypingError opts filename source (ContextNotFound ident)	= Console.putMessage Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
+printTypingError opts filename source (PolyViolation ft mt)	= standardMessage filename source (src2 $ getMeta mt) Console.Error "Polytype violation"
+printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src2 $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)

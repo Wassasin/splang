@@ -1,4 +1,4 @@
-module Typing (Substitution, InferContext, infer) where
+module Typing (Substitution, InferError(..), InferContext, infer) where
 
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))
