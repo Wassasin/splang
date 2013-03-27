@@ -1,7 +1,8 @@
-module Typing where
+module Typing (Substitution, InferContext, infer) where
 
+import Data.Maybe (catMaybes)
 import Data.List (union, (\\))
-import SemanticAnalysis (P2, P2Meta, allIDs, context)
+import SemanticAnalysis (P2, P2Meta, context)
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
@@ -101,7 +102,7 @@ ftv (Poly a t _) = filter ((/=) a) (ftv t)
 
 ftvc :: P2Meta -> InferContext P2Meta -> InferMonadD P2Meta ([FreeType P2Meta])
 ftvc m c = do
-	ts <- sequence $ map c $ allIDs (context m)
+	ts <- sequence $ map c $ catMaybes $ map (\x -> let (AST.Identifier _ n _) = fst x in n) $ context m
 	return $ concat $ map ftv ts
 
 mgu :: MonoType m -> MonoType m -> Unification m
@@ -173,6 +174,30 @@ fetchIdentID i					= returnInferError $ UnknownIdentifier i
 (.>) fd s2 = do
 	s1 <- fd
 	return $ s1 . s2
+
+emptyContext :: InferContext m
+emptyContext = \i -> returnInferError $ ContextNotFound i
+
+constructInitialContext :: P2Meta -> InferMonadD P2Meta (InferContext P2Meta)
+constructInitialContext m = do
+	is <- return $ (catMaybes $ map (\x -> let (AST.Identifier _ i _) = fst x in i) $ context m)
+	tup <- sequence $ map (\i -> do
+		a <- genFreshConcrete m
+		return (i, Mono a m)) is
+	foldl (>>=) (return emptyContext) $ map (\(i, a) -> \c -> setContext i a c) tup
+
+infer :: P2 AST.Program -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
+infer p = do
+	c <- constructInitialContext $ getMeta p
+	inferProgram c p
+
+inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
+inferProgram c (AST.Program decls _) = do
+	(s, c) <- foldl (>>=) (return (id, c)) $ map (\d -> \(s, c) -> do
+		c <- apply s c
+		inferDecl c d) decls
+	c <- apply s c
+	return (s, c)
 
 inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
 inferDecl c (AST.VarDecl _ i e m) = do
