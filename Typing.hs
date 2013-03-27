@@ -78,8 +78,8 @@ instance Monad (InferMonadD m) where
 	-- return :: a -> InferMonadD m a
 	return a = mo $ \st -> return (a, st)
 	
-returnInferError :: InferError m -> InferMonadD m a
-returnInferError e = mo $ \_ -> returnFatal e
+returnFatalInferError :: InferError m -> InferMonadD m a
+returnFatalInferError e = mo $ \_ -> returnFatal e
 
 substitute :: MonoType m -> MonoType m -> Substitution m
 substitute x y z
@@ -144,18 +144,18 @@ applyPoly :: Substitution m -> PolyType m -> InferMonadD m (PolyType m)
 applyPoly s (Mono t m) = return $ Mono (s t) m
 applyPoly s (Poly a t m) = case s (Free a m) of
 	(Free b n)	-> case a == b of
-		False	-> returnInferError $ PolyViolation a (Free b n)
+		False	-> returnFatalInferError $ PolyViolation a (Free b n)
 		True	-> do
 				u <- applyPoly s t
 				return (Poly a u m)
-	y		-> returnInferError $ PolyViolation a y
+	y		-> returnFatalInferError $ PolyViolation a y
 
 createPoly :: [FreeType m] -> MonoType m -> m -> PolyType m
 createPoly as t m = foldr (\a t -> Poly a t m) (Mono t m) as
 
 genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
 genMgu t1 t2 = case mgu t1 t2 of
-	Fail u1 u2 -> returnInferError $ CannotUnify u1 u2
+	Fail u1 u2 -> returnFatalInferError $ CannotUnify u1 u2
 	Success s -> return s
 
 genFresh :: InferMonadD m (m -> MonoType m)
@@ -175,7 +175,7 @@ genBind m (Poly a t _) = do
 
 fetchIdentID :: AST.Identifier m -> InferMonadD m (AST.IdentID)
 fetchIdentID (AST.Identifier _ (Just i) _)	= return i
-fetchIdentID i					= returnInferError $ UnknownIdentifier i
+fetchIdentID i					= returnFatalInferError $ UnknownIdentifier i
 
 (.>) :: InferMonadD m (Substitution m) -> Substitution m -> InferMonadD m (Substitution m)
 (.>) fd s2 = do
@@ -183,7 +183,7 @@ fetchIdentID i					= returnInferError $ UnknownIdentifier i
 	return $ s1 . s2
 
 emptyContext :: InferContext m
-emptyContext = \i -> returnInferError $ ContextNotFound i
+emptyContext = \i -> returnFatalInferError $ ContextNotFound i
 
 constructInitialContext :: P2Meta -> InferMonadD P2Meta (InferContext P2Meta)
 constructInitialContext m = do
