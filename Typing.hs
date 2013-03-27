@@ -1,7 +1,7 @@
 module Typing where
 
 import Data.List (union, (\\))
-import SemanticAnalysis (P2, P2Meta)
+import SemanticAnalysis (P2, P2Meta, allIDs, context)
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
@@ -35,11 +35,19 @@ instance Eq (MonoType m) where
 	(==) (Void _) (Void _)			= True
 	(==) _ _				= False
 	
+instance ASTMeta MonoType where
+	getMeta (Func _ _ m) = m
+	getMeta (Pair _ _ m) = m
+	getMeta (List _ m) = m
+	getMeta (Free _ m) = m
+	getMeta (Int m) = m
+	getMeta (Bool m) = m
+	getMeta (Void m) = m
+	
 type Substitution m = MonoType m -> MonoType m
 data Unification m = Success (Substitution m) | Fail (MonoType m) (MonoType m)
 
 type InferState = FTid
-type InferContext m = [(AST.IdentID, PolyType m)]
 
 -- Cannot unify types | IdentID could not be found in context | A substitution of an unbound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
 data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
@@ -48,6 +56,8 @@ type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 type InferMonad m a = InferState -> InferResult m a
 data InferMonadD m a = IM (InferMonad m a)
 type InferFunc m a = InferContext m -> a -> MonoType m -> InferMonadD m (Substitution m)
+
+type InferContext m = AST.IdentID -> InferMonadD m (PolyType m)
 
 bo :: InferMonadD m a -> InferMonad m a
 bo (IM f) = f
@@ -89,6 +99,11 @@ ftv :: PolyType m -> [FreeType m]
 ftv (Mono t _) = ftvm t
 ftv (Poly a t _) = filter ((/=) a) (ftv t)
 
+ftvc :: P2Meta -> InferContext P2Meta -> InferMonadD P2Meta ([FreeType P2Meta])
+ftvc m c = do
+	ts <- sequence $ map c $ allIDs (context m)
+	return $ concat $ map ftv ts
+
 mgu :: MonoType m -> MonoType m -> Unification m
 mgu (Free _ _) (Free _ _)		= Success id
 mgu (Free a al) t
@@ -108,11 +123,14 @@ mgu (Bool _) (Bool _)			= Success id
 mgu (Void _) (Void _)			= Success id
 mgu x y					= Fail x y
 
+setContext :: AST.IdentID -> PolyType m -> InferContext m -> InferMonadD m (InferContext m)
+setContext i t c = return $ \j -> if i == j then return t else c j
+
 apply :: Substitution m -> InferContext m -> InferMonadD m (InferContext m)
-apply s c = sequence $ map ( \(i, t) -> do 
+apply s c = return $ \i -> do
+		t <- c i
 		t <- applyPoly s t
-		return (i, t)
-	) c
+		return t
 
 applyPoly :: Substitution m -> PolyType m -> InferMonadD m (PolyType m)
 applyPoly s (Mono t m) = return $ Mono (s t) m
@@ -124,11 +142,8 @@ applyPoly s (Poly a t m) = case s (Free a m) of
 				return (Poly a u m)
 	y		-> returnInferError $ PolyViolation a y
 
-fromContext :: InferContext m -> AST.IdentID -> InferMonadD m (PolyType m)
-fromContext [] i	= returnInferError $ ContextNotFound i
-fromContext ((j,t):cs) i
-	| i == j	= return t
-	| otherwise	= fromContext cs i
+createPoly :: [FreeType m] -> MonoType m -> m -> PolyType m
+createPoly as t m = foldr (\a t -> Poly a t m) (Mono t m) as
 
 genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
 genMgu t1 t2 = case mgu t1 t2 of
@@ -163,27 +178,43 @@ inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitut
 inferDecl c (AST.VarDecl _ i e m) = do
 	i <- fetchIdentID i
 	a <- genFreshConcrete m
-	let ce = (i, (Mono a m)):c
+	ce <- setContext i (Mono a m) c
 	s <- inferExpr ce e a
 	c <- apply s c
-	let bs = ftvm (s a) \\ (concat $ map (ftv . snd) c)
-	a <- return $ foldr (\a t -> Poly a t m) (Mono (s a) m) bs
-	return (s, (i,a):c)
+	fc <- ftvc m c
+	let bs = ftvm (s a) \\ fc
+	a <- return $ createPoly bs (s a) m
+	c <- setContext i a c
+	return (s, c)
 inferDecl c (AST.FunDecl _ i args decls stmts m) = do
 	i <- fetchIdentID i
-	u <- fromContext c i
+	u <- c i
 	u <- genBind m u
 	b <- genFreshConcrete m
-	as <- sequence $ map (\(_, argi) -> do
+	-- make for each argument a free type
+	argtup <- sequence $ map (\(_, argi) -> do
 		let argm = getMeta argi
 		a <- genFreshConcrete argm
-		return (i, Mono a argm)) args
-	c <- return $ as ++ c
-	s <- foldl (>>=) (return id) $ map (\stmt -> \s -> do
+		return (i, a)) args
+	-- set types for arguments in context
+	c <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return c) argtup
+	(s, c) <- foldl (>>=) (return (id, c)) $ map (\d -> \(s, c) -> do
+		c <- apply s c
+		inferDecl c d) decls
+	-- define vardecls
+	s <- foldl (>>=) (return s) $ map (\stmt -> \s -> do
 		c <- apply s c
 		s <- inferStmt c stmt (s b) .> s
 		return s) stmts
-	return (id, as ++ c)
+	-- define eventual type of this function
+	v <- return $ Func (map (s . snd) argtup) (s b) m
+	-- unify with type in original context
+	s <- genMgu (s u) v .> s
+	v <- return $ s v
+	c <- apply s c
+	-- set type of this function in context
+	c <- setContext i (createPoly (ftvm v) v m) c
+	return (s, c)
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do
@@ -215,7 +246,7 @@ inferStmt c (AST.While e stmt _) t = do
 	return s
 inferStmt c (AST.Assignment i e m) _ = do
 	i <- fetchIdentID i
-	u <- fromContext c i
+	u <- c i
 	u <- genBind m u
 	s <- inferExpr c e u
 	return s
@@ -257,7 +288,7 @@ matchUnOp (AST.Negative _)	= return (Int, Int)
 inferExpr :: InferFunc P2Meta (P2 AST.Expr)
 inferExpr c (AST.Var i m) t = do
 	i <- fetchIdentID i
-	u <- fromContext c i
+	u <- c i
 	u <- genBind m u
 	s <- genMgu t u
 	return s
@@ -283,7 +314,7 @@ inferExpr _ (AST.Kbool _ m) t = do
 	return s
 inferExpr c (AST.FunCall i es m) t = do
 	i <- fetchIdentID i
-	u <- fromContext c i
+	u <- c i
 	u <- genBind m u
 	let Func as r _ = u
 	s <- genMgu t r
