@@ -127,12 +127,14 @@ produceP1 :: (P1Meta -> a) -> ParseFuncD a
 produceP1 f = produce (f . constructP1)
 
 newObject :: ParseFuncD a -> ParseFuncD a
-newObject fd = mo (\ (Source.IndexSpan from to, is) -> case (bo fd) (Source.IndexSpan to to, is) of
-		(NoMatch, Just e)	-> (NoMatch, Just e)
-		(Match xs, pe0)		-> case map (\output -> case output of
-				(x, (Source.IndexSpan _ rto, os)) -> (x, (Source.IndexSpan from rto, os))
-			) xs of
-				matches -> (Match matches, pe0))
+newObject fd = mo $ \ (Source.IndexSpan _ _, is) ->
+	let Lexer.Token _ (Source.IndexSpan from _) = head is in 
+		case (bo fd) (Source.IndexSpan from from, is) of
+			(NoMatch, Just e)	-> (NoMatch, Just e)
+			(Match xs, pe0)		-> case map (\output -> case output of
+					(x, (Source.IndexSpan _ to, os)) -> (x, (Source.IndexSpan from to, os))
+				) xs of
+					matches -> (Match matches, pe0)
 
 parseToken :: (Lexer.TokenE -> Bool) -> ParseFuncD Lexer.TokenE
 parseToken f = mo (\ i -> case i of
