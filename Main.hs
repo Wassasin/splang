@@ -35,6 +35,9 @@ main = do
 
 	pResult2 <- midentifiers opts file source pResult
 
+	Console.highLight "Assigned AST:"
+	prettyPrint (astPrinter opts) pResult2
+
 	pResult3 <- minfer opts file source pResult2
 
 	exitSuccess
