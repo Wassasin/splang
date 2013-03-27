@@ -18,4 +18,4 @@ returnWithError :: d -> e -> ErrorContainer e w d
 returnWithError x e = Result x [e] []
 
 returnFatal :: e -> ErrorContainer e w d
-returnFatal e = FatalError e [e] []
+returnFatal e = FatalError e [] []

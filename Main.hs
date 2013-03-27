@@ -128,7 +128,8 @@ minfer :: Options -> String -> String -> (P2 Program) -> IO ()
 minfer opts filename source program = do
 	let x = infer program
 	case x of
-		Errors.Result _ [] [] -> do
+		Errors.Result (cs, _) [] [] -> do
+			sequence $ map print $ map (fmap (const ()) . snd) cs
 			Console.highLight "Woehoe infering succeeded!"
 		Errors.Result _ errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors

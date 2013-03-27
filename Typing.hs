@@ -1,4 +1,6 @@
-module Typing (Substitution, InferError(..), InferContext, infer) where
+{-# LANGUAGE DeriveFunctor #-}
+
+module Typing (Substitution, InferError(..), InferContext, infer, extractContext) where
 
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))
@@ -9,10 +11,10 @@ import qualified AST
 
 type FTid = Int
 data FreeType m = FT FTid m
-	deriving (Show, Read)
+	deriving (Show, Read, Functor)
 	
 data PolyType m = Poly (FreeType m) (PolyType m) m | Mono (MonoType m) m
-	deriving (Show, Read)
+	deriving (Show, Read, Functor)
 
 data MonoType m = Func [MonoType m] (MonoType m) m
 	| Pair (MonoType m) (MonoType m) m
@@ -21,7 +23,7 @@ data MonoType m = Func [MonoType m] (MonoType m) m
 	| Int m
 	| Bool m
 	| Void m
-	deriving (Show, Read)
+	deriving (Show, Read, Functor)
 	
 instance Eq (FreeType m) where
 	(==) (FT x _) (FT y _) = x == y
@@ -127,6 +129,11 @@ mgu x y					= Fail x y
 setContext :: AST.IdentID -> PolyType m -> InferContext m -> InferMonadD m (InferContext m)
 setContext i t c = return $ \j -> if i == j then return t else c j
 
+extractContext :: P2Meta -> InferContext P2Meta -> InferMonadD P2Meta [(AST.IdentID, PolyType P2Meta)]
+extractContext m c = sequence $ map (\i -> do
+	t <- c i
+	return (i, t)) $ stripContext $ context m
+
 apply :: Substitution m -> InferContext m -> InferMonadD m (InferContext m)
 apply s c = return $ \i -> do
 		t <- c i
@@ -186,10 +193,11 @@ constructInitialContext m = do
 		return (i, Mono a m)) is
 	foldl (>>=) (return emptyContext) $ map (\(i, a) -> \c -> setContext i a c) tup
 
-infer :: P2 AST.Program -> InferResult P2Meta (Substitution P2Meta, InferContext P2Meta)
+infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
 infer p = flip bo 0 $ do
 	c <- constructInitialContext $ getMeta p
-	inferProgram c p
+	(_, c) <- inferProgram c p
+	extractContext (getMeta p) c
 
 inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
 inferProgram c (AST.Program decls _) = do
