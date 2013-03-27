@@ -1,5 +1,6 @@
 module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
 
+import Data.Maybe
 import Text.EditDistance
 import Data.List
 import Data.Ord
@@ -92,6 +93,11 @@ nextUniqueID :: Context (GeneralIdentifier a) b -> IdentID
 nextUniqueID context = case maximalUniqueID context of
 	Nothing -> 0
 	Just n -> n+1
+
+stripContext :: P1Context -> [IdentID]
+stripContext [] = []
+stripContext (Builtin b:xs) = fromEnum b : stripContext xs
+stripContext (User (AST.Identifier _ n _):xs) = fromJust n : stripContext xs
 
 -- First identifier is always the one in the source
 data ScopingError = DuplicateDeclaration (P1 AST.Identifier) (P1 GeneralIdentifier) | UndeclaredIdentifier (P1 AST.Identifier) P1Context
