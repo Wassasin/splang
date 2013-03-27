@@ -1,8 +1,8 @@
 module Typing (Substitution, InferContext, infer) where
 
-import Data.Maybe (catMaybes)
+import Data.Maybe (fromJust)
 import Data.List (union, (\\))
-import SemanticAnalysis (P2, P2Meta, context)
+import SemanticAnalysis (P2, P2Meta, context, stripContext)
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
@@ -102,7 +102,7 @@ ftv (Poly a t _) = filter ((/=) a) (ftv t)
 
 ftvc :: P2Meta -> InferContext P2Meta -> InferMonadD P2Meta ([FreeType P2Meta])
 ftvc m c = do
-	ts <- sequence $ map c $ catMaybes $ map (\x -> let (AST.Identifier _ n _) = fst x in n) $ context m
+	ts <- sequence $ map c $ stripContext $ context m
 	return $ concat $ map ftv ts
 
 mgu :: MonoType m -> MonoType m -> Unification m
@@ -180,7 +180,7 @@ emptyContext = \i -> returnInferError $ ContextNotFound i
 
 constructInitialContext :: P2Meta -> InferMonadD P2Meta (InferContext P2Meta)
 constructInitialContext m = do
-	is <- return $ (catMaybes $ map (\x -> let (AST.Identifier _ i _) = fst x in i) $ context m)
+	is <- return $ stripContext $ context m
 	tup <- sequence $ map (\i -> do
 		a <- genFreshConcrete m
 		return (i, Mono a m)) is

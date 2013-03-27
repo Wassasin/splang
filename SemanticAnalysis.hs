@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs) where
+module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs, stripContext) where
 
 import Data.Maybe
 import Text.EditDistance
@@ -96,8 +96,8 @@ nextUniqueID context = case maximalUniqueID context of
 
 stripContext :: P1Context -> [IdentID]
 stripContext [] = []
-stripContext (Builtin b:xs) = fromEnum b : stripContext xs
-stripContext (User (AST.Identifier _ n _):xs) = fromJust n : stripContext xs
+stripContext ((Builtin b,_):xs) = fromEnum b : stripContext xs
+stripContext ((User (AST.Identifier _ n _),_):xs) = fromJust n : stripContext xs
 
 -- First identifier is always the one in the source
 data ScopingError = DuplicateDeclaration (P1 AST.Identifier) (P1 GeneralIdentifier) | UndeclaredIdentifier (P1 AST.Identifier) P1Context
