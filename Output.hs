@@ -127,17 +127,17 @@ outputUnaryOperator (Not _) 		= lift "!"
 outputUnaryOperator (Negative _)	= lift "-"
 
 outputFreeType :: Typing.FreeType m -> MarkupString Styles
-outputFreeType (Typing.FT i _)		= lift "a" ++ lift (show i)
+outputFreeType (Typing.FT i _)		= open Variable ++ lift "a" ++ close Variable ++ open UniqueID ++ lift (show i) ++ close UniqueID
 
 outputMonoType :: Typing.MonoType m -> MarkupString Styles
 outputMonoType (Typing.Func args r _)	= (outputMonoType r) ++ lift "(" ++ join outputMonoType (lift ", ") args ++ lift ")"
 outputMonoType (Typing.Pair x y _)	= lift "(" ++ outputMonoType x ++ lift ", " ++ outputMonoType y ++ lift ")"
 outputMonoType (Typing.List t _)	= lift "[" ++ outputMonoType t ++ lift "]"
 outputMonoType (Typing.Free t _)	= outputFreeType t
-outputMonoType (Typing.Int _)		= lift "Int"
-outputMonoType (Typing.Bool _)		= lift "Bool"
-outputMonoType (Typing.Void _)		= lift "Void"
+outputMonoType (Typing.Int _)		= open Type ++ lift "Int" ++ close Type
+outputMonoType (Typing.Bool _)		= open Type ++ lift "Bool" ++ close Type
+outputMonoType (Typing.Void _)		= open Type ++ lift "Void" ++ close Type
 
 outputPolyType :: Typing.PolyType m -> MarkupString Styles
-outputPolyType (Typing.Poly f t _)	= lift "forall " ++ outputFreeType f ++ lift " . " ++ outputPolyType t
+outputPolyType (Typing.Poly f t _)	= open Keyword ++ lift "forall " ++ close Keyword ++ outputFreeType f ++ lift " . " ++ outputPolyType t
 outputPolyType (Typing.Mono t _)	= outputMonoType t

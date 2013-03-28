@@ -1,4 +1,4 @@
-module TypePrinter (Printer, monoTypePrint, polyTypePrint, plainTypePrinter) where
+module TypePrinter (Printer, monoTypePrint, polyTypePrint, plainTypePrinter, coloredTypePrinter) where
 
 import System.Console.ANSI
 import Output
@@ -19,3 +19,19 @@ polyTypePrint f t = f (outputPolyType t)
 
 plainTypePrinter :: Printer (IO ())
 plainTypePrinter = typePrinter putStr (\x -> return ())
+
+-- Colored Output
+syntaxColor :: Styles -> Color
+syntaxColor Type = Cyan
+syntaxColor Variable = Yellow
+syntaxColor Constant = Red
+syntaxColor Keyword = Black
+syntaxColor Function = Green
+syntaxColor UniqueID = Magenta
+
+color :: OpenClose Styles -> IO ()
+color (Open s) = setSGR [SetColor Foreground Vivid (syntaxColor s)]
+color (Close s) = setSGR []
+
+coloredTypePrinter :: Printer (IO ())
+coloredTypePrinter = typePrinter putStr color

@@ -140,8 +140,9 @@ minfer opts filename source program = do
 	case x of
 		Errors.Result (cs, _) [] [] -> do
 			sequence $ map (\(i, t) -> do
-				putStr (show i ++ ": ")
-				polyTypePrint plainTypePrinter t) cs
+				Console.intense (show i ++ ": ")
+				polyTypePrint coloredTypePrinter t
+				putStr "\n") cs
 			Console.highLight "Woehoe infering succeeded!"
 		Errors.Result _ errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
@@ -153,17 +154,17 @@ minfer opts filename source program = do
 printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
 printTypingError opts filename source (CannotUnify mt1 mt2)	= do
 	Console.putMessage Console.Error filename (-1, -1) "Cannot unify types "
-	monoTypePrint plainTypePrinter mt1
+	monoTypePrint coloredTypePrinter mt1
 	Console.intense " and "
-	monoTypePrint plainTypePrinter mt2
+	monoTypePrint coloredTypePrinter mt2
 	putStr "\n"
 	standardMessageIO filename source (src2 $ getMeta mt1) Console.Note (do
 		Console.intense "Type "
-		monoTypePrint plainTypePrinter mt1
+		monoTypePrint coloredTypePrinter mt1
 		Console.intense " inferred here:")
 	standardMessageIO filename source (src2 $ getMeta mt2) Console.Note (do
 		Console.intense "Type "
-		monoTypePrint plainTypePrinter mt2
+		monoTypePrint coloredTypePrinter mt2
 		Console.intense " inferred here:")
 printTypingError opts filename source (ContextNotFound ident)	= Console.putMessageLn Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
 printTypingError opts filename source (PolyViolation ft mt)	= standardMessage filename source (src2 $ getMeta mt) Console.Error "Polytype violation"
