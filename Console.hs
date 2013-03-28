@@ -1,4 +1,4 @@
-module Console (MessageE(..), putMessage, highLight) where
+module Console (MessageE(..), putMessage, putMessageLn, highLight, intense) where
 
 import System.Console.ANSI
 import qualified Source
@@ -24,6 +24,10 @@ putMessage kind file loc err = do
 	setSGR [Reset, SetConsoleIntensity BoldIntensity]
 	putStr err
 	setSGR []
+
+putMessageLn :: MessageE -> String -> Source.Location -> String -> IO ()
+putMessageLn kind file loc err = do
+	putMessage kind file loc err
 	putStr "\n"
 
 highLight :: String -> IO ()
@@ -32,3 +36,9 @@ highLight str = do
 	putStr str
 	setSGR []
 	putStr "\n"
+
+intense :: String -> IO ()
+intense str = do
+	setSGR [Reset, SetConsoleIntensity BoldIntensity]
+	putStr str
+	setSGR []

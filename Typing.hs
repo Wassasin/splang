@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module Typing (Substitution, InferError(..), InferContext, infer, extractContext) where
+module Typing (FreeType(..), MonoType(..), PolyType(..), Substitution, InferError(..), InferContext, infer, extractContext) where
 
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))

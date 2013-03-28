@@ -11,15 +11,22 @@ import Parser
 import AST
 import Meta
 import PrettyPrinter
+import TypePrinter
 import Typing
 import SemanticAnalysis
 import Errors
 
+standardMessageIO :: String -> String -> IndexSpan -> Console.MessageE -> IO () -> IO ()
+standardMessageIO filename source idx kind message = do
+	let loc = Source.convert (Source.beginOfSpan idx) source
+	Console.putMessage kind filename loc ""
+	message
+	putStr "\n"
+	Source.pointOutIndexSpan idx source
+
 standardMessage :: String -> String -> IndexSpan -> Console.MessageE -> String -> IO ()
 standardMessage filename source idx kind message = do
-	let loc = Source.convert (Source.beginOfSpan idx) source
-	Console.putMessage kind filename loc message
-	Source.pointOutIndexSpan idx source
+	standardMessageIO filename source idx kind (Console.intense message)
 
 main :: IO ()
 main = do
@@ -65,9 +72,9 @@ mparse opts filename source tokens = do
 			when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
 			return x
 		Left ys				-> do
-			Console.putMessage Console.Error filename (-1, -1) "Ambiguous input - able to derive multiple programs"
+			Console.putMessageLn Console.Error filename (-1, -1) "Ambiguous input - able to derive multiple programs"
 			sequence (interleave filename $ fmap (prettyPrint (astPrinter opts)) (take 2 ys))
-			when (length ys > 2) (Console.putMessage Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out"))
+			when (length ys > 2) (Console.putMessageLn Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out"))
 			exitFailure
 		Right EndOfStream	-> do
 			putStrLn "Error on end of stream"
@@ -78,7 +85,7 @@ mparse opts filename source tokens = do
 			exitFailure
 
 interleave file [] = []
-interleave file (x:xs) = Console.putMessage Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
+interleave file (x:xs) = Console.putMessageLn Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
 
 midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P2 Program)
 midentifiers opts filename source program = do
@@ -110,7 +117,7 @@ printSemanticsError opts filename source (UndeclaredIdentifier ident context) = 
 	case bestMatch ident context of
 		Nothing -> return ()
 		Just (User user, _) -> standardMessage filename source (src $ getMeta user) Console.Note ("Did you mean \"" ++ getString user ++ "\"?")
-		Just (Builtin b, _) -> Console.putMessage Console.Note filename beginloc ("Did you mean \"" ++ getString b ++ "\"?")
+		Just (Builtin b, _) -> Console.putMessageLn Console.Note filename beginloc ("Did you mean \"" ++ getString b ++ "\"?")
 
 printSemanticsWarning :: Options -> String -> String -> ScopingWarning -> IO ()
 printSemanticsWarning opts filename source (ShadowsDeclaration id1 (User id2) scope) = ifWarning shadowing opts $ do
@@ -129,7 +136,9 @@ minfer opts filename source program = do
 	let x = infer program
 	case x of
 		Errors.Result (cs, _) [] [] -> do
-			sequence $ map print $ map (fmap (const ()) . snd) cs
+			sequence $ map (\(i, t) -> do
+				putStr (show i ++ ": ")
+				polyTypePrint plainTypePrinter t) cs
 			Console.highLight "Woehoe infering succeeded!"
 		Errors.Result _ errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
@@ -140,8 +149,19 @@ minfer opts filename source program = do
 
 printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
 printTypingError opts filename source (CannotUnify mt1 mt2)	= do
-	standardMessage filename source (src2 $ getMeta mt1) Console.Error "Cannot unify types of"
-	standardMessage filename source (src2 $ getMeta mt2) Console.Note "with"
-printTypingError opts filename source (ContextNotFound ident)	= Console.putMessage Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
+	Console.putMessage Console.Error filename (-1, -1) "Cannot unify types "
+	monoTypePrint plainTypePrinter mt1
+	Console.intense " and "
+	monoTypePrint plainTypePrinter mt2
+	putStr "\n"
+	standardMessageIO filename source (src2 $ getMeta mt1) Console.Note (do
+		Console.intense "Type "
+		monoTypePrint plainTypePrinter mt1
+		Console.intense " inferred here:")
+	standardMessageIO filename source (src2 $ getMeta mt2) Console.Note (do
+		Console.intense "Type "
+		monoTypePrint plainTypePrinter mt2
+		Console.intense " inferred here:")
+printTypingError opts filename source (ContextNotFound ident)	= Console.putMessageLn Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
 printTypingError opts filename source (PolyViolation ft mt)	= standardMessage filename source (src2 $ getMeta mt) Console.Error "Polytype violation"
 printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src2 $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)

@@ -1,6 +1,7 @@
-module Output (Styles(..), OpenClose(..), Markup, MarkupString, outputProgram) where
+module Output (Styles(..), OpenClose(..), Markup, MarkupString, outputProgram, outputMonoType, outputPolyType) where
 
 import AST
+import qualified Typing
 
 data Styles = Type
 	| Variable
@@ -124,3 +125,19 @@ outputBinaryOperator (Or _)					= lift " || "
 outputUnaryOperator :: UnaryOperator a -> MarkupString Styles
 outputUnaryOperator (Not _) 		= lift "!"
 outputUnaryOperator (Negative _)	= lift "-"
+
+outputFreeType :: Typing.FreeType m -> MarkupString Styles
+outputFreeType (Typing.FT i _)		= lift "a" ++ lift (show i)
+
+outputMonoType :: Typing.MonoType m -> MarkupString Styles
+outputMonoType (Typing.Func args r _)	= (outputMonoType r) ++ lift "(" ++ join outputMonoType (lift ", ") args ++ lift ")"
+outputMonoType (Typing.Pair x y _)	= lift "(" ++ outputMonoType x ++ lift ", " ++ outputMonoType y ++ lift ")"
+outputMonoType (Typing.List t _)	= lift "[" ++ outputMonoType t ++ lift "]"
+outputMonoType (Typing.Free t _)	= outputFreeType t
+outputMonoType (Typing.Int _)		= lift "Int"
+outputMonoType (Typing.Bool _)		= lift "Bool"
+outputMonoType (Typing.Void _)		= lift "Void"
+
+outputPolyType :: Typing.PolyType m -> MarkupString Styles
+outputPolyType (Typing.Poly f t _)	= lift "forall " ++ outputFreeType f ++ lift " . " ++ outputPolyType t
+outputPolyType (Typing.Mono t _)	= outputMonoType t
