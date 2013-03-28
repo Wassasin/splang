@@ -100,7 +100,11 @@ returnInferError x e = mo $ \s -> returnWithError (x, s) e
 substitute :: MonoType m -> MonoType m -> Substitution m
 substitute x y z
 	| x == z	= y
-	| otherwise	= z
+	| otherwise	= let s = substitute x y in case z of
+		Func args r m	-> Func (map s args) (s r) m
+		Pair x y m	-> Pair (s x) (s y) m
+		List t m	-> List (s t) m
+		x		-> x
 
 compose :: Unification m -> Unification m -> Unification m
 compose (Success x) (Success y)	= Success (x . y)
