@@ -292,7 +292,7 @@ inferStmt _ (AST.Return Nothing m) t = do
 inferStmt c (AST.Return (Just e) m) t = do
 	a <- genFreshConcrete m
 	s <- inferExpr c e a
-	s <- genMgu (s t) a .> s
+	s <- genMgu (s t) (s a) .> s
 	return s
 
 matchBinOp :: AST.BinaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoType m, m -> MonoType m)
