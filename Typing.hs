@@ -4,7 +4,7 @@ module Typing (FreeType(..), MonoType(..), PolyType(..), Substitution, InferErro
 
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))
-import SemanticAnalysis (P2, P2Meta, context, stripContext)
+import SemanticAnalysis (P2, P2Meta, context, stripContext, Builtins(..), isBuiltin)
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
@@ -46,6 +46,16 @@ instance ASTMeta MonoType where
 	getMeta (Int m) = m
 	getMeta (Bool m) = m
 	getMeta (Void m) = m
+
+typeOfBuiltin :: Builtins -> PolyType ()
+typeOfBuiltin x = typeOfBuiltin2 x ()
+	where
+	typeOfBuiltin2 Print	= Poly (FT 0 ()) $ Mono (Func [Free (FT 0 ()) ()] (Void ()) ()) ()
+	typeOfBuiltin2 IsEmpty	= Poly (FT 0 ()) $ Mono (Func [List (Free (FT 0 ()) ()) ()] (Bool ()) ()) ()
+	typeOfBuiltin2 Head	= Poly (FT 0 ()) $ Mono (Func [List (Free (FT 0 ()) ()) ()] (Free (FT 0 ()) ()) ()) ()
+	typeOfBuiltin2 Tail	= Poly (FT 0 ()) $ Mono (Func [List (Free (FT 0 ()) ()) ()] (List (Free (FT 0 ()) ()) ()) ()) ()
+	typeOfBuiltin2 Fst	= Poly (FT 0 ()) $ Poly (FT 1 ()) ( Mono (Func [Pair (Free (FT 0 ()) ()) (Free (FT 1 ()) ()) ()] (Free (FT 0 ()) ()) ()) () ) ()
+	typeOfBuiltin2 Snd	= Poly (FT 0 ()) $ Poly (FT 1 ()) ( Mono (Func [Pair (Free (FT 0 ()) ()) (Free (FT 1 ()) ()) ()] (Free (FT 1 ()) ()) ()) () ) ()
 	
 type Substitution m = MonoType m -> MonoType m
 data Unification m = Success (Substitution m) | Fail (MonoType m) (MonoType m)
@@ -192,8 +202,10 @@ constructInitialContext :: P2Meta -> InferMonadD P2Meta (InferContext P2Meta)
 constructInitialContext m = do
 	is <- return $ stripContext $ context m
 	tup <- sequence $ map (\i -> do
-		a <- genFreshConcrete m
-		return (i, Mono a m)) is
+		if(isBuiltin i)
+			then return (i, fmap (const m) $ typeOfBuiltin (toEnum i))
+			else do	a <- genFreshConcrete m
+				return (i, Mono a m)) is
 	foldl (>>=) (return emptyContext) $ map (\(i, a) -> \c -> setContext i a c) tup
 
 infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
