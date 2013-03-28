@@ -69,12 +69,14 @@ mparse opts filename source tokens = do
 			sequence (interleave filename $ fmap (prettyPrint (astPrinter opts)) (take 2 ys))
 			when (length ys > 2) (Console.putMessage Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out"))
 			exitFailure
-		Right EndOfStream	-> do
+		Right EndOfStream		-> do
 			putStrLn "Error on end of stream"
 			exitFailure
-		Right (Unexpected (Token t l)) -> do
-			let loc = Source.convert (Source.beginOfSpan l) source
+		Right (Unexpected (Token t l))	-> do
 			standardMessage filename source l Console.Error ("Unexpected token " ++ show t)
+			exitFailure
+		Right Ambiguity			-> do
+			Console.putMessage Console.Error filename (-1, -1) "COMPILER BUG: Ambiguous input, without results!"
 			exitFailure
 
 interleave file [] = []
@@ -117,7 +119,8 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (User id2) sc
 	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getString id1 ++ "\" shadows previous declaration.")
 	standardMessage filename source (src $ getMeta id2) Console.Note (case scope of
 		Global -> "Previous declaration was a global:"
-		Argument -> "Previous declaration was used as argument to function:")
+		Argument -> "Previous declaration was used as argument to function:"
+		Local -> "COMPILER BUG: shadowing locals doesn't make sense!")
 printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) scope) = ifWarning shadowing opts $ do
 	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getString id1 ++ "\" shadows builtin.")
 

@@ -63,6 +63,7 @@ convert n str = convert1 n str (0, 0)
 	where
 		convert1 :: Index -> String -> Location -> Location
 		convert1 0 _ l = l
+		convert1 _ [] _ = error "COMPILER BUG: convert on empty string and positive index!"
 		convert1 n (x:xs) (line, column) = case x of
 			'\n'	-> convert1 (n-1) xs (line+1, 0)
 			_	-> convert1 (n-1) xs (line, column+1)
@@ -104,7 +105,8 @@ substr (x:xs) i n	= substr xs (i-1) n
 
 precut :: String -> Index -> String
 precut str 0	= str
-precut (x:xs) i	= precut xs (i-1)
+precut [] _	= error "COMPILER BUG: precut on empty string and positive index!"
+precut (_:xs) i	= precut xs (i-1)
 
 repeatstr :: Int -> Char -> String
 repeatstr n c = take n (repeat c)

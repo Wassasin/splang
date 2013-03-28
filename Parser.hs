@@ -2,7 +2,6 @@ module Parser (ParserLib.Error(..), parseSPL) where
 
 import ParserLib
 
-import qualified Source
 import qualified Lexer
 import qualified AST
 import Meta

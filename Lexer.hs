@@ -167,6 +167,7 @@ lexer x		= case lextok x of
 			Match ts y -> case lexer y of
 				NoMatch i -> NoMatch i
 				Match us ([], n) -> Match (ts ++ us) ([], n)
+				Match _ (_:_, _) -> error "COMPILER BUG: Lexer didn't lex whole string!"
 
 filterComment :: [TokenMeta a] -> [TokenMeta a]
 filterComment = filter (\t -> case t of
