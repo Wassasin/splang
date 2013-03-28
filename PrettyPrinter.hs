@@ -16,7 +16,7 @@ prettyPrint f prog = f (outputProgram prog)
 
 -- Plain Output
 plainPrettyPrinter :: Printer (IO ())
-plainPrettyPrinter = prettyPrinter putChar (\x -> return ())
+plainPrettyPrinter = prettyPrinter putChar (const (return ()))
 
 -- minizer output
 strip '\t' = return ()
@@ -24,7 +24,7 @@ strip '\n' = return ()
 strip c = putChar c
 
 miniPrettyPrinter :: Printer (IO ())
-miniPrettyPrinter = prettyPrinter strip (\x -> return ())
+miniPrettyPrinter = prettyPrinter strip (const (return ()))
 
 -- Colored Output
 syntaxColor :: Styles -> Color

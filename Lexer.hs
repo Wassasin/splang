@@ -99,13 +99,13 @@ literalMap = [
 (>>>) :: LexerFunc -> LexerFunc -> LexerFunc
 (>>>) f g = \x -> case f x of
 	Match tok loc	-> Match tok loc
-	NoMatch i	-> g x
+	NoMatch _	-> g x
 
 consumeWhitespace :: LexerFunc
 consumeWhitespace (' ':xs, i) = Match [] (xs, i+1)
 consumeWhitespace ('\t':xs, i) = Match [] (xs, i+1)
 consumeWhitespace ('\n':xs, i) = Match [] (xs, i+1)
-consumeWhitespace (xs, i) = NoMatch i
+consumeWhitespace (_, i) = NoMatch i
 
 consumeComment :: LexerFunc
 consumeComment (str, start)
@@ -142,6 +142,7 @@ consumeInteger (str, start)	= case Source.findLast isDigit str of
 						in Match [Token (Integer (read (Source.substr str 0 size))) (Source.IndexSpan start end)] (Source.precut str size, end)
 
 consumeIdentifier :: LexerFunc
+consumeIdentifier ([], start)	= NoMatch start
 consumeIdentifier (x:xs, start)
 	| isAlpha x = f (x:xs, start) -- Also include first character for token Location
 	| otherwise = NoMatch start

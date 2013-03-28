@@ -37,12 +37,12 @@ variable ident = open Variable ++ lift (getIdentifierString ident) ++ close Vari
 function ident = open Function ++ lift (getIdentifierString ident) ++ close Function ++ open UniqueID ++ lift (getIdentifierUniqueID ident) ++ close UniqueID
 
 join :: (a -> [b]) -> [b] -> [a] -> [b]
-join f s [] = []
-join f s [x] = f x
+join _ _ [] = []
+join f _ [x] = f x
 join f s (x:xs) = f x ++ s ++ join f s xs
 
 delim :: (a -> [b]) -> [b] -> [a] -> [b]
-delim f s [] = []
+delim _ _ [] = []
 delim f s (x:xs) = f x ++ s ++ delim f s xs
 
 tabs :: Int -> MarkupString Styles
@@ -85,7 +85,7 @@ outputStmt n (Return Nothing _)		= tabs n ++ keyword "return" ++ lift ";"
 rest :: Int -> Stmt a -> MarkupString Styles
 rest n stmt = case stmt of
 	(Scope stmts _) -> lift "{\n" ++ delim (outputStmt (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
-	y -> lift "\n"  ++ outputStmt (n+1) stmt
+	y -> lift "\n"  ++ outputStmt (n+1) y
 
 isBlock :: Stmt a -> Bool
 isBlock (Scope _ _) = True

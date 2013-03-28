@@ -12,9 +12,6 @@ beginOfSpan (IndexSpan a _) = a
 type Location = (Int, Int)
 data LocationSpan = LocationSpan Location Location
 	deriving (Show, Eq, Read)
-
-describe :: Location -> String -> IO ()
-describe (line, col) str = putStr ("line " ++ (show (line+1)) ++ ", column " ++ (show (col+1)))
 		
 pointOutIndex :: Index -> String -> IO ()
 pointOutIndex i str = case convert i str of
@@ -65,7 +62,7 @@ convert :: Index -> String -> Location
 convert n str = convert1 n str (0, 0)
 	where
 		convert1 :: Index -> String -> Location -> Location
-		convert1 0 str l = l
+		convert1 0 _ l = l
 		convert1 n (x:xs) (line, column) = case x of
 			'\n'	-> convert1 (n-1) xs (line+1, 0)
 			_	-> convert1 (n-1) xs (line, column+1)
@@ -80,8 +77,8 @@ fetchLine i (_:xs)	= fetchLine i xs
 
 isPrefixOf :: String -> String -> Bool
 isPrefixOf (x:xs) (y:ys)	= x == y && (isPrefixOf xs ys)
-isPrefixOf (x:xs) []		= False
-isPrefixOf _ _			= True
+isPrefixOf [] _			= True
+isPrefixOf _ _			= False
 
 findLast :: (Char -> Bool) -> String -> Maybe Index
 findLast _ []		= Nothing
