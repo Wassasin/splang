@@ -1,4 +1,4 @@
-module Console (MessageE(..), putMessage, putMessageLn, highLight, intense) where
+module Console (MessageE(..), putMessage, putMessageLn, highLight, highLightLn, intense) where
 
 import System.Console.ANSI
 import qualified Source
@@ -35,6 +35,10 @@ highLight str = do
 	setSGR [SetColor Foreground Vivid Yellow, SetColor Background Dull Red, SetConsoleIntensity BoldIntensity]
 	putStr str
 	setSGR []
+
+highLightLn :: String -> IO ()
+highLightLn str = do
+	highLight str
 	putStr "\n"
 
 intense :: String -> IO ()

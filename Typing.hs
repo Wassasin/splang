@@ -37,7 +37,10 @@ instance Eq (MonoType m) where
 	(==) (Bool _) (Bool _)			= True
 	(==) (Void _) (Void _)			= True
 	(==) _ _				= False
-	
+
+instance ASTMeta FreeType where
+	getMeta (FT _ m) = m
+
 instance ASTMeta MonoType where
 	getMeta (Func _ _ m) = m
 	getMeta (Pair _ _ m) = m
