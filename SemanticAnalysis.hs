@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext) where
+module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext) where
 
 import Data.Maybe
 import Text.EditDistance
@@ -27,7 +27,11 @@ data Builtins
 	| Tail
 	| Fst
 	| Snd
-	deriving (Show, Eq, Read, Enum)
+	deriving (Show, Eq, Read, Enum, Bounded)
+
+isBuiltin :: Int -> Bool
+isBuiltin n = n >= (fromEnum (minBound :: Builtins))
+	&& n <= (fromEnum (maxBound :: Builtins))
 
 -- Something in our context is either a builtin or a user defined thing
 data GeneralIdentifier a = Builtin Builtins | User (AST.Identifier a)
