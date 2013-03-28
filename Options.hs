@@ -1,6 +1,5 @@
 module Options (Warnings(..), Options(..), mkOptions) where
 
-import Control.Monad.Instances
 import System.Console.GetOpt
 
 import PrettyPrinter

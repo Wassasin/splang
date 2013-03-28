@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult(..), assignUniqueIDs, stripContext) where
+module SemanticAnalysis (Context, Scope(..), Builtins, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext) where
 
 import Data.Maybe
 import Text.EditDistance
@@ -75,7 +75,7 @@ bestMatch search context = let (cost, best) = minimumBy (comparing fst) . map (\
 
 -- Updates a identifier to reflect a previous declared one (or builtin one)
 updateIdentifier :: AST.Identifier a -> GeneralIdentifier b -> AST.Identifier a
-updateIdentifier (AST.Identifier str n a) (Builtin b) = AST.Identifier str (Just $ fromEnum b) a
+updateIdentifier (AST.Identifier str _ a) (Builtin b) = AST.Identifier str (Just $ fromEnum b) a
 updateIdentifier (AST.Identifier str _ a) (User (AST.Identifier _ m _)) = AST.Identifier str m a
 
 maximalUniqueID :: Context (GeneralIdentifier a) b -> Maybe IdentID
@@ -204,6 +204,7 @@ assignVarDecl (AST.VarDecl a ident b m) context = do
 		Just (iy, Local)	-> returnWithError ((AST.VarDecl a newIdent b m), (User fident, Local):context) (DuplicateDeclaration fident iy)
 		Just (iy, scope)	-> returnWithWarning ((AST.VarDecl a newIdent b m), (User fident, Local):context) (ShadowsDeclaration fident iy scope)
 		Nothing			-> return ((AST.VarDecl a newIdent b m), (User fident, Local):context)
+assignVarDecl (AST.FunDecl _ _ _ _ _ _) _ = error "COMPILER BUG: Unexpected function declaration inside function body."
 
 -- At this point, all contexts are fixed in the meta info
 assignStmts :: [P2 AST.Stmt] -> ScopingResult ([P2 AST.Stmt])

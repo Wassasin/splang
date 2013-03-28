@@ -22,13 +22,15 @@ mo f = PF f
 
 parse :: ParseFuncD a -> [Token] -> Either [a] Error
 parse f is = (case (bo f) (Source.IndexSpan 0 0, is) of
+	(NoMatch, Nothing)	-> error "COMPILER ERROR: (parse) Parser returned no match and no error!"
 	(NoMatch, Just e)	-> Right e
 	(Match xs, pe)		-> (case dualmap (\ i -> (case i of
 			(x, (_, []))	-> Left x	-- Completely parsed, possible result
 			(_, (_, t:_))	-> Right t	-- Tokens left to parse
 		)) xs of
 			([], ts)	-> Right (case bestMError pe (Just (foldr1 bestError (map (\ t -> Unexpected t) ts))) of -- If no options, show last token where parsing terminated
-						Just e	-> e)
+						Just e	-> e
+						Nothing -> error "COMPILER BUG: (parse 2) No best error found in parser errors!")
 			(xs, _)		-> Left xs	-- Return all possible options (ideally one option)
 		))
 
@@ -107,9 +109,11 @@ opt fd = return Nothing
 instance Monad ParseFuncD where
 --	(>>=) :: ParseFuncD a -> (a -> ParseFuncD b) -> ParseFuncD b
 	(>>=) fd gm = mo (\ (l0, xs) -> case (bo fd) (l0, xs) of
+			(NoMatch, Nothing)-> error "COMPILER ERROR: (>>=) Parser returned no match and no error!"
 			(NoMatch, Just e) -> (NoMatch, Just e)
 			(Match xms, pe0) -> case dualmap (
 					\(a, (l1, ys)) -> case bo (gm a) (l1, ys) of
+						(NoMatch, Nothing)-> error "COMPILER ERROR: (>>= 2) Parser returned no match and no error!"
 						(NoMatch, Just e1)	-> Left (bestMError pe0 (Just e1))
 						(Match yms, pe1)	-> Right (map (\ (b, (l2, zs)) -> (b, (foldr1 Source.merge [l0, l1, l2], zs))) yms, bestMError pe0 pe1)
 				) xms of
@@ -130,6 +134,7 @@ newObject :: ParseFuncD a -> ParseFuncD a
 newObject fd = mo $ \ (Source.IndexSpan _ _, is) ->
 	let Lexer.Token _ (Source.IndexSpan from _) = head is in 
 		case (bo fd) (Source.IndexSpan from from, is) of
+			(NoMatch, Nothing)-> error "COMPILER ERROR: (newObject) Parser returned no match and no error!"
 			(NoMatch, Just e)	-> (NoMatch, Just e)
 			(Match xs, pe0)		-> case map (\output -> case output of
 					(x, (Source.IndexSpan _ to, os)) -> (x, (Source.IndexSpan from to, os))
