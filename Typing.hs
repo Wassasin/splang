@@ -216,7 +216,7 @@ constructInitialContext m = do
 	foldl (>>=) (return emptyContext) $ map (\(i, a) -> \c -> setContext i a c) tup
 
 infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
-infer p = flip bo 0 $ do
+infer p = flip bo 2 $ do -- FT 0 & 1 are reserved for keywords
 	c <- constructInitialContext $ getMeta p
 	(_, c) <- inferProgram c p
 	extractContext (getMeta p) c
