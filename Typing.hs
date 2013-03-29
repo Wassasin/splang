@@ -373,12 +373,13 @@ inferExpr c (AST.FunCall i es m) t = do
 	u <- genBind m u
 	r <- genFreshConcrete m
 	as <- sequence $ map (\e -> genFreshConcrete $ getMeta e) es
-	u <- return $ Func as r m
-	s <- genMgu t r
+	v <- return $ Func as r m
+	s <- genMgu u v
 	s <- foldl (>>=) (return s) $ map (\(e, a) -> \s -> do
 		c <- apply s c
 		s <- inferExpr c e (s a) .> s
 		return s) $ zip es as
+	s <- genMgu (s t) (s r) .> s
 	return s
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFreshConcrete $ getMeta e1
