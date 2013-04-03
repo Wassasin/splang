@@ -28,6 +28,10 @@ standardMessage :: String -> String -> IndexSpan -> Console.MessageE -> String -
 standardMessage filename source idx kind message = do
 	standardMessageIO filename source idx kind (Console.intense message)
 
+show2 :: Show a => GeneralIdentifier a -> String
+show2 (User (AST.Identifier str _ _)) = "User " ++ str
+show2 s = show s
+
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
@@ -44,6 +48,11 @@ main = do
 
 	Console.highLightLn "Assigned AST:"
 	prettyPrint (astPrinter opts) pResult2
+	Console.highLightLn "Global context:"
+	sequence $ map (\(i, (s, t)) -> do
+				Console.intense (show s ++ ": " ++ show2 i ++ " :: ")
+				polyTypePrint coloredTypePrinter t
+				putStr "\n") (context (getMeta pResult2))
 
 	pResult3 <- minfer opts file source pResult2
 
