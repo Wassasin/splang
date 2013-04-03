@@ -112,9 +112,10 @@ type ScopingResult b = ErrorContainer ScopingError ScopingWarning b
 -- Empty context = all builtins
 emptyContext :: P1Context
 emptyContext = map (\x -> (Builtin x, (Global, fmap (const stupidP1Meta) (typeOfBuiltin x)))) [Print ..]
-	where stupidP1Meta = constructP1 (Source.IndexSpan (-1) (-1))
+	where stupidP1Meta = constructP1 (Source.IndexSpan (-1) (-1))	-- TODO: fix this, if needed
 
--- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID)
+-- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID),
+-- and add context (with scoping and annotated types) to the AST.
 assignUniqueIDs :: P1 AST.Program -> ScopingResult (P2 AST.Program)
 assignUniqueIDs program = do
 	(program2, context) <- assignGlobs emptyContext program	-- 1) determine everything in global scope
@@ -271,7 +272,7 @@ assignExpr (AST.Pair e1 e2 m) = do
 assignExpr x = return x -- ignores constants
 
 
--- Part four --
+-- Annotation of types --
 typeOfBuiltin :: Builtins -> PolyType ()
 typeOfBuiltin x = typeOfBuiltin2 x ()
 	where
@@ -282,17 +283,10 @@ typeOfBuiltin x = typeOfBuiltin2 x ()
 	typeOfBuiltin2 Fst	= Poly (FT 0 ()) $ Poly (FT 1 ()) (Mono (Func [Typing.Pair (Free (FT 0 ()) ()) (Free (FT 1 ()) ()) ()] (Free (FT 0 ()) ()) ()) () ) ()
 	typeOfBuiltin2 Snd	= Poly (FT 0 ()) $ Poly (FT 1 ()) (Mono (Func [Typing.Pair (Free (FT 0 ()) ()) (Free (FT 1 ()) ()) ()] (Free (FT 1 ()) ()) ()) () ) ()
 
---data Type a = Void a
---	| Int a
---	| Bool a
---	| TypeIdentifier (Identifier a) a
---	| Product (Type a) (Type a) a
---	| ListType (Type a) a
---	deriving (Show, Eq, Read, Functor)
+-- TypeIndentifier to FTid
+type PolyContext = [(String, FTid)]
 
--- Typeindentifier to Int
-type PolyContext = [(String, Int)]
-
+-- return all identifiers occuring in type
 typeIdentifiers :: AST.Type a -> [String] -> [String]
 typeIdentifiers (AST.Void _) l		= l
 typeIdentifiers (AST.Int _) l		= l
@@ -309,10 +303,7 @@ annotatedMType pc (TypeIdentifier ident m) = Free (FT (fromJust (lookup (getStri
 annotatedMType pc (Product a b m)	= Typing.Pair (annotatedMType pc a) (annotatedMType pc b) m
 annotatedMType pc (ListType a m)	= List (annotatedMType pc a) m
 
---data Decl a = VarDecl (Type a) (Identifier a) (Expr a) a
---	| FunDecl (Type a) (Identifier a) [(Type a, Identifier a)] [Decl a] [Stmt a] a
---	deriving (Show, Eq, Read, Functor)
-
+-- Wrap the mono in a poly, with given context
 poly :: PolyContext -> MonoType a -> PolyType a
 poly [] mt = Mono mt (getMeta mt)
 poly ((_,n):xs) mt = Poly (FT n m) (poly xs mt) m
@@ -321,15 +312,16 @@ poly ((_,n):xs) mt = Poly (FT n m) (poly xs mt) m
 class AnnotatedType b where
 	annotatedType :: b a -> PolyType a
 
+-- We can do variables and functions
 instance AnnotatedType AST.Decl where
-	annotatedType (VarDecl t ident b m) = poly pc (annotatedMType pc t)
-		where pc = zip (typeIdentifiers t []) [1..]
+	annotatedType (VarDecl t ident b m) = annotatedType t
 	annotatedType (FunDecl rt ident args _ _ m) = poly pc (Func argTypes (annotatedMType pc rt) m)
 		where
 			allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
 			pc = zip allIdents [1..]
 			argTypes = map (annotatedMType pc . fst) args
 
+-- And just types (eg. in VarDecl or arguments of function)
 instance AnnotatedType Type where
 	annotatedType t = poly pc (annotatedMType pc t)
 		where pc = zip (typeIdentifiers t []) [1..]
