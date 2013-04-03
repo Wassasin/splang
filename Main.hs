@@ -12,7 +12,7 @@ import AST
 import Meta
 import PrettyPrinter
 import TypePrinter
-import Typing
+import TypeInference
 import SemanticAnalysis
 import Errors
 

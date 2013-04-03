@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext) where
+module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext, typeOfBuiltin) where
 
 import Data.Maybe
 import Text.EditDistance
@@ -9,6 +9,7 @@ import AST
 import Meta
 import Errors
 import qualified Source
+import Typing
 
 -- b can be used for typing, not sure whether it will be useful
 -- a will always be (AST.Identifier a)
@@ -120,6 +121,7 @@ assignUniqueIDs program = do
 	program4 <- assignAll program3				-- 3) then do the rest (functions/expressions, etc)
 	return program4
 
+
 -- Part One --
 -- Returns a context with all top-level declarations
 assignGlobs :: P1Context -> P1 AST.Program -> ScopingResult (P1 AST.Program, P1Context)
@@ -144,8 +146,8 @@ assignGlobDecl context (AST.FunDecl a ident b c d m) = case idLookup ident conte
 	Nothing -> return (AST.FunDecl a ident2 b c d m, (User ident2, Global):context)
 	where ident2 = AST.assignUniqueID ident (nextUniqueID context)
 
+
 -- Part Two --
--- TODO: also add builtins
 addContextBasic :: P1Context -> P1Meta -> P2Meta
 addContextBasic context meta = P2 {src2 = (src meta), context = context}
 
@@ -155,6 +157,7 @@ addContext context program = fmap (addContextBasic context) program
 -- Used to assign context in subtrees (via fmap)
 updateContext :: P1Context -> P2Meta -> P2Meta
 updateContext newContext thing = thing { context = newContext }
+
 
 -- Part Three --
 assignAll :: P2 AST.Program -> ScopingResult (P2 AST.Program)
@@ -260,8 +263,64 @@ assignExpr (FunCall ident exprs m) = case idLookup ident (context m) of
 		exprs2 <- sequence (map assignExpr exprs)
 		return $ FunCall (updateIdentifier ident iy) exprs2 m
 	Nothing -> returnWithError (FunCall ident exprs m) (UndeclaredIdentifier (fmap forget ident) (context m))
-assignExpr (Pair e1 e2 m) = do
+assignExpr (AST.Pair e1 e2 m) = do
 	ee1 <- assignExpr e1
 	ee2 <- assignExpr e2
-	return $ Pair ee1 ee2 m
+	return $ AST.Pair ee1 ee2 m
 assignExpr x = return x -- ignores constants
+
+
+-- Part four --
+typeOfBuiltin :: Builtins -> PolyType ()
+typeOfBuiltin x = typeOfBuiltin2 x ()
+	where
+	typeOfBuiltin2 Print	= Poly (FT 0 ()) $ Mono (Func [Free (FT 0 ()) ()] (Typing.Void ()) ()) ()
+	typeOfBuiltin2 IsEmpty	= Poly (FT 0 ()) $ Mono (Func [List (Free (FT 0 ()) ()) ()] (Typing.Bool ()) ()) ()
+	typeOfBuiltin2 Head	= Poly (FT 0 ()) $ Mono (Func [List (Free (FT 0 ()) ()) ()] (Free (FT 0 ()) ()) ()) ()
+	typeOfBuiltin2 Tail	= Poly (FT 0 ()) $ Mono (Func [List (Free (FT 0 ()) ()) ()] (List (Free (FT 0 ()) ()) ()) ()) ()
+	typeOfBuiltin2 Fst	= Poly (FT 0 ()) $ Poly (FT 1 ()) (Mono (Func [Typing.Pair (Free (FT 0 ()) ()) (Free (FT 1 ()) ()) ()] (Free (FT 0 ()) ()) ()) () ) ()
+	typeOfBuiltin2 Snd	= Poly (FT 0 ()) $ Poly (FT 1 ()) (Mono (Func [Typing.Pair (Free (FT 0 ()) ()) (Free (FT 1 ()) ()) ()] (Free (FT 1 ()) ()) ()) () ) ()
+
+--data Type a = Void a
+--	| Int a
+--	| Bool a
+--	| TypeIdentifier (Identifier a) a
+--	| Product (Type a) (Type a) a
+--	| ListType (Type a) a
+--	deriving (Show, Eq, Read, Functor)
+
+-- Typeindentifier to Int
+type PolyContext = [(String, Int)]
+
+typeIdentifiers :: AST.Type a -> [String] -> [String]
+typeIdentifiers (AST.Void _) l		= l
+typeIdentifiers (AST.Int _) l		= l
+typeIdentifiers (AST.Bool _) l		= l
+typeIdentifiers (TypeIdentifier ident _) l = l `union` [getString ident]
+typeIdentifiers (Product a b _) l	= (typeIdentifiers a l) `union` (typeIdentifiers b l)
+typeIdentifiers (ListType a _) l	= typeIdentifiers a l
+
+annotatedMType :: PolyContext -> AST.Type a -> MonoType a
+annotatedMType pc (AST.Void m)		= Typing.Void m
+annotatedMType pc (AST.Int m)		= Typing.Int m
+annotatedMType pc (AST.Bool m)		= Typing.Bool m
+annotatedMType pc (TypeIdentifier ident m) = Free (FT (fromJust (lookup (getString ident) pc)) m) m
+annotatedMType pc (Product a b m)	= Typing.Pair (annotatedMType pc a) (annotatedMType pc b) m
+annotatedMType pc (ListType a m)	= List (annotatedMType pc a) m
+
+--data Decl a = VarDecl (Type a) (Identifier a) (Expr a) a
+--	| FunDecl (Type a) (Identifier a) [(Type a, Identifier a)] [Decl a] [Stmt a] a
+--	deriving (Show, Eq, Read, Functor)
+
+poly :: PolyContext -> MonoType a -> PolyType a
+poly [] mt = Mono mt (getMeta mt)
+poly ((_,n):xs) mt = Poly (FT n m) (poly xs mt) m
+	where m = getMeta mt
+
+annotatedType :: AST.Decl a -> PolyType a
+annotatedType (VarDecl t ident b m) = poly pc (annotatedMType pc t)
+	where pc = zip (typeIdentifiers t []) [1..]
+annotatedType (FunDecl rt ident args _ _ m) = poly pc (Func [] (annotatedMType pc rt) m)
+	where
+		allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
+		pc = zip allIdents [1..]
