@@ -320,7 +320,8 @@ poly ((_,n):xs) mt = Poly (FT n m) (poly xs mt) m
 annotatedType :: AST.Decl a -> PolyType a
 annotatedType (VarDecl t ident b m) = poly pc (annotatedMType pc t)
 	where pc = zip (typeIdentifiers t []) [1..]
-annotatedType (FunDecl rt ident args _ _ m) = poly pc (Func [] (annotatedMType pc rt) m)
+annotatedType (FunDecl rt ident args _ _ m) = poly pc (Func argTypes (annotatedMType pc rt) m)
 	where
 		allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
 		pc = zip allIdents [1..]
+		argTypes = map (annotatedMType pc . fst) args
