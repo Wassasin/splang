@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module TypeInference (Substitution, InferError(..), InferContext, infer, extractContext) where
+module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), InferContext, infer, extractContext) where
 
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))
-import SemanticAnalysis (P2, P2Meta, context, stripContext, Builtins(..), isBuiltin, typeOfBuiltin)
+import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin)
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
