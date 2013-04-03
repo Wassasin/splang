@@ -23,6 +23,11 @@ data MonoType m = Func [MonoType m] (MonoType m) m
 instance Eq (FreeType m) where
 	(==) (FT x _) (FT y _) = x == y
 
+instance Eq (PolyType m) where
+	(==) (Poly ft1 pt1 _) (Poly ft2 pt2 _)	= ft1 == ft2 && pt1 == pt2
+	(==) (Mono mt1 _) (Mono mt2 _)		= mt1 == mt2
+	(==) _ _				= False
+
 instance Eq (MonoType m) where
 	(==) (Func xs xr _) (Func ys yr _)	= xs == ys && xr == yr
 	(==) (Pair xx xy _) (Pair yx yy _)	= xx == yx && xy == yy

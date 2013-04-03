@@ -37,7 +37,7 @@ isBuiltin n = n >= (fromEnum (minBound :: Builtins))
 -- Something in our context is either a builtin or a user defined thing
 data GeneralIdentifier a = Builtin Builtins | User (AST.Identifier a)
 	deriving (Show, Eq, Read)
-type P1Context = Context (GeneralIdentifier P1Meta) Scope
+type P1Context = Context (GeneralIdentifier P1Meta) (Scope, PolyType P1Meta)
 data P2Meta = P2 {src2 :: Source.IndexSpan, context :: P1Context}
 	deriving (Show, Eq, Read)
 type P2 a = a P2Meta
@@ -111,7 +111,8 @@ type ScopingResult b = ErrorContainer ScopingError ScopingWarning b
 
 -- Empty context = all builtins
 emptyContext :: P1Context
-emptyContext = map (\x -> (Builtin x, Global)) [Print ..]
+emptyContext = map (\x -> (Builtin x, (Global, fmap (const stupidP1Meta) (typeOfBuiltin x)))) [Print ..]
+	where stupidP1Meta = constructP1 (Source.IndexSpan (-1) (-1))
 
 -- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID)
 assignUniqueIDs :: P1 AST.Program -> ScopingResult (P2 AST.Program)
@@ -137,13 +138,13 @@ assignGlobDecls context (decl:xs) = do
 	return (decl:xs, context)
 
 assignGlobDecl :: P1Context -> P1 AST.Decl -> ScopingResult (P1 AST.Decl, P1Context)
-assignGlobDecl context (AST.VarDecl a ident b m) = case idLookup ident context of
+assignGlobDecl context decl@(AST.VarDecl a ident b m) = case idLookup ident context of
 	Just (iy, _) -> returnWithError (AST.VarDecl a ident b m, context) (DuplicateDeclaration ident iy)
-	Nothing -> return (AST.VarDecl a ident2 b m, (User ident2, Global):context)
+	Nothing -> return (AST.VarDecl a ident2 b m, (User ident2, (Global, annotatedType decl)):context)
 	where ident2 = AST.assignUniqueID ident (nextUniqueID context)
-assignGlobDecl context (AST.FunDecl a ident b c d m) = case idLookup ident context of
+assignGlobDecl context decl@(AST.FunDecl a ident b c d m) = case idLookup ident context of
 	Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d m, context) (DuplicateDeclaration ident iy)
-	Nothing -> return (AST.FunDecl a ident2 b c d m, (User ident2, Global):context)
+	Nothing -> return (AST.FunDecl a ident2 b c d m, (User ident2, (Global, annotatedType decl)):context)
 	where ident2 = AST.assignUniqueID ident (nextUniqueID context)
 
 
@@ -190,9 +191,9 @@ assignFarg (t, ident) context = do
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
 	case idLookup ident context of
-		Just (iy, Global)	-> returnWithWarning ((t, newIdent), (User fident, Argument):context) (ShadowsDeclaration fident iy Global)
-		Just (iy, _)		-> returnWithError ((t, newIdent), (User fident, Argument):context) (DuplicateDeclaration fident iy)
-		Nothing			-> return ((t, newIdent), (User fident, Argument):context)
+		Just (iy, (Global, _))	-> returnWithWarning ((t, newIdent), (User fident, (Argument, annotatedType (fmap forget t))):context) (ShadowsDeclaration fident iy Global)
+		Just (iy, _)		-> returnWithError ((t, newIdent), (User fident, (Argument, annotatedType (fmap forget t))):context) (DuplicateDeclaration fident iy)
+		Nothing			-> return ((t, newIdent), (User fident, (Argument, annotatedType (fmap forget t))):context)
 
 assignVarDecls :: [P2 AST.Decl] -> P1Context -> ScopingResult ([P2 AST.Decl], P1Context)
 assignVarDecls [] context = return ([], context)
@@ -203,14 +204,14 @@ assignVarDecls (xin:rest) context = do
 	return ((x:rest), context)
 
 assignVarDecl :: P2 AST.Decl -> P1Context -> ScopingResult (P2 AST.Decl, P1Context)
-assignVarDecl (AST.VarDecl a ident b m) context = do
+assignVarDecl decl@(AST.VarDecl a ident b m) context = do
 	b <- assignExpr b
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
 	case idLookup ident context of
-		Just (iy, Local)	-> returnWithError ((AST.VarDecl a newIdent b m), (User fident, Local):context) (DuplicateDeclaration fident iy)
-		Just (iy, scope)	-> returnWithWarning ((AST.VarDecl a newIdent b m), (User fident, Local):context) (ShadowsDeclaration fident iy scope)
-		Nothing			-> return ((AST.VarDecl a newIdent b m), (User fident, Local):context)
+		Just (iy, (Local, _))	-> returnWithError ((AST.VarDecl a newIdent b m), (User fident, (Local, annotatedType (fmap forget decl))):context) (DuplicateDeclaration fident iy)
+		Just (iy, (scope, _))	-> returnWithWarning ((AST.VarDecl a newIdent b m), (User fident, (Local, annotatedType (fmap forget decl))):context) (ShadowsDeclaration fident iy scope)
+		Nothing			-> return ((AST.VarDecl a newIdent b m), (User fident, (Local, annotatedType (fmap forget decl))):context)
 assignVarDecl (AST.FunDecl _ _ _ _ _ _) _ = error "COMPILER BUG: Unexpected function declaration inside function body."
 
 -- At this point, all contexts are fixed in the meta info
@@ -317,11 +318,18 @@ poly [] mt = Mono mt (getMeta mt)
 poly ((_,n):xs) mt = Poly (FT n m) (poly xs mt) m
 	where m = getMeta mt
 
-annotatedType :: AST.Decl a -> PolyType a
-annotatedType (VarDecl t ident b m) = poly pc (annotatedMType pc t)
-	where pc = zip (typeIdentifiers t []) [1..]
-annotatedType (FunDecl rt ident args _ _ m) = poly pc (Func argTypes (annotatedMType pc rt) m)
-	where
-		allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
-		pc = zip allIdents [1..]
-		argTypes = map (annotatedMType pc . fst) args
+class AnnotatedType b where
+	annotatedType :: b a -> PolyType a
+
+instance AnnotatedType AST.Decl where
+	annotatedType (VarDecl t ident b m) = poly pc (annotatedMType pc t)
+		where pc = zip (typeIdentifiers t []) [1..]
+	annotatedType (FunDecl rt ident args _ _ m) = poly pc (Func argTypes (annotatedMType pc rt) m)
+		where
+			allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
+			pc = zip allIdents [1..]
+			argTypes = map (annotatedMType pc . fst) args
+
+instance AnnotatedType Type where
+	annotatedType t = poly pc (annotatedMType pc t)
+		where pc = zip (typeIdentifiers t []) [1..]
