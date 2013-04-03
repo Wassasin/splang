@@ -42,7 +42,7 @@ main = do
 
 	pResult2 <- midentifiers opts file source pResult
 
-	Console.highLight "Assigned AST:"
+	Console.highLightLn "Assigned AST:"
 	prettyPrint (astPrinter opts) pResult2
 
 	pResult3 <- minfer opts file source pResult2
@@ -52,7 +52,7 @@ main = do
 -- filename is needed for error-messaging! Returns a list of tokens or errors.
 mlex :: Options -> String -> String -> IO [Token]
 mlex opts filename source = do
-	when (showLexingResult opts) $ Console.highLight "Lexing result:"
+	when (showLexingResult opts) $ Console.highLightLn "Lexing result:"
 	let lResult = lexer (source, 0)
 	case lResult of
 		Match xs _ -> do
@@ -65,7 +65,7 @@ mlex opts filename source = do
 -- filename and source are needed for error-messaging! Returns an AST or errors.
 mparse :: Options -> String -> String -> [Token] -> IO (P1 Program)
 mparse opts filename source tokens = do
-	when (showParsingResult opts) $ Console.highLight "Parsing result:"
+	when (showParsingResult opts) $ Console.highLightLn "Parsing result:"
 	let pResult = parseSPL tokens
 	case pResult of
 		Left [x]			-> do
@@ -143,7 +143,7 @@ minfer opts filename source program = do
 				Console.intense (show i ++ ": ")
 				polyTypePrint coloredTypePrinter t
 				putStr "\n") cs
-			Console.highLight "Woehoe infering succeeded!"
+			Console.highLightLn "Woehoe infering succeeded!"
 		Errors.Result _ errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
 			exitFailure
@@ -167,5 +167,14 @@ printTypingError opts filename source (CannotUnify mt1 mt2)	= do
 		monoTypePrint coloredTypePrinter mt2
 		Console.intense " inferred here:")
 printTypingError opts filename source (ContextNotFound ident)	= Console.putMessageLn Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
-printTypingError opts filename source (PolyViolation ft mt)	= standardMessage filename source (src2 $ getMeta mt) Console.Error "Polytype violation"
+printTypingError opts filename source (PolyViolation ft mt)	= do
+	standardMessageIO filename source (src2 $ getMeta ft) Console.Error (do
+		Console.intense "Attempted to substitute a bound free type variable "
+		monoTypePrint coloredTypePrinter (Free ft $ getMeta ft)
+		Console.intense " in a PolyType. "
+		Console.highLight "COMPILER BUG")
+	standardMessageIO filename source (src2 $ getMeta mt) Console.Note (do
+		Console.intense "With type "
+		monoTypePrint coloredTypePrinter mt
+		Console.intense " which was inferred from here:")
 printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src2 $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)

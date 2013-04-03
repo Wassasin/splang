@@ -15,7 +15,7 @@ data Unification m = Success (Substitution m) | Fail (MonoType m) (MonoType m)
 
 type InferState = FTid
 
--- Cannot unify types | IdentID could not be found in context | A substitution of an unbound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
+-- Cannot unify types | IdentID could not be found in context | A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
 data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
@@ -50,7 +50,11 @@ returnInferError x e = mo $ \s -> returnWithError (x, s) e
 substitute :: MonoType m -> MonoType m -> Substitution m
 substitute x y z
 	| x == z	= y
-	| otherwise	= z
+	| otherwise	= let s = substitute x y in case z of
+		Func args r m	-> Func (map s args) (s r) m
+		Pair x y m	-> Pair (s x) (s y) m
+		List t m	-> List (s t) m
+		x		-> x
 
 compose :: Unification m -> Unification m -> Unification m
 compose (Success x) (Success y)	= Success (x . y)
@@ -162,7 +166,7 @@ constructInitialContext m = do
 	foldl (>>=) (return emptyContext) $ map (\(i, a) -> \c -> setContext i a c) tup
 
 infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
-infer p = flip bo 0 $ do
+infer p = flip bo 2 $ do -- FT 0 & 1 are reserved for keywords
 	c <- constructInitialContext $ getMeta p
 	(_, c) <- inferProgram c p
 	extractContext (getMeta p) c
@@ -257,7 +261,7 @@ inferStmt _ (AST.Return Nothing m) t = do
 inferStmt c (AST.Return (Just e) m) t = do
 	a <- genFreshConcrete m
 	s <- inferExpr c e a
-	s <- genMgu (s t) a .> s
+	s <- genMgu (s t) (s a) .> s
 	return s
 
 matchBinOp :: AST.BinaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoType m, m -> MonoType m)
@@ -319,12 +323,13 @@ inferExpr c (AST.FunCall i es m) t = do
 	u <- genBind m u
 	r <- genFreshConcrete m
 	as <- sequence $ map (\e -> genFreshConcrete $ getMeta e) es
-	u <- return $ Func as r m
-	s <- genMgu t r
+	v <- return $ Func as r m
+	s <- genMgu u v
 	s <- foldl (>>=) (return s) $ map (\(e, a) -> \s -> do
 		c <- apply s c
 		s <- inferExpr c e (s a) .> s
 		return s) $ zip es as
+	s <- genMgu (s t) (s r) .> s
 	return s
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFreshConcrete $ getMeta e1
