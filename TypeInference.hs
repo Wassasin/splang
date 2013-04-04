@@ -178,7 +178,7 @@ inferProgram c (AST.Program decls _) = do
 
 inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
 inferDecl c decl@(AST.VarDecl _ i e m) = do
-	let at = annotatedType decl
+	let (at,_) = annotatedType [] decl
 	i <- fetchIdentID i
 	a <- genFreshConcrete m
 	c <- setContext i (Mono a m) c
@@ -189,7 +189,7 @@ inferDecl c decl@(AST.VarDecl _ i e m) = do
 	when (not $ polyUnify it at) $ addInferError (TypeError at it)
 	return (s, c)
 inferDecl c decl@(AST.FunDecl _ i args decls stmts m) = do
-	let at = annotatedType decl
+	let (at,_) = annotatedType [] decl
 	i <- fetchIdentID i
 	u <- c i
 	u <- genBind m u

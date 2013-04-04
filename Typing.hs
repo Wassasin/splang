@@ -20,7 +20,7 @@ data MonoType m = Func [MonoType m] (MonoType m) m
 	| Void m
 	deriving (Show, Read, Functor)
 
--- Returns whether Voi is used in an active position (ie non-return type)
+-- Returns whether Void is used in an active position (ie non-return type)
 usingVoid :: MonoType m -> Bool
 usingVoid (Func args _ _)	= any usingVoid args
 usingVoid (Pair t1 t2 _)	= usingVoid t1 || usingVoid t2
