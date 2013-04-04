@@ -45,9 +45,8 @@ main = do
 	when (parseOnly opts) $ exitSuccess
 
 	pResult2 <- midentifiers opts file source pResult
+	when (scopeOnly opts) $ exitSuccess
 
-	Console.highLightLn "Assigned AST:"
-	prettyPrint (astPrinter opts) pResult2
 	Console.highLightLn "Global context:"
 	sequence $ map (\(i, (s, t)) -> do
 				Console.intense (show s ++ ": " ++ show2 i ++ " :: ")
@@ -104,10 +103,12 @@ midentifiers opts filename source program = do
 	case x of
 		Errors.Result newProgram [] warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
+			when (showScopingResult opts) $ prettyPrint (astPrinter opts) newProgram
 			return newProgram
-		Errors.Result _ errors warnings -> do
+		Errors.Result newProgram errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) errors
+			when (showParsingResult opts) $ prettyPrint (astPrinter opts) newProgram
 			exitFailure
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings

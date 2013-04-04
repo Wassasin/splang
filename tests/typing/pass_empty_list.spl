@@ -1,0 +1,7 @@
+// Test: polymorphic list variable
+
+Void main(){
+	t x = [];
+	print(1:x);
+	print(True:x);
+}

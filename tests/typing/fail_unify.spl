@@ -1,0 +1,14 @@
+// Test: Cannot unify
+
+Bool x = 5;
+
+[t] y = x;
+
+Int foo(Int n){
+	return n;
+}
+
+Void main(){
+	Bool x = foo(5);
+	foo(True);
+}

@@ -21,10 +21,23 @@ do
 	fi
 done
 
-echo "Semantics tests"
-for f in ./tests/semantics/*.spl
+echo "Scoping tests"
+for f in ./tests/scoping/*.spl
 do
-	echo "*** Compiling $f" >> run_tests.log
+	echo "*** Scoping $f" >> run_tests.log
+	./build/splang --scope-only "$@" $f >> run_tests.log
+
+	if [ $? -ne 0 ]; then
+		echo -e "\033[31m$f failed compiling\033[0m"
+	else
+		echo -e "\033[32m$f succeeded compiling\033[0m"
+	fi
+done
+
+echo "Typing tests"
+for f in ./tests/typing/*.spl
+do
+	echo "*** Type checking $f" >> run_tests.log
 	./build/splang "$@" $f >> run_tests.log
 
 	if [ $? -ne 0 ]; then

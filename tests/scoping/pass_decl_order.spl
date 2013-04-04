@@ -1,0 +1,21 @@
+// Test: arbitrary order of decls
+
+Void foo(){
+	bla();
+}
+
+Int bla(){
+	print(5);
+	return 5;
+}
+
+Int v1 = bla();
+Int v2 = bla2(v2);
+
+Int bla2(Int n){
+	return 37;
+}
+
+Void main(){
+	print(v1:v2:[]);
+}

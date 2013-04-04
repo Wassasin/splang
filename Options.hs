@@ -1,5 +1,6 @@
 module Options (Warnings(..), Options(..), mkOptions) where
 
+import Control.Monad.Instances
 import System.Console.GetOpt
 
 import PrettyPrinter
@@ -18,9 +19,10 @@ data Options = Options
 	, showInput :: Bool
 	, showLexingResult :: Bool
 	, showParsingResult :: Bool
-	, showAST :: Bool
+	, showScopingResult :: Bool
 	, lexOnly :: Bool
 	, parseOnly :: Bool
+	, scopeOnly :: Bool
 	, enabledWarnings :: Warnings
 	}
 
@@ -30,9 +32,10 @@ defaultOptions = Options
 	, showInput = False
 	, showLexingResult = False
 	, showParsingResult = False
-	, showAST = False
+	, showScopingResult = False
 	, lexOnly = False
 	, parseOnly = False
+	, scopeOnly = False
 	, enabledWarnings = allWarnings
 	}
 
@@ -51,10 +54,11 @@ options =
 	, Option [] ["minimizer"]	(NoArg (\o -> o { astPrinter = miniPrettyPrinter }))	"prints the AST without tabs and newlines"
 	, Option [] ["show-input"]	(NoArg (\o -> o { showInput = True }))			"shows the input-file"
 	, Option [] ["show-lexing"]	(NoArg (\o -> o { showLexingResult = True }))		"shows the in-between lexing result"
-	, Option [] ["show-parsing"]	(NoArg (\o -> o { showParsingResult = True }))		"prettyprints the AST"
-	, Option [] ["show-splast"]	(NoArg (\o -> o { showAST = True }))			"dumps the in-between AST after some pass"
+	, Option [] ["show-parsing"]	(NoArg (\o -> o { showParsingResult = True }))		"prettyprints the AST after parsing"
+	, Option [] ["show-scoping"]	(NoArg (\o -> o { showScopingResult = True }))		"prettyprints the AST after scoping"
 	, Option [] ["lex-only"]	(NoArg (\o -> o { lexOnly = True }))			"stops after the lexing pass"
 	, Option [] ["parse-only"]	(NoArg (\o -> o { parseOnly = True }))			"stops after the parsing pass"
+	, Option [] ["scope-only"]	(NoArg (\o -> o { scopeOnly = True }))			"stops after the scoping pass"
 	, Option "W" []			(ReqArg (fmap lift warningsOptions) "warning")		"Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
 	]
 

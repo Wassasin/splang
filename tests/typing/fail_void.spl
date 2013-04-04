@@ -1,0 +1,10 @@
+// Test: using void type
+
+Void foo(){
+	return;
+}
+
+Void main(){
+	t x = foo();
+	return x;
+}

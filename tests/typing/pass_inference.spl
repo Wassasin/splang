@@ -3,21 +3,20 @@
 // Should infere Int
 auto aint = 5;
 
-// Should infer Bool
+// Should infer Bool(Bool)
 Bool f(auto arg)
 {
 	return arg;
 }
 
-test h = g;
-test g = f;
-test z = h;
+// Should infer Bool(Bool)
+auto g(Bool arg)
+{
+	return arg;
+}
+
 
 Void main()
 {
-	test i = f;
-	test j = g;
-	test k = h;
-
 	return;
 }

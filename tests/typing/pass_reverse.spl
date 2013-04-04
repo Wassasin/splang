@@ -8,3 +8,7 @@
 	}
 	return accu;
 }
+
+Void main(){
+	print(reverse(1:2:3:[]));
+}
