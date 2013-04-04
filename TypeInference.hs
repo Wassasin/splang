@@ -3,7 +3,7 @@
 module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), InferContext, infer, extractContext) where
 
 import Data.Maybe (fromJust)
-import Data.List (union, (\\))
+import Data.List (union)
 import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin)
 import Errors
 import Meta (ASTMeta, getMeta)
@@ -67,15 +67,6 @@ ftvm (Func ts t _)	= foldr (union . ftvm) (ftvm t) ts
 ftvm (Pair t1 t2 _)	= union (ftvm t1) (ftvm t2)
 ftvm (List t _)		= ftvm t
 ftvm _			= []
-
-ftv :: PolyType m -> [FreeType m]
-ftv (Mono t _) = ftvm t
-ftv (Poly a t _) = filter ((/=) a) (ftv t)
-
-ftvc :: P2Meta -> InferContext P2Meta -> InferMonadD P2Meta ([FreeType P2Meta])
-ftvc m c = do
-	ts <- sequence $ map c $ stripContext $ context m
-	return $ concat $ map ftv ts
 
 mgu :: MonoType m -> MonoType m -> Unification m
 mgu (Free _ _) (Free _ _)		= Success id
@@ -183,13 +174,9 @@ inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitut
 inferDecl c (AST.VarDecl _ i e m) = do
 	i <- fetchIdentID i
 	a <- genFreshConcrete m
-	ce <- setContext i (Mono a m) c
-	s <- inferExpr ce e a
+	c <- setContext i (Mono a m) c
+	s <- inferExpr c e a
 	c <- apply s c
-	fc <- ftvc m c
-	let bs = ftvm (s a) \\ fc
-	a <- return $ createPoly bs (s a) m
-	c <- setContext i a c
 	return (s, c)
 inferDecl c (AST.FunDecl _ i args decls stmts m) = do
 	i <- fetchIdentID i
