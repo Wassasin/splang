@@ -55,6 +55,12 @@ main = do
 
 	pResult3 <- minfer opts file source pResult2
 
+	Console.highLightLn "Globals infered:"
+	sequence $ map (\(i, t) -> do
+		Console.intense (show i ++ ": ")
+		polyTypePrint coloredTypePrinter t
+		putStr "\n") pResult3
+
 	exitSuccess
 
 -- filename is needed for error-messaging! Returns a list of tokens or errors.
@@ -144,16 +150,12 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) s
 
 ifWarning kind opts = when (kind . enabledWarnings $ opts)
 
-minfer :: Options -> String -> String -> (P2 Program) -> IO ()
+minfer :: Options -> String -> String -> (P2 Program) -> IO [(AST.IdentID, PolyType P2Meta)]
 minfer opts filename source program = do
 	let x = infer program
 	case x of
 		Errors.Result (cs, _) [] [] -> do
-			sequence $ map (\(i, t) -> do
-				Console.intense (show i ++ ": ")
-				polyTypePrint coloredTypePrinter t
-				putStr "\n") cs
-			Console.highLightLn "Woehoe infering succeeded!"
+			return cs
 		Errors.Result _ errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
 			exitFailure
