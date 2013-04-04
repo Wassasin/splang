@@ -5,7 +5,7 @@ module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), 
 import Control.Monad
 import Data.Maybe (fromJust)
 import Data.List (union)
-import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin)
+import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin, annotatedType)
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
@@ -177,15 +177,19 @@ inferProgram c (AST.Program decls _) = do
 	return (s, c)
 
 inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
-inferDecl c (AST.VarDecl _ i e m) = do
+inferDecl c decl@(AST.VarDecl _ i e m) = do
+	let at = annotatedType decl
 	i <- fetchIdentID i
 	a <- genFreshConcrete m
 	c <- setContext i (Mono a m) c
 	s <- inferExpr c e a
 	c <- apply s c
-	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a)) 
+	let it = (Mono (s a) m)
+	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
+	when (it /= at) $ addInferError (TypeError at it)
 	return (s, c)
-inferDecl c (AST.FunDecl _ i args decls stmts m) = do
+inferDecl c decl@(AST.FunDecl _ i args decls stmts m) = do
+	let at = annotatedType decl
 	i <- fetchIdentID i
 	u <- c i
 	u <- genBind m u
@@ -212,7 +216,9 @@ inferDecl c (AST.FunDecl _ i args decls stmts m) = do
 	v <- return $ s v
 	c <- apply s c
 	-- set type of this function in context
-	c <- setContext i (createPoly (ftvm v) v m) c
+	let it = createPoly (ftvm v) v m
+	c <- setContext i it c
+	when (it /= at) $ addInferError (TypeError at it)
 	return (s, c)
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)

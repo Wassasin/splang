@@ -196,4 +196,12 @@ printTypingError opts filename source (VoidUsage meta mt)	= do
 		Console.intense "Type "
 		monoTypePrint coloredTypePrinter mt
 		Console.intense " inferred here:")
-printTypingError opts filename source (TypeError pt1 pt2)	= standardMessage filename source (src2 $ getMeta pt1) Console.Error "Type mismatch with annotation"
+printTypingError opts filename source (TypeError pt1 pt2)	= do
+	standardMessageIO filename source (src2 $ getMeta pt1) Console.Note (do
+		Console.intense "Type mismatch. Expected type "
+		polyTypePrint coloredTypePrinter pt1
+		Console.intense " declared here:")
+	standardMessageIO filename source (src2 $ getMeta pt2) Console.Note (do
+		Console.intense "Actual type "
+		polyTypePrint coloredTypePrinter pt2
+		Console.intense " inferred here:")
