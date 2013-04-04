@@ -131,7 +131,7 @@ assignUniqueIDs :: P1 AST.Program -> ScopingResult (P2 AST.Program)
 assignUniqueIDs program = do
 	(program2, context) <- assignGlobs startContext program	-- 1) determine everything in global scope
 	let program3 = (addContext context program2)		-- 2) add those things everywehere
-	program4 <- assignAll program3				-- 3) then do the rest (functions/expressions, etc)
+	program4 <- assignAll context program3			-- 3) then do the rest (functions/expressions, etc)
 	return program4
 
 
@@ -172,65 +172,67 @@ addContext :: ScopingContext -> P1 AST.Program -> P2 AST.Program
 addContext context program = fmap (addContextBasic context) program
 
 -- Used to assign context in subtrees (via fmap)
-updateContext :: P1Context -> P2Meta -> P2Meta
-updateContext newContext thing = thing { context = newContext }
+updateContext :: ScopingContext -> P2Meta -> P2Meta
+updateContext newContext thing = thing { context = (fst newContext) }
 
 
 -- Part Three --
-assignAll :: P2 AST.Program -> ScopingResult (P2 AST.Program)
-assignAll (AST.Program decls m) = do
-	decls2 <- sequence (map assignDecl decls)
+assignAll :: ScopingContext -> P2 AST.Program -> ScopingResult (P2 AST.Program)
+assignAll context (AST.Program decls m) = do
+	decls2 <- sequence (map (assignDecl context) decls)
 	return (AST.Program decls2 m)
 
-assignDecl :: P2 AST.Decl -> ScopingResult (P2 AST.Decl)
-assignDecl (AST.VarDecl a ident b m) = do
+assignDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl)
+assignDecl context (AST.VarDecl a ident b m) = do
 	y <- assignExpr b
 	return (AST.VarDecl a ident y m)
-assignDecl (AST.FunDecl t ident args decls stmtsin m) = do
-	(args, context) <- assignFargs args (context m)
-	(decls, context) <- assignVarDecls decls context
+assignDecl context (AST.FunDecl t ident args decls stmtsin m) = do
+	(args, context) <- assignFargs context args
+	(decls, context) <- assignVarDecls context decls
 	let stmts = fmap (fmap (updateContext context)) stmtsin -- iterate over the list, iterate through tree
 	stmts <- assignStmts stmts
 	return (AST.FunDecl t ident args decls stmts m)
 
 -- In this part we update the context, so we pass it to he function
-assignFargs :: [(P2 AST.Type, P2 AST.Identifier)] -> P1Context -> ScopingResult ([(P2 AST.Type, P2 AST.Identifier)], P1Context)
-assignFargs [] context = return ([], context)
-assignFargs ((t,i):rest) context = do
+assignFargs :: ScopingContext -> [(P2 AST.Type, P2 AST.Identifier)] -> ScopingResult ([(P2 AST.Type, P2 AST.Identifier)], ScopingContext)
+assignFargs context [] = return ([], context)
+assignFargs context ((t,i):rest) = do
 	let x = (fmap (updateContext context) t, fmap (updateContext context) i)
-	(x, context) <- assignFarg x context
-	(rest, context) <- assignFargs rest context
+	(x, context) <- assignFarg context x
+	(rest, context) <- assignFargs context rest 
 	return ((x:rest), context)
 
-assignFarg :: (P2 AST.Type, P2 AST.Identifier) -> P1Context -> ScopingResult ((P2 AST.Type, P2 AST.Identifier), P1Context)
-assignFarg (t, ident) context = do
+assignFarg :: ScopingContext -> (P2 AST.Type, P2 AST.Identifier) -> ScopingResult ((P2 AST.Type, P2 AST.Identifier), ScopingContext)
+assignFarg (context, typecontext) (t, ident) = do
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
-	let (at, _) = annotatedType [] (fmap forget t)
+	let (at, newTypeContext) = annotatedType typecontext (fmap forget t)
+	let newContext = (User fident, (Argument, at)):context
 	case idLookup ident context of
-		Just (iy, (Global, _))	-> returnWithWarning ((t, newIdent), (User fident, (Argument, at)):context) (ShadowsDeclaration fident iy Global)
-		Just (iy, _)		-> returnWithError ((t, newIdent), (User fident, (Argument, at)):context) (DuplicateDeclaration fident iy)
-		Nothing			-> return ((t, newIdent), (User fident, (Argument, at)):context)
+		Just (iy, (Global, _))	-> returnWithWarning ((t, newIdent), (newContext, newTypeContext)) (ShadowsDeclaration fident iy Global)
+		Just (iy, _)		-> returnWithError ((t, newIdent), (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
+		Nothing			-> return ((t, newIdent), (newContext, newTypeContext))
 
-assignVarDecls :: [P2 AST.Decl] -> P1Context -> ScopingResult ([P2 AST.Decl], P1Context)
-assignVarDecls [] context = return ([], context)
-assignVarDecls (xin:rest) context = do
+assignVarDecls :: ScopingContext -> [P2 AST.Decl] -> ScopingResult ([P2 AST.Decl], ScopingContext)
+assignVarDecls context [] = return ([], context)
+assignVarDecls context (xin:rest) = do
 	let x = fmap (updateContext context) xin
-	(x, context) <- assignVarDecl x context
-	(rest, context) <- assignVarDecls rest context
+	(x, context) <- assignVarDecl context x
+	(rest, context) <- assignVarDecls context rest
 	return ((x:rest), context)
 
-assignVarDecl :: P2 AST.Decl -> P1Context -> ScopingResult (P2 AST.Decl, P1Context)
-assignVarDecl decl@(AST.VarDecl a ident b m) context = do
+assignVarDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl, ScopingContext)
+assignVarDecl (context, typecontext) decl@(AST.VarDecl a ident b m) = do
 	b <- assignExpr b
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
-	let (at, _) = annotatedType [] (fmap forget decl)
+	let (at, newTypeContext) = annotatedType typecontext (fmap forget decl)
+	let newContext = (User fident, (Argument, at)):context
 	case idLookup ident context of
-		Just (iy, (Local, _))	-> returnWithError ((AST.VarDecl a newIdent b m), (User fident, (Local, at)):context) (DuplicateDeclaration fident iy)
-		Just (iy, (scope, _))	-> returnWithWarning ((AST.VarDecl a newIdent b m), (User fident, (Local, at)):context) (ShadowsDeclaration fident iy scope)
-		Nothing			-> return ((AST.VarDecl a newIdent b m), (User fident, (Local, at)):context)
-assignVarDecl (AST.FunDecl _ _ _ _ _ _) _ = error "COMPILER BUG: Unexpected function declaration inside function body."
+		Just (iy, (Local, _))	-> returnWithError ((AST.VarDecl a newIdent b m), (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
+		Just (iy, (scope, _))	-> returnWithWarning ((AST.VarDecl a newIdent b m), (newContext, newTypeContext)) (ShadowsDeclaration fident iy scope)
+		Nothing			-> return ((AST.VarDecl a newIdent b m), (newContext, newTypeContext))
+assignVarDecl _ (AST.FunDecl _ _ _ _ _ _) = error "COMPILER BUG: Unexpected function declaration inside function body."
 
 -- At this point, all contexts are fixed in the meta info
 assignStmts :: [P2 AST.Stmt] -> ScopingResult ([P2 AST.Stmt])
