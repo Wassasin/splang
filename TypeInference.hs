@@ -186,7 +186,7 @@ inferDecl c decl@(AST.VarDecl _ i e m) = do
 	c <- apply s c
 	let it = (Mono (s a) m)
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
-	when (it /= at) $ addInferError (TypeError at it)
+	when (not $ polyUnify it at) $ addInferError (TypeError at it)
 	return (s, c)
 inferDecl c decl@(AST.FunDecl _ i args decls stmts m) = do
 	let at = annotatedType decl
@@ -218,7 +218,7 @@ inferDecl c decl@(AST.FunDecl _ i args decls stmts m) = do
 	-- set type of this function in context
 	let it = createPoly (ftvm v) v m
 	c <- setContext i it c
-	when (it /= at) $ addInferError (TypeError at it)
+	when (not $ polyUnify it at) $ addInferError (TypeError at it)
 	return (s, c)
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
@@ -344,3 +344,12 @@ inferExpr _ (AST.Nil m) t = do
 	a <- genFreshConcrete m
 	s <- genMgu t (List a m)
 	return s
+
+polyUnify :: PolyType m -> PolyType m -> Bool
+polyUnify p1 p2 = polyUnify2 p1 [] p2 []
+	where
+		polyUnify2 (Poly (FT n1 m1) p1 m) l1 p2 l2 = polyUnify2 p1 (n1:l1) p2 l2
+		polyUnify2 p1 l1 (Poly (FT n2 m1) p2 m) l2 = polyUnify2 p1 l1 p2 (n2:l2)
+		polyUnify2 (Mono m1 _) l1 (Mono m2 _) l2 = case mgu m1 m2 of
+			Success _ -> True
+			Fail _ _ -> False
