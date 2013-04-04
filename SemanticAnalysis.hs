@@ -332,7 +332,7 @@ instance AnnotatedType AST.Decl where
 	annotatedType c (FunDecl rt ident args _ _ m) = (poly pc (Func argTypes (annotatedMType pc rt) m), c)
 		where
 			allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
-			pc = zip allIdents [1..]
+			pc = zip allIdents [0..]
 			argTypes = map (annotatedMType pc . fst) args
 
 -- And just types (eg. in VarDecl or arguments of function)
@@ -342,4 +342,5 @@ instance AnnotatedType Type where
 			nextid = case c of
 				[] -> 0
 				cs -> maximum (map snd cs) + 1
-			pc = c ++ zip (typeIdentifiers t []) [nextid..]
+			newTIs = (typeIdentifiers t []) \\ (map fst c)
+			pc = c ++ zip newTIs [nextid..]
