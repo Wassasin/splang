@@ -19,6 +19,14 @@ data MonoType m = Func [MonoType m] (MonoType m) m
 	| Bool m
 	| Void m
 	deriving (Show, Read, Functor)
+
+-- Returns whether Voi is used in an active position (ie non-return type)
+usingVoid :: MonoType m -> Bool
+usingVoid (Func args _ _)	= any usingVoid args
+usingVoid (Pair t1 t2 _)	= usingVoid t1 || usingVoid t2
+usingVoid (List t _)		= usingVoid t
+usingVoid (Void _)		= True
+usingVoid _			= False
 	
 instance Eq (FreeType m) where
 	(==) (FT x _) (FT y _) = x == y

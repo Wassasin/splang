@@ -188,3 +188,10 @@ printTypingError opts filename source (PolyViolation ft mt)	= do
 		monoTypePrint coloredTypePrinter mt
 		Console.intense " which was inferred from here:")
 printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src2 $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)
+printTypingError opts filename source (VoidUsage meta mt)	= do
+	standardMessage filename source (src2 $ meta) Console.Error "Using void"
+	standardMessageIO filename source (src2 $ getMeta mt) Console.Note (do
+		Console.intense "Type "
+		monoTypePrint coloredTypePrinter mt
+		Console.intense " inferred here:")
+printTypingError opts filename source (TypeError pt1 pt2)	= standardMessage filename source (src2 $ getMeta pt1) Console.Error "Type mismatch with annotation"

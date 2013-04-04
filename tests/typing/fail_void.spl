@@ -1,4 +1,4 @@
-// Test: using void type
+// Test: using void type (three errors)
 
 Void foo(){
 	return;
@@ -6,5 +6,7 @@ Void foo(){
 
 Void main(){
 	t x = foo();
+	s y = foo():[];
+	print(foo());
 	return x;
 }

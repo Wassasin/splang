@@ -2,6 +2,7 @@
 
 module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), InferContext, infer, extractContext) where
 
+import Control.Monad
 import Data.Maybe (fromJust)
 import Data.List (union)
 import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin)
@@ -15,8 +16,8 @@ data Unification m = Success (Substitution m) | Fail (MonoType m) (MonoType m)
 
 type InferState = FTid
 
--- Cannot unify types | IdentID could not be found in context | A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
-data InferError m = CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
+-- Annotation is wron | Cannot unify types | IdentID could not be found in context | A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
+data InferError m = VoidUsage m (MonoType m) | TypeError (PolyType m) (PolyType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
@@ -43,6 +44,11 @@ instance Monad (InferMonadD m) where
 	
 returnFatalInferError :: InferError m -> InferMonadD m a
 returnFatalInferError e = mo $ \_ -> returnFatal e
+
+addInferError :: InferError m -> InferMonadD m ()
+addInferError e = mo $ \s -> do
+	addError e
+	return ((), s)
 
 returnInferError :: a -> InferError m -> InferMonadD m a
 returnInferError x e = mo $ \s -> returnWithError (x, s) e
@@ -177,6 +183,7 @@ inferDecl c (AST.VarDecl _ i e m) = do
 	c <- setContext i (Mono a m) c
 	s <- inferExpr c e a
 	c <- apply s c
+	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a)) 
 	return (s, c)
 inferDecl c (AST.FunDecl _ i args decls stmts m) = do
 	i <- fetchIdentID i
@@ -315,6 +322,7 @@ inferExpr c (AST.FunCall i es m) t = do
 	s <- foldl (>>=) (return s) $ map (\(e, a) -> \s -> do
 		c <- apply s c
 		s <- inferExpr c e (s a) .> s
+		when(usingVoid (s a)) $ addInferError (VoidUsage m (s a))
 		return s) $ zip es as
 	s <- genMgu (s t) (s r) .> s
 	return s
