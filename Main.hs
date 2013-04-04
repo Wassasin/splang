@@ -1,5 +1,6 @@
 import System.Environment
 
+import Data.List
 import System.Exit
 import Control.Monad
 
@@ -32,6 +33,17 @@ show2 :: Show a => GeneralIdentifier a -> String
 show2 (User (AST.Identifier str _ _)) = "User " ++ str
 show2 s = show s
 
+getFunDeclContext :: P2 Decl -> P1Context
+getFunDeclContext (FunDecl _ _ _ _ stmts _) = context $ getMeta $ last stmts
+
+printContext :: P1Context -> IO ()
+printContext context = do
+	sequence $ map (\(i, (s, t)) -> do
+				Console.intense (show s ++ ": " ++ show2 i ++ " :: ")
+				polyTypePrint coloredTypePrinter t
+				putStr "\n") context
+	return ()
+
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
@@ -47,11 +59,17 @@ main = do
 	pResult2 <- midentifiers opts file source pResult
 	when (scopeOnly opts) $ exitSuccess
 
-	Console.highLightLn "Global context:"
-	sequence $ map (\(i, (s, t)) -> do
-				Console.intense (show s ++ ": " ++ show2 i ++ " :: ")
-				polyTypePrint coloredTypePrinter t
-				putStr "\n") (context (getMeta pResult2))
+	Console.highLightLn "Global"
+	let globalContext = (context (getMeta pResult2))
+	printContext globalContext
+
+	let (Program decls _) = pResult2
+	let fundecls = filter (\a -> case a of
+		FunDecl _ _ _ _ _ _ -> True
+		VarDecl _ _ _ _ -> False) decls
+	let funcontexts = map (\c -> c \\ globalContext) $ map getFunDeclContext fundecls
+	let funnames = map (getString . getIdentifier) fundecls
+	sequence $ (concat . transpose) [(map Console.highLightLn funnames), (map printContext funcontexts)]
 
 	pResult3 <- minfer opts file source pResult2
 
