@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P1Context, P2, P2Meta(context), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext, typeOfBuiltin, AnnotatedType(..)) where
+module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P1Context, P2, P2Meta(context, annotatedType), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext, typeOfBuiltin) where
 
 import Data.Maybe
 import Text.EditDistance
@@ -40,7 +40,7 @@ data GeneralIdentifier a = Builtin Builtins | User (AST.Identifier a)
 
 -- Identifiers have scope and annotated type
 type P1Context = Context (GeneralIdentifier P1Meta) (Scope, PolyType P1Meta)
-data P2Meta = P2 {source2 :: Source.IndexSpan, context :: P1Context}
+data P2Meta = P2 {source2 :: Source.IndexSpan, context :: P1Context, annotatedType :: Maybe (PolyType P2Meta)}
 	deriving (Show, Eq, Read)
 type P2 a = a P2Meta
 
@@ -115,6 +115,10 @@ stripContext [] = []
 stripContext ((Builtin b,_):xs) = fromEnum b : stripContext xs
 stripContext ((User (AST.Identifier _ n _),_):xs) = fromJust n : stripContext xs
 
+annotateType :: P1Context -> PolyType P1Meta -> P2Meta -> P2Meta
+annotateType c t m = m { annotatedType = Just (fmap (addContextBasic c) t) }
+
+
 -- First identifier is always the one in the source
 data ScopingError = DuplicateDeclaration (P1 AST.Identifier) (P1 GeneralIdentifier) | UndeclaredIdentifier (P1 AST.Identifier) P1Context
 data ScopingWarning = ShadowsDeclaration (P1 AST.Identifier) (P1 GeneralIdentifier) Scope
@@ -155,24 +159,24 @@ assignGlobDecls context (decl:xs) = do
 assignGlobDecl :: ScopingContext -> P1 AST.Decl -> ScopingResult (P1 AST.Decl, ScopingContext)
 assignGlobDecl context decl@(AST.VarDecl a ident b m) = do
 	let ident2 = AST.assignUniqueID ident (nextUniqueID (fst context))
-	let (at, newTypeContext) = annotatedType (snd context) decl
+	let (at, newTypeContext) = getAnnotatedType (snd context) decl
 	case idLookup ident (fst context) of
 		Just (iy, _) -> returnWithError (AST.VarDecl a ident b m, context) (DuplicateDeclaration ident iy)
 		Nothing -> return (AST.VarDecl a ident2 b m, ((User ident2, (Global, at)):(fst context), newTypeContext))
 assignGlobDecl context decl@(AST.FunDecl a ident b c d m) = do
 	let ident2 = AST.assignUniqueID ident (nextUniqueID (fst context))
-	let (at, newTypeContext) = annotatedType (snd context) decl
+	let (at, newTypeContext) = getAnnotatedType (snd context) decl
 	case idLookup ident (fst context) of
 		Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d m, context) (DuplicateDeclaration ident iy)
 		Nothing -> return (AST.FunDecl a ident2 b c d m, ((User ident2, (Global, at)):(fst context), newTypeContext))
 
 
 -- Part Two --
-addContextBasic :: ScopingContext -> P1Meta -> P2Meta
-addContextBasic context meta = P2 {source2 = (Source.src meta), context = (fst context)}
+addContextBasic :: P1Context -> P1Meta -> P2Meta
+addContextBasic context meta = P2 {source2 = (Source.src meta), context = context}
 
 addContext :: ScopingContext -> P1 AST.Program -> P2 AST.Program
-addContext context program = fmap (addContextBasic context) program
+addContext context program = fmap (addContextBasic (fst context)) program
 
 -- Used to assign context in subtrees (via fmap)
 updateContext :: ScopingContext -> P2Meta -> P2Meta
@@ -186,15 +190,19 @@ assignAll context (AST.Program decls m) = do
 	return (AST.Program decls2 m)
 
 assignDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl)
-assignDecl context (AST.VarDecl a ident b m) = do
+assignDecl context@(c,_) (AST.VarDecl a ident b m) = do
+	let at = snd . snd . fromJust $ idLookup ident c
+	let m2 = annotateType c at m
 	y <- assignExpr b
-	return (AST.VarDecl a ident y m)
-assignDecl context (AST.FunDecl t ident args decls stmtsin m) = do
+	return (AST.VarDecl a ident y m2)
+assignDecl context@(c,_) (AST.FunDecl t ident args decls stmtsin m) = do
+	let at = snd . snd . fromJust $ idLookup ident c
+	let m2 = annotateType c at m
 	(args, context) <- assignFargs context args
 	(decls, context) <- assignVarDecls context decls
 	let stmts = fmap (fmap (updateContext context)) stmtsin -- iterate over the list, iterate through tree
 	stmts <- assignStmts stmts
-	return (AST.FunDecl t ident args decls stmts m)
+	return (AST.FunDecl t ident args decls stmts m2)
 
 -- In this part we update the context, so we pass it to he function
 assignFargs :: ScopingContext -> [(P2 AST.Type, P2 AST.Identifier)] -> ScopingResult ([(P2 AST.Type, P2 AST.Identifier)], ScopingContext)
@@ -207,14 +215,16 @@ assignFargs context ((t,i):rest) = do
 
 assignFarg :: ScopingContext -> (P2 AST.Type, P2 AST.Identifier) -> ScopingResult ((P2 AST.Type, P2 AST.Identifier), ScopingContext)
 assignFarg (context, typecontext) (t, ident) = do
-	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
+	let (at, newTypeContext) = getAnnotatedType typecontext (fmap forget t)
+	let newIdent = fmap (annotateType context at) (AST.assignUniqueID ident (nextUniqueID context))
+	let newT = fmap (annotateType context at) t
+	let arg = (newT, newIdent)
 	let fident = (fmap forget newIdent)
-	let (at, newTypeContext) = annotatedType typecontext (fmap forget t)
 	let newContext = (User fident, (Argument, at)):context
 	case idLookup ident context of
-		Just (iy, (Global, _))	-> returnWithWarning ((t, newIdent), (newContext, newTypeContext)) (ShadowsDeclaration fident iy Global)
-		Just (iy, _)		-> returnWithError ((t, newIdent), (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
-		Nothing			-> return ((t, newIdent), (newContext, newTypeContext))
+		Just (iy, (Global, _))	-> returnWithWarning (arg, (newContext, newTypeContext)) (ShadowsDeclaration fident iy Global)
+		Just (iy, _)		-> returnWithError (arg, (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
+		Nothing			-> return (arg, (newContext, newTypeContext))
 
 assignVarDecls :: ScopingContext -> [P2 AST.Decl] -> ScopingResult ([P2 AST.Decl], ScopingContext)
 assignVarDecls context [] = return ([], context)
@@ -229,12 +239,13 @@ assignVarDecl (context, typecontext) decl@(AST.VarDecl a ident b m) = do
 	b <- assignExpr b
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
-	let (at, newTypeContext) = annotatedType typecontext (fmap forget decl)
+	let (at, newTypeContext) = getAnnotatedType typecontext (fmap forget decl)
 	let newContext = (User fident, (Argument, at)):context
+	let newDecl = AST.VarDecl a newIdent b (annotateType context at m)
 	case idLookup ident context of
-		Just (iy, (Local, _))	-> returnWithError ((AST.VarDecl a newIdent b m), (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
-		Just (iy, (scope, _))	-> returnWithWarning ((AST.VarDecl a newIdent b m), (newContext, newTypeContext)) (ShadowsDeclaration fident iy scope)
-		Nothing			-> return ((AST.VarDecl a newIdent b m), (newContext, newTypeContext))
+		Just (iy, (Local, _))	-> returnWithError (newDecl, (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
+		Just (iy, (scope, _))	-> returnWithWarning (newDecl, (newContext, newTypeContext)) (ShadowsDeclaration fident iy scope)
+		Nothing			-> return (newDecl, (newContext, newTypeContext))
 assignVarDecl _ (AST.FunDecl _ _ _ _ _ _) = error "COMPILER BUG: Unexpected function declaration inside function body."
 
 -- At this point, all contexts are fixed in the meta info
@@ -329,12 +340,12 @@ poly ((_,n):xs) mt = Poly (FT n m) (poly xs mt) m
 	where m = getMeta mt
 
 class AnnotatedType b where
-	annotatedType :: TypeContext -> b a  -> (PolyType a, TypeContext)
+	getAnnotatedType :: TypeContext -> b a  -> (PolyType a, TypeContext)
 
 -- We can do variables and functions
 instance AnnotatedType AST.Decl where
-	annotatedType c (VarDecl t ident b m) = annotatedType c t
-	annotatedType c (FunDecl rt ident args _ _ m) = (poly pc (Func argTypes (annotatedMType pc rt) m), c)
+	getAnnotatedType c (VarDecl t ident b m) = getAnnotatedType c t
+	getAnnotatedType c (FunDecl rt ident args _ _ m) = (poly pc (Func argTypes (annotatedMType pc rt) m), c)
 		where
 			allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
 			pc = zip allIdents [0..]
@@ -342,7 +353,7 @@ instance AnnotatedType AST.Decl where
 
 -- And just types (eg. in VarDecl or arguments of function)
 instance AnnotatedType Type where
-	annotatedType c t = (Mono (annotatedMType pc t) (getMeta t), pc)
+	getAnnotatedType c t = (Mono (annotatedMType pc t) (getMeta t), pc)
 		where
 			nextid = case c of
 				[] -> 0
