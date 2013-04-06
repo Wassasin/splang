@@ -12,7 +12,7 @@ prettyPrinter f g (Left c : xs) = f c >> prettyPrinter f g xs
 prettyPrinter f g (Right s : xs) = g s >> prettyPrinter f g xs
 
 prettyPrint :: Monad m => OutputInfo b -> (Printer (m a)) -> Program b -> m a
-prettyPrint info f prog = f (outputProgram info prog)
+prettyPrint info f prog = f (output info prog)
 
 -- Plain Output
 plainPrettyPrinter :: Printer (IO ())
