@@ -150,7 +150,7 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) s
 ifWarning kind opts = when (kind . enabledWarnings $ opts)
 
 declComments :: P2 AST.Decl  -> MarkupString Styles
-declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ outputPolyType basicInfo (fromJust . annotatedType $ getMeta decl)
+declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ output basicInfo (fromJust . annotatedType $ getMeta decl)
 
 minfer :: Options -> String -> String -> (P2 Program) -> IO [(AST.IdentID, PolyType P2Meta)]
 minfer opts filename source program = do

@@ -1,4 +1,4 @@
-module Output (Styles(..), OpenClose(..), Markup, MarkupString, OutputInfo, lift, basicInfo, withDeclCommentLine, Output(..), outputMonoType, outputPolyType) where
+module Output (Styles(..), OpenClose(..), Markup, MarkupString, OutputInfo, lift, basicInfo, withDeclCommentLine, Output(..)) where
 
 import AST
 import qualified Typing
@@ -154,18 +154,18 @@ instance Output UnaryOperator where
 	output mo (Not _) 			= lift "!"
 	output mo (Negative _)			= lift "-"
 
-outputFreeType :: OutputInfo m -> Typing.FreeType m -> MarkupString Styles
-outputFreeType mo (Typing.FT i _)		= open Variable ++ lift "a" ++ close Variable ++ open UniqueID ++ lift (show i) ++ close UniqueID
+instance Output Typing.FreeType where
+	output mo (Typing.FT i _)		= open Variable ++ lift "a" ++ close Variable ++ open UniqueID ++ lift (show i) ++ close UniqueID
 
-outputMonoType :: OutputInfo m -> Typing.MonoType m -> MarkupString Styles
-outputMonoType mo (Typing.Func args r _)	= (outputMonoType mo r) ++ lift "(" ++ join (outputMonoType mo) (lift ", ") args ++ lift ")"
-outputMonoType mo (Typing.Pair x y _)		= lift "(" ++ outputMonoType mo x ++ lift ", " ++ outputMonoType mo y ++ lift ")"
-outputMonoType mo (Typing.List t _)		= lift "[" ++ outputMonoType mo t ++ lift "]"
-outputMonoType mo (Typing.Free t _)		= outputFreeType mo t
-outputMonoType mo (Typing.Int _)		= open Type ++ lift "Int" ++ close Type
-outputMonoType mo (Typing.Bool _)		= open Type ++ lift "Bool" ++ close Type
-outputMonoType mo (Typing.Void _)		= open Type ++ lift "Void" ++ close Type
+instance Output Typing.MonoType where
+	output mo (Typing.Func args r _)	= (output mo r) ++ lift "(" ++ join (output mo) (lift ", ") args ++ lift ")"
+	output mo (Typing.Pair x y _)		= lift "(" ++ output mo x ++ lift ", " ++ output mo y ++ lift ")"
+	output mo (Typing.List t _)		= lift "[" ++ output mo t ++ lift "]"
+	output mo (Typing.Free t _)		= output mo t
+	output mo (Typing.Int _)		= open Type ++ lift "Int" ++ close Type
+	output mo (Typing.Bool _)		= open Type ++ lift "Bool" ++ close Type
+	output mo (Typing.Void _)		= open Type ++ lift "Void" ++ close Type
 
-outputPolyType :: OutputInfo m -> Typing.PolyType m -> MarkupString Styles
-outputPolyType mo (Typing.Poly f t _)		= open Keyword ++ lift "forall " ++ close Keyword ++ outputFreeType mo f ++ lift " . " ++ outputPolyType mo t
-outputPolyType mo (Typing.Mono t _)		= outputMonoType mo t
+instance Output Typing.PolyType where
+	output mo (Typing.Poly f t _)		= open Keyword ++ lift "forall " ++ close Keyword ++ output mo f ++ lift " . " ++ output mo t
+	output mo (Typing.Mono t _)		= output mo t

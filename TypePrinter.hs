@@ -12,10 +12,10 @@ typePrinter f g (Left c : xs) = f [c] >> typePrinter f g xs
 typePrinter f g (Right s : xs) = g s >> typePrinter f g xs
 
 monoTypePrint :: Monad m => OutputInfo b -> (Printer (m a)) -> MonoType b -> m a
-monoTypePrint info f t = f (outputMonoType info t)
+monoTypePrint info f t = f (output info t)
 
 polyTypePrint :: Monad m => OutputInfo b -> (Printer (m a)) -> PolyType b -> m a
-polyTypePrint info f t = f (outputPolyType info t)
+polyTypePrint info f t = f (output info t)
 
 plainTypePrinter :: Printer (IO ())
 plainTypePrinter = typePrinter putStr (\x -> return ())
