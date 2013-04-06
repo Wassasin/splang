@@ -1,15 +1,18 @@
-module Meta where
+module Meta (P1Meta, P1, constructP1, ASTMeta(..)) where
 
 import qualified Source
 import AST
 
-data P1Meta = P1 {src :: Source.IndexSpan}
+data P1Meta = P1 {source :: Source.IndexSpan}
 	deriving (Show, Eq, Read)
 
 type P1 a = a P1Meta
 
 constructP1 :: Source.IndexSpan -> P1Meta
-constructP1 l = P1 {src=l}
+constructP1 l = P1 {source = l}
+
+instance Source.Sourcable P1Meta where
+	src = source
 
 class ASTMeta a where
 	getMeta :: a b -> b

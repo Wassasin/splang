@@ -44,7 +44,10 @@ pointOutLocationSpan (LocationSpan (fLine, fCol) (tLine, tCol)) str
 		putStrLn (repeatstr (tCol - fCol - 1) '~')
 		setSGR []
 		where strLine = fetchLine fLine str
-		
+
+class Sourcable a where
+	src :: a -> IndexSpan
+
 class Span a where
 	merge :: a -> a -> a
 

@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P1Context, P2, P2Meta(..), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext, typeOfBuiltin, AnnotatedType(..)) where
+module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P1Context, P2, P2Meta(context), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext, typeOfBuiltin, AnnotatedType(..)) where
 
 import Data.Maybe
 import Text.EditDistance
@@ -40,9 +40,12 @@ data GeneralIdentifier a = Builtin Builtins | User (AST.Identifier a)
 
 -- Identifiers have scope and annotated type
 type P1Context = Context (GeneralIdentifier P1Meta) (Scope, PolyType P1Meta)
-data P2Meta = P2 {src2 :: Source.IndexSpan, context :: P1Context}
+data P2Meta = P2 {source2 :: Source.IndexSpan, context :: P1Context}
 	deriving (Show, Eq, Read)
 type P2 a = a P2Meta
+
+instance Source.Sourcable P2Meta where
+	src = source2
 
 -- TypeIndentifier to FTid
 type TypeContext = [(String, FTid)]
@@ -52,7 +55,7 @@ type ScopingContext = (P1Context, TypeContext)
 
 -- Forget the new structure (especially useful with fmap)
 forget :: P2Meta -> P1Meta
-forget thing = P1 {src = (src2 thing)}
+forget thing = constructP1 (source2 thing)
 
 -- To compare things in our context, we, in this phase, look at strings
 class StringIdentifiable a where
@@ -166,7 +169,7 @@ assignGlobDecl context decl@(AST.FunDecl a ident b c d m) = do
 
 -- Part Two --
 addContextBasic :: ScopingContext -> P1Meta -> P2Meta
-addContextBasic context meta = P2 {src2 = (src meta), context = (fst context)}
+addContextBasic context meta = P2 {source2 = (Source.src meta), context = (fst context)}
 
 addContext :: ScopingContext -> P1 AST.Program -> P2 AST.Program
 addContext context program = fmap (addContextBasic context) program
