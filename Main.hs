@@ -1,5 +1,6 @@
 import System.Environment
 
+import Data.Maybe (fromJust)
 import Data.List
 import System.Exit
 import Control.Monad
@@ -11,6 +12,7 @@ import Lexer
 import Parser
 import AST
 import Meta
+import Output
 import PrettyPrinter
 import TypePrinter
 import TypeInference
@@ -36,14 +38,6 @@ show2 s = show s
 getFunDeclContext :: P2 Decl -> P1Context
 getFunDeclContext (FunDecl _ _ _ _ stmts _) = context $ getMeta $ last stmts
 
-printContext :: P1Context -> IO ()
-printContext context = do
-	sequence $ map (\(i, (s, t)) -> do
-				Console.intense (show s ++ ": " ++ show2 i ++ " :: ")
-				polyTypePrint coloredTypePrinter t
-				putStr "\n") context
-	return ()
-
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
@@ -59,24 +53,12 @@ main = do
 	pResult2 <- midentifiers opts file source pResult
 	when (scopeOnly opts) $ exitSuccess
 
-	Console.highLightLn "Global"
-	let globalContext = (context (getMeta pResult2))
-	printContext globalContext
-
-	let (Program decls _) = pResult2
-	let fundecls = filter (\a -> case a of
-		FunDecl _ _ _ _ _ _ -> True
-		VarDecl _ _ _ _ -> False) decls
-	let funcontexts = map (\c -> c \\ globalContext) $ map getFunDeclContext fundecls
-	let funnames = map (getString . getIdentifier) fundecls
-	sequence $ (concat . transpose) [(map Console.highLightLn funnames), (map printContext funcontexts)]
-
 	pResult3 <- minfer opts file source pResult2
 
 	Console.highLightLn "Globals infered:"
 	sequence $ map (\(i, t) -> do
 		Console.intense (show i ++ ": ")
-		polyTypePrint coloredTypePrinter t
+		polyTypePrint basicInfo coloredTypePrinter t
 		putStr "\n") pResult3
 
 	exitSuccess
@@ -101,11 +83,11 @@ mparse opts filename source tokens = do
 	let pResult = parseSPL tokens
 	case pResult of
 		Left [x]			-> do
-			when (showParsingResult opts) $ prettyPrint (astPrinter opts) x
+			when (showParsingResult opts) $ prettyPrint basicInfo (astPrinter opts) x
 			return x
 		Left ys				-> do
 			Console.putMessageLn Console.Error filename (-1, -1) "Ambiguous input - able to derive multiple programs"
-			sequence (interleave filename $ fmap (prettyPrint (astPrinter opts)) (take 2 ys))
+			sequence (interleave filename $ fmap (prettyPrint basicInfo (astPrinter opts)) (take 2 ys))
 			when (length ys > 2) (Console.putMessageLn Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out"))
 			exitFailure
 		Right EndOfStream		-> do
@@ -127,12 +109,12 @@ midentifiers opts filename source program = do
 	case x of
 		Errors.Result newProgram [] warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
-			when (showScopingResult opts) $ prettyPrint (astPrinter opts) newProgram
+			when (showScopingResult opts) $ prettyPrint (withDeclCommentLine declComments basicInfo) (astPrinter opts) newProgram
 			return newProgram
 		Errors.Result newProgram errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) errors
-			when (showParsingResult opts) $ prettyPrint (astPrinter opts) newProgram
+			when (showParsingResult opts) $ prettyPrint (withDeclCommentLine declComments basicInfo) (astPrinter opts) newProgram
 			exitFailure
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
@@ -165,8 +147,10 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (User id2) sc
 printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) scope) = ifWarning shadowing opts $ do
 	standardMessage filename source (src $ getMeta id1) Console.Warning ("\"" ++ getString id1 ++ "\" shadows builtin.")
 
-
 ifWarning kind opts = when (kind . enabledWarnings $ opts)
+
+declComments :: P2 AST.Decl  -> MarkupString Styles
+declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ outputPolyType basicInfo (fromJust . annotatedType $ getMeta decl)
 
 minfer :: Options -> String -> String -> (P2 Program) -> IO [(AST.IdentID, PolyType P2Meta)]
 minfer opts filename source program = do
@@ -174,9 +158,9 @@ minfer opts filename source program = do
 	case x of
 		Errors.Result (cs, _) [] [] -> do
 			return cs
-		Errors.Result _ errors warnings -> do
+		Errors.Result (cs, _) errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
-			exitFailure
+			return cs
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printTypingError opts filename source) (fe:errors)
 			exitFailure
@@ -184,42 +168,42 @@ minfer opts filename source program = do
 printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
 printTypingError opts filename source (CannotUnify mt1 mt2)	= do
 	Console.putMessage Console.Error filename (-1, -1) "Cannot unify types "
-	monoTypePrint coloredTypePrinter mt1
+	monoTypePrint basicInfo coloredTypePrinter mt1
 	Console.intense " and "
-	monoTypePrint coloredTypePrinter mt2
+	monoTypePrint basicInfo coloredTypePrinter mt2
 	putStr "\n"
 	standardMessageIO filename source (src $ getMeta mt1) Console.Note (do
 		Console.intense "Type "
-		monoTypePrint coloredTypePrinter mt1
+		monoTypePrint basicInfo coloredTypePrinter mt1
 		Console.intense " inferred here:")
 	standardMessageIO filename source (src $ getMeta mt2) Console.Note (do
 		Console.intense "Type "
-		monoTypePrint coloredTypePrinter mt2
+		monoTypePrint basicInfo coloredTypePrinter mt2
 		Console.intense " inferred here:")
 printTypingError opts filename source (ContextNotFound ident)	= Console.putMessageLn Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
 printTypingError opts filename source (PolyViolation ft mt)	= do
 	standardMessageIO filename source (src $ getMeta ft) Console.Error (do
 		Console.intense "Attempted to substitute a bound free type variable "
-		monoTypePrint coloredTypePrinter (Free ft $ getMeta ft)
+		monoTypePrint basicInfo coloredTypePrinter (Free ft $ getMeta ft)
 		Console.intense " in a PolyType. "
 		Console.highLight "COMPILER BUG")
 	standardMessageIO filename source (src $ getMeta mt) Console.Note (do
 		Console.intense "With type "
-		monoTypePrint coloredTypePrinter mt
+		monoTypePrint basicInfo coloredTypePrinter mt
 		Console.intense " which was inferred from here:")
 printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)
 printTypingError opts filename source (VoidUsage meta mt)	= do
 	standardMessage filename source (src $ meta) Console.Error "Using void"
 	standardMessageIO filename source (src $ getMeta mt) Console.Note (do
 		Console.intense "Type "
-		monoTypePrint coloredTypePrinter mt
+		monoTypePrint basicInfo coloredTypePrinter mt
 		Console.intense " inferred here:")
 printTypingError opts filename source (TypeError pt1 pt2)	= do
 	standardMessageIO filename source (src $ getMeta pt1) Console.Note (do
 		Console.intense "Type mismatch. Expected type "
-		polyTypePrint coloredTypePrinter pt1
+		polyTypePrint basicInfo coloredTypePrinter pt1
 		Console.intense " declared here:")
 	standardMessageIO filename source (src $ getMeta pt2) Console.Note (do
 		Console.intense "Actual type "
-		polyTypePrint coloredTypePrinter pt2
+		polyTypePrint basicInfo coloredTypePrinter pt2
 		Console.intense " inferred here:")

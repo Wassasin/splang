@@ -11,8 +11,8 @@ prettyPrinter f g [] = f '\n'
 prettyPrinter f g (Left c : xs) = f c >> prettyPrinter f g xs
 prettyPrinter f g (Right s : xs) = g s >> prettyPrinter f g xs
 
-prettyPrint :: Monad m => (Printer (m a)) -> Program b -> m a
-prettyPrint f prog = f (outputProgram prog)
+prettyPrint :: Monad m => OutputInfo b -> (Printer (m a)) -> Program b -> m a
+prettyPrint info f prog = f (outputProgram info prog)
 
 -- Plain Output
 plainPrettyPrinter :: Printer (IO ())
@@ -31,9 +31,10 @@ syntaxColor :: Styles -> Color
 syntaxColor Type = Cyan
 syntaxColor Variable = Yellow
 syntaxColor Constant = Red
-syntaxColor Keyword = Black
+syntaxColor Keyword = Blue
 syntaxColor Function = Green
 syntaxColor UniqueID = Magenta
+syntaxColor Comments = Black
 
 color :: OpenClose Styles -> IO ()
 color (Open s) = setSGR [SetColor Foreground Vivid (syntaxColor s)]

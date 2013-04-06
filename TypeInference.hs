@@ -16,7 +16,11 @@ data Unification m = Success (Substitution m) | Fail (MonoType m) (MonoType m)
 
 type InferState = FTid
 
--- Annotation is wron | Cannot unify types | IdentID could not be found in context | A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere
+{- Using Void in an active place
+ Annotation is wron
+ Cannot unify types
+ IdentID could not be found in context
+ A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere -}
 data InferError m = VoidUsage m (MonoType m) | TypeError (PolyType m) (PolyType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
