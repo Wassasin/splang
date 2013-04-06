@@ -15,7 +15,10 @@ data OpenClose a = Open a | Close a
 type Markup a = Either Char (OpenClose a)
 type MarkupString a = [Markup a]
 
-data OutputInfo a = OutputInfo { declComment :: Decl a -> MarkupString Styles }
+data OutputInfo a = OutputInfo
+	{ declComment :: Decl a -> MarkupString Styles
+	, indentation :: Int
+	, brackets :: Bool }
 
 lift :: String -> MarkupString a
 lift = fmap Left
@@ -42,7 +45,18 @@ function ident = open Function ++ lift (getIdentifierString ident) ++ close Func
 
 basicInfo :: OutputInfo a
 basicInfo = OutputInfo
-	{ declComment = (\_ -> lift "") }
+	{ declComment = (\_ -> lift "")
+	, indentation = 0
+	, brackets = False }
+
+indent :: OutputInfo a -> OutputInfo a
+indent o = o { indentation = 1 + indentation o }
+
+withBrackets :: OutputInfo a -> OutputInfo a
+withBrackets o = o { brackets = True }
+
+withoutBrackets :: OutputInfo a -> OutputInfo a
+withoutBrackets o = o { brackets = False }
 
 withDeclCommentLine :: (Decl a -> MarkupString Styles) -> OutputInfo a -> OutputInfo a
 withDeclCommentLine f o = o { declComment = (\d -> open Comments ++ lift "// " ++ f d ++ close Comments ++ lift "\n") }
@@ -56,15 +70,15 @@ delim :: (a -> [b]) -> [b] -> [a] -> [b]
 delim _ _ [] = []
 delim f s (x:xs) = f x ++ s ++ delim f s xs
 
-tabs :: Int -> MarkupString Styles
-tabs x = lift (take x (repeat '\t'))
+tabs :: OutputInfo a -> MarkupString Styles
+tabs x = lift (take (indentation x) (repeat '\t'))
 
 outputProgram :: OutputInfo a -> Program a -> MarkupString Styles
-outputProgram mo (Program pr _)		= join (outputDecl mo 0) (lift "\n\n") pr
+outputProgram mo (Program pr _)		= join (outputDecl mo) (lift "\n\n") pr
 
-outputDecl :: OutputInfo a -> Int -> Decl a -> MarkupString Styles
-outputDecl mo n decl@(VarDecl t i e _)	= tabs n ++ (declComment mo decl) ++ tabs n ++ outputType mo t ++ lift " " ++ variable i ++ lift " = " ++ outputExpr mo False e ++ lift ";"
-outputDecl mo n decl@(FunDecl t i args vdecls stmts _) = tabs n ++ (declComment mo decl) ++ tabs n ++ outputType mo t ++ lift " " ++ function i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (outputDecl mo (n+1)) (lift "\n") vdecls ++ delim (outputStmt mo (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
+outputDecl :: OutputInfo a -> Decl a -> MarkupString Styles
+outputDecl mo decl@(VarDecl t i e _)	= tabs mo ++ (declComment mo decl) ++ tabs mo ++ outputType mo t ++ lift " " ++ variable i ++ lift " = " ++ outputExpr (withoutBrackets mo) e ++ lift ";"
+outputDecl mo decl@(FunDecl t i args vdecls stmts _) = tabs mo ++ (declComment mo decl) ++ tabs mo ++ outputType mo t ++ lift " " ++ function i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (outputDecl (indent mo)) (lift "\n") vdecls ++ delim (outputStmt (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
 
 outputArg :: OutputInfo a -> (Type a, Identifier a) -> MarkupString Styles
 outputArg mo (t, i) = outputType mo t ++ lift " " ++ variable i
@@ -78,43 +92,44 @@ outputType mo t = open Type ++ lift (outputType' t) ++ close Type where
 	outputType' (Product t1 t2 _)		= "(" ++ erase (outputType mo t1) ++ ", " ++ erase (outputType mo t2) ++ ")"
 	outputType' (ListType t _)		= "[" ++ erase (outputType mo t) ++ "]"
 
-outputStmt :: OutputInfo a -> Int -> Stmt a -> MarkupString Styles
-outputStmt mo n (Expr e _)			= tabs n ++ outputExpr mo False e ++ lift ";"
-outputStmt mo n (Scope [] _)			= tabs n ++ lift "{}"
-outputStmt mo n (Scope stmts _)			= tabs n ++ lift "{\n" ++ delim (outputStmt mo (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
-outputStmt mo n (If e stmt _)			= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr mo False e ++ lift ")" ++ rest mo n stmt
-outputStmt mo n (IfElse e s1 s2 _)		= tabs n ++ keyword "if" ++ lift "(" ++ outputExpr mo False e ++ lift ")" ++ rest mo n s1 ++ between ++ rest mo n s2
+outputStmt :: OutputInfo a -> Stmt a -> MarkupString Styles
+outputStmt mo (Expr e _)			= tabs mo ++ outputExpr (withoutBrackets mo) e ++ lift ";"
+outputStmt mo (Scope [] _)			= tabs mo ++ lift "{}"
+outputStmt mo (Scope stmts _)			= tabs mo ++ lift "{\n" ++ delim (outputStmt (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
+outputStmt mo (If e stmt _)			= tabs mo ++ keyword "if" ++ lift "(" ++ outputExpr (withoutBrackets mo) e ++ lift ")" ++ rest mo stmt
+outputStmt mo (IfElse e s1 s2 _)		= tabs mo ++ keyword "if" ++ lift "(" ++ outputExpr (withoutBrackets mo) e ++ lift ")" ++ rest mo s1 ++ between ++ rest mo s2
 	where between = if isBlock s1
 		then keyword " else "
-		else lift "\n" ++ tabs n ++ keyword "else"
-outputStmt mo n (While e stmt _)		= tabs n ++ keyword "while" ++ lift "(" ++ outputExpr mo False e ++ lift ")" ++ rest mo n stmt
-outputStmt mo n (Assignment i e _)		= tabs n ++ variable i ++ lift " = " ++ outputExpr mo False e ++ lift ";"
-outputStmt mo n (Return (Just e) _)		= tabs n ++ keyword "return " ++ outputExpr mo False e ++ lift ";"
-outputStmt mo n (Return Nothing _)		= tabs n ++ keyword "return" ++ lift ";"
+		else lift "\n" ++ tabs mo ++ keyword "else"
+outputStmt mo (While e stmt _)			= tabs mo ++ keyword "while" ++ lift "(" ++ outputExpr (withoutBrackets mo) e ++ lift ")" ++ rest mo stmt
+outputStmt mo (Assignment i e _)		= tabs mo ++ variable i ++ lift " = " ++ outputExpr (withoutBrackets mo) e ++ lift ";"
+outputStmt mo (Return (Just e) _)		= tabs mo ++ keyword "return " ++ outputExpr (withoutBrackets mo) e ++ lift ";"
+outputStmt mo (Return Nothing _)		= tabs mo ++ keyword "return" ++ lift ";"
 
 -- Exception for scope after if/else/while
-rest :: OutputInfo a -> Int -> Stmt a -> MarkupString Styles
-rest mo n stmt = case stmt of
-	(Scope stmts _) -> lift "{\n" ++ delim (outputStmt mo (n+1)) (lift "\n") stmts ++ tabs n ++ lift "}"
-	y -> lift "\n"  ++ outputStmt mo (n+1) y
+rest :: OutputInfo a -> Stmt a -> MarkupString Styles
+rest mo stmt = case stmt of
+	(Scope stmts _) -> lift "{\n" ++ delim (outputStmt (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
+	y -> lift "\n"  ++ outputStmt (indent mo) y
 
 isBlock :: Stmt a -> Bool
 isBlock (Scope _ _) = True
 isBlock _ = False
 
-enclose :: Bool -> MarkupString Styles -> MarkupString Styles
-enclose False str = str
-enclose True str = lift "(" ++ str ++ lift ")"
+enclose :: OutputInfo a -> MarkupString Styles -> MarkupString Styles
+enclose o str
+	| brackets o = lift "(" ++ str ++ lift ")"
+	| otherwise  = str
 
-outputExpr :: OutputInfo a -> Bool -> Expr a -> MarkupString Styles
-outputExpr mo _ (Var i _) 			= variable i
-outputExpr mo b (Binop e1 bop e2 _)		= enclose b $ outputExpr mo True e1 ++ outputBinaryOperator mo bop ++ outputExpr mo True e2
-outputExpr mo b (Unop uop e _)			= enclose b $ outputUnaryOperator mo uop ++ outputExpr mo True e
-outputExpr mo _ (Kint n _)			= constant (show n)
-outputExpr mo _ (Kbool b _)			= constant (show b)
-outputExpr mo _ (FunCall i exprs _)		= function i ++ lift "(" ++ join (outputExpr mo False) (lift ", ") exprs ++ lift ")"
-outputExpr mo _ (Pair e1 e2 _)			= lift "(" ++ outputExpr mo False e1 ++ lift ", " ++ outputExpr mo False e2 ++ lift ")"
-outputExpr mo _ (Nil _)				= lift "[]"
+outputExpr :: OutputInfo a -> Expr a -> MarkupString Styles
+outputExpr mo (Var i _) 			= variable i
+outputExpr mo (Binop e1 bop e2 _)		= enclose mo $ outputExpr (withBrackets mo) e1 ++ outputBinaryOperator mo bop ++ outputExpr (withBrackets mo) e2
+outputExpr mo (Unop uop e _)			= enclose mo $ outputUnaryOperator mo uop ++ outputExpr (withBrackets mo) e
+outputExpr mo (Kint n _)			= constant (show n)
+outputExpr mo (Kbool b _)			= constant (show b)
+outputExpr mo (FunCall i exprs _)		= function i ++ lift "(" ++ join (outputExpr (withoutBrackets mo)) (lift ", ") exprs ++ lift ")"
+outputExpr mo (Pair e1 e2 _)			= lift "(" ++ outputExpr (withoutBrackets mo) e1 ++ lift ", " ++ outputExpr (withoutBrackets mo) e2 ++ lift ")"
+outputExpr mo (Nil _)				= lift "[]"
 
 outputBinaryOperator :: OutputInfo a -> BinaryOperator a -> MarkupString Styles
 outputBinaryOperator mo (Multiplication _)	= lift " * "
