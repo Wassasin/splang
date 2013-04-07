@@ -21,7 +21,7 @@ type InferState = FTid
  Cannot unify types
  IdentID could not be found in context
  A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere -}
-data InferError m = VoidUsage m (MonoType m) | TypeError (PolyType m) (PolyType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m)
+data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m)
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
@@ -184,11 +184,48 @@ constructDeclContext c (AST.FunDecl _ i _ decls _ m) = do
 	c <- setContext i at c
 	c <- foldl (>>=) (return c) $ map (\d -> \c -> constructDeclContext c d) decls
 	return c
+	
+validateProgramContext :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta ()
+validateProgramContext c (AST.Program decls _) = do
+	foldl (>>=) (return ()) $ map (\d -> \() -> validateDeclContext c d) decls
+	
+validateDeclContext :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta ()
+validateDeclContext c (AST.VarDecl _ i _ m) = do
+	i <- fetchIdentID i
+	at <- genBind m (fromJust $ annotatedType m)
+	bt <- c i
+	bt <- genBind m bt
+	validateType at bt
+	return ()
+validateDeclContext c (AST.FunDecl _ i _ decls _ m) = do
+	i <- fetchIdentID i
+	at <- genBind m (fromJust $ annotatedType m)
+	bt <- c i
+	bt <- genBind m bt
+	validateType at bt
+	sequence $ map (\d -> validateDeclContext c d) decls
+	return ()
+
+validateType :: MonoType P2Meta -> MonoType P2Meta -> InferMonadD P2Meta ()
+validateType (Func aargs ar _) (Func bargs br _) = do
+	sequence $ map (\(aarg, barg) -> validateType aarg barg) $ zip aargs bargs
+	validateType ar br
+	return ()
+validateType (Pair aa ab _) (Pair ba bb _) = do
+	validateType aa ba
+	validateType ab bb
+validateType (List a _) (List b _) = validateType a b
+validateType (Free _ _) (Free _ _) = return ()
+validateType (Int _) (Int _) = return ()
+validateType (Bool _) (Bool _) = return ()
+validateType (Void _) (Void _) = return ()
+validateType a b = returnInferError () $ TypeError a b
 
 infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
 infer p = flip bo 2 $ do -- FT 0 & 1 are reserved for keywords
 	c <- constructInitialContext p
 	(_, c) <- inferProgram c p
+	validateProgramContext c p
 	extractContext (getMeta p) c
 
 inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)

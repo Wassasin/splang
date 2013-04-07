@@ -191,9 +191,9 @@ printTypingError opts filename source (VoidUsage meta mt)	= do
 printTypingError opts filename source (TypeError pt1 pt2)	= do
 	standardMessageIO filename source (src $ getMeta pt1) Console.Note (do
 		Console.intense "Type mismatch. Expected type "
-		polyTypePrint basicInfo coloredTypePrinter pt1
+		monoTypePrint basicInfo coloredTypePrinter pt1
 		Console.intense " declared here:")
 	standardMessageIO filename source (src $ getMeta pt2) Console.Note (do
 		Console.intense "Actual type "
-		polyTypePrint basicInfo coloredTypePrinter pt2
+		monoTypePrint basicInfo coloredTypePrinter pt2
 		Console.intense " inferred here:")
