@@ -57,10 +57,9 @@ addInferError e = mo $ \s -> do
 returnInferError :: a -> InferError m -> InferMonadD m a
 returnInferError x e = mo $ \s -> returnWithError (x, s) e
 
-substitute :: MonoType m -> MonoType m -> Substitution m
-substitute x y z
-	| x == z	= y
-	| otherwise	= let s = substitute x y in case z of
+substitute :: FreeType m -> MonoType m -> Substitution m
+substitute (FT xi _) y z@(Free (FT zi _) m)	= if(xi == zi) then y else z
+substitute x@(FT xi _) y z			= let s = substitute x y in case z of
 		Func args r m	-> Func (map s args) (s r) m
 		Pair x y m	-> Pair (s x) (s y) m
 		List t m	-> List (s t) m
@@ -82,7 +81,7 @@ mgu :: MonoType m -> MonoType m -> Unification m
 mgu (Free _ _) (Free _ _)		= Success id
 mgu (Free a al) t
 	| elem a (ftvm t)		= Fail (Free a al) t
-	| otherwise			= Success (substitute (Free a al) t)
+	| otherwise			= Success (substitute a t)
 mgu t (Free b bl)			= mgu (Free b bl) t
 mgu (Func xs xr _) (Func ys yr _)	= foldr (\(x, y) su -> case su of
 							Success s	-> compose (mgu (s x) (s y)) su
@@ -140,7 +139,7 @@ genFreshConcrete m = do
 genBind :: m -> PolyType m -> InferMonadD m (MonoType m)
 genBind _ (Mono t _) = return t
 genBind m (Poly a t _) = do
-	b <- genFreshConcrete m
+	(Free b _) <- genFreshConcrete m
 	t <- genBind m t
 	return $ substitute b (Free a m) t
 
