@@ -141,7 +141,7 @@ genBind _ (Mono t _) = return t
 genBind m (Poly a t _) = do
 	(Free b _) <- genFreshConcrete m
 	t <- genBind m t
-	return $ substitute b (Free a m) t
+	return $ substitute a (Free b m) t
 
 fetchIdentID :: AST.Identifier m -> InferMonadD m (AST.IdentID)
 fetchIdentID (AST.Identifier _ (Just i) _)	= return i
