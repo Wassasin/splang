@@ -175,13 +175,14 @@ constructProgramContext c (AST.Program decls _) = do
 constructDeclContext :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (InferContext P2Meta)
 constructDeclContext c (AST.VarDecl _ i _ m) = do
 	i <- fetchIdentID i
-	a <- genFreshConcrete m
-	c <- setContext i (Mono a m) c
+	let at = fromJust $ annotatedType m
+	c <- setContext i at c
 	return c
-constructDeclContext c (AST.FunDecl _ i _ _ _ m) = do
+constructDeclContext c (AST.FunDecl _ i _ decls _ m) = do
 	i <- fetchIdentID i
 	let at = fromJust $ annotatedType m
 	c <- setContext i at c
+	c <- foldl (>>=) (return c) $ map (\d -> \c -> constructDeclContext c d) decls
 	return c
 
 infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
@@ -200,7 +201,6 @@ inferProgram c (AST.Program decls _) = do
 
 inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
 inferDecl c decl@(AST.VarDecl _ i e m) = do
-	let at = fromJust $ annotatedType m
 	i <- fetchIdentID i
 	a <- genFreshConcrete m
 	c <- setContext i (Mono a m) c
@@ -208,12 +208,10 @@ inferDecl c decl@(AST.VarDecl _ i e m) = do
 	c <- apply s c
 	let it = (Mono (s a) m)
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
-	when (not $ polyUnify it at) $ addInferError (TypeError at it)
 	return (s, c)
-inferDecl c decl@(AST.FunDecl _ i args decls stmts m) = do
-	let at = fromJust $ annotatedType m
+inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	i <- fetchIdentID i
-	u <- c i
+	u <- ce i
 	u <- genBind m u
 	b <- genFreshConcrete m
 	-- make for each argument a free type
@@ -221,27 +219,26 @@ inferDecl c decl@(AST.FunDecl _ i args decls stmts m) = do
 		a <- genFreshConcrete m
 		return (fromJust n, a)) args
 	-- set types for arguments in context
-	c <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return c) argtup
+	ci <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return ce) argtup
 	-- define vardecls
-	(s, c) <- foldl (>>=) (return (id, c)) $ map (\d -> \(s, c) -> do
-		c <- apply s c
-		inferDecl c d) decls
+	(s, ci) <- foldl (>>=) (return (id, ci)) $ map (\d -> \(s, ci) -> do
+		ci <- apply s ci
+		inferDecl ci d) decls
 	-- process statements
 	s <- foldl (>>=) (return s) $ map (\stmt -> \s -> do
-		c <- apply s c
-		s <- inferStmt c stmt (s b) .> s
+		ci <- apply s ci
+		s <- inferStmt ci stmt (s b) .> s
 		return s) stmts
 	-- define eventual type of this function
 	v <- return $ Func (map (s . snd) argtup) (s b) m
 	-- unify with type in original context
 	s <- genMgu (s u) v .> s
 	v <- return $ s v
-	c <- apply s c
+	ce <- apply s ce
 	-- set type of this function in context
-	let it = createPoly (ftvm v) v m
-	c <- setContext i it c
-	when (not $ polyUnify it at) $ addInferError (TypeError at it)
-	return (s, c)
+	--let it = createPoly (ftvm v) v m
+	--c <- setContext i it c
+	return (s, ce)
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do
