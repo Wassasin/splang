@@ -58,8 +58,8 @@ returnInferError :: a -> InferError m -> InferMonadD m a
 returnInferError x e = mo $ \s -> returnWithError (x, s) e
 
 substitute :: FreeType m -> MonoType m -> Substitution m
-substitute (FT xi _) y z@(Free (FT zi _) m)	= if(xi == zi) then y else z
-substitute x@(FT xi _) y z			= let s = substitute x y in case z of
+substitute (FT xi _) y z@(Free (FT zi _) _)	= if(xi == zi) then y else z
+substitute x y z				= let s = substitute x y in case z of
 		Func args r m	-> Func (map s args) (s r) m
 		Pair x y m	-> Pair (s x) (s y) m
 		List t m	-> List (s t) m
@@ -112,16 +112,13 @@ apply s c = return $ \i -> do
 
 applyPoly :: Substitution m -> PolyType m -> InferMonadD m (PolyType m)
 applyPoly s (Mono t m) = return $ Mono (s t) m
-applyPoly s p@(Poly a t m) = case s (Free a m) of -- in case of application over bound type variable, do nothing
-	(Free b n)	-> case a == b of
+applyPoly s p@(Poly a t m) = case s $ Free a m of -- in case of application over bound type variable, do nothing
+	(Free b _)	-> case a == b of
 		False	-> return p
 		True	-> do
 				u <- applyPoly s t
 				return (Poly a u m)
-	y		-> return p
-
-createPoly :: [FreeType m] -> MonoType m -> m -> PolyType m
-createPoly as t m = foldr (\a t -> Poly a t m) (Mono t m) as
+	_		-> return p
 
 genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
 genMgu t1 t2 = case mgu t1 t2 of
@@ -237,13 +234,13 @@ inferProgram c (AST.Program decls _) = do
 	return (s, c)
 
 inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta)
-inferDecl c decl@(AST.VarDecl _ i e m) = do
+inferDecl c (AST.VarDecl _ i e m) = do
 	i <- fetchIdentID i
 	(Mono a _) <- c i
 	s <- inferExpr c e a
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
 	return s
-inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
+inferDecl ce (AST.FunDecl _ i args decls stmts m) = do
 	i <- fetchIdentID i
 	u <- ce i
 	u <- genBind m u
@@ -394,12 +391,3 @@ inferExpr _ (AST.Nil m) t = do
 	a <- genFreshConcrete m
 	s <- genMgu t (List a m)
 	return s
-
-polyUnify :: PolyType m -> PolyType m -> Bool
-polyUnify p1 p2 = polyUnify2 p1 [] p2 []
-	where
-		polyUnify2 (Poly (FT n1 m1) p1 m) l1 p2 l2 = polyUnify2 p1 (n1:l1) p2 l2
-		polyUnify2 p1 l1 (Poly (FT n2 m1) p2 m) l2 = polyUnify2 p1 l1 p2 (n2:l2)
-		polyUnify2 (Mono m1 _) l1 (Mono m2 _) l2 = case mgu m1 m2 of
-			Success _ -> True
-			Fail _ _ -> False
