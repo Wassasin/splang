@@ -349,7 +349,7 @@ inferExpr c (AST.Binop e1 op e2 m) t = do
 	let (x, y, u) = (xf $ getMeta e1, yf $ getMeta e2, uf m)
 	s <- inferExpr c e1 x
 	c <- apply s c
-	s <- inferExpr c e2 y .> s
+	s <- inferExpr c e2 (s y) .> s
 	s <- genMgu (s t) (s u) .> s
 	return s
 inferExpr c (AST.Unop op e m) t = do
