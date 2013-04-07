@@ -156,19 +156,37 @@ fetchIdentID i					= returnFatalInferError $ UnknownIdentifier i
 emptyContext :: InferContext m
 emptyContext = \i -> returnFatalInferError $ ContextNotFound i
 
-constructInitialContext :: P2Meta -> InferMonadD P2Meta (InferContext P2Meta)
-constructInitialContext m = do
+constructInitialContext :: P2 AST.Program -> InferMonadD P2Meta (InferContext P2Meta)
+constructInitialContext p = do
+	let m = getMeta p
 	is <- return $ stripContext $ context m
-	tup <- sequence $ map (\i -> do
+	c <- foldl (>>=) (return emptyContext) $ map (\i -> \c -> do
 		if(isBuiltin i)
-			then return (i, fmap (const m) $ typeOfBuiltin (toEnum i))
-			else do	a <- genFreshConcrete m
-				return (i, Mono a m)) is
-	foldl (>>=) (return emptyContext) $ map (\(i, a) -> \c -> setContext i a c) tup
+			then setContext i (fmap (const m) $ typeOfBuiltin (toEnum i)) c
+			else return c) is
+	c <- constructProgramContext c p
+	return c
+
+constructProgramContext :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (InferContext P2Meta)
+constructProgramContext c (AST.Program decls _) = do
+	c <- foldl (>>=) (return c) $ map (\d -> \c -> constructDeclContext c d) decls
+	return c
+
+constructDeclContext :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (InferContext P2Meta)
+constructDeclContext c (AST.VarDecl _ i _ m) = do
+	i <- fetchIdentID i
+	a <- genFreshConcrete m
+	c <- setContext i (Mono a m) c
+	return c
+constructDeclContext c (AST.FunDecl _ i _ _ _ m) = do
+	i <- fetchIdentID i
+	let at = fromJust $ annotatedType m
+	c <- setContext i at c
+	return c
 
 infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
 infer p = flip bo 2 $ do -- FT 0 & 1 are reserved for keywords
-	c <- constructInitialContext $ getMeta p
+	c <- constructInitialContext p
 	(_, c) <- inferProgram c p
 	extractContext (getMeta p) c
 
