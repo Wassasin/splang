@@ -16,7 +16,7 @@ type Markup a = Either Char (OpenClose a)
 type MarkupString a = [Markup a]
 
 data OutputInfo a = OutputInfo
-	{ declComment :: Decl a -> MarkupString Styles
+	{ declComment :: OutputInfo a -> Decl a -> MarkupString Styles
 	, indentation :: Int
 	, brackets :: Bool }
 
@@ -45,7 +45,7 @@ function ident = open Function ++ lift (getIdentifierString ident) ++ close Func
 
 basicInfo :: OutputInfo a
 basicInfo = OutputInfo
-	{ declComment = (\_ -> lift "")
+	{ declComment = (\_ _ -> lift "")
 	, indentation = 0
 	, brackets = False }
 
@@ -59,7 +59,7 @@ withoutBrackets :: OutputInfo a -> OutputInfo a
 withoutBrackets o = o { brackets = False }
 
 withDeclCommentLine :: (Decl a -> MarkupString Styles) -> OutputInfo a -> OutputInfo a
-withDeclCommentLine f o = o { declComment = (\d -> open Comments ++ lift "// " ++ f d ++ close Comments ++ lift "\n") }
+withDeclCommentLine f o = o { declComment = (\mo d -> tabs mo ++ open Comments ++ lift "// " ++ f d ++ close Comments ++ lift "\n") }
 
 join :: (a -> [b]) -> [b] -> [a] -> [b]
 join _ _ [] = []
@@ -80,8 +80,8 @@ instance Output Program where
 	output mo (Program pr _)		= join (output mo) (lift "\n\n") pr
 
 instance Output Decl where
-	output mo decl@(VarDecl t i e _)	= tabs mo ++ (declComment mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ variable i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
-	output mo decl@(FunDecl t i args vdecls stmts _) = tabs mo ++ (declComment mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ function i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (output (indent mo)) (lift "\n") vdecls ++ delim (output (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
+	output mo decl@(VarDecl t i e _)	= (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ variable i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
+	output mo decl@(FunDecl t i args vdecls stmts _) = (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ function i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (output (indent mo)) (lift "\n") vdecls ++ delim (output (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
 
 outputArg :: OutputInfo a -> (Type a, Identifier a) -> MarkupString Styles
 outputArg mo (t, i) = output mo t ++ lift " " ++ variable i
