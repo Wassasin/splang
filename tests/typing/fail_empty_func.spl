@@ -1,0 +1,4 @@
+t main() //Should be void()
+{
+	{} //No explicit return statement
+}

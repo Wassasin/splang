@@ -4,7 +4,7 @@ module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), 
 
 import Control.Monad
 import Data.Maybe (fromJust)
-import Data.List (union)
+import Data.List (union, (\\))
 import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin, annotatedType)
 import Errors
 import Meta (ASTMeta, getMeta)
@@ -77,6 +77,15 @@ ftvm (Pair t1 t2 _)	= union (ftvm t1) (ftvm t2)
 ftvm (List t _)		= ftvm t
 ftvm _			= []
 
+ftv :: PolyType m -> [FreeType m]
+ftv (Mono t _) = ftvm t
+ftv (Poly a t _) = filter ((/=) a) (ftv t)
+
+ftvc :: P2Meta -> InferContext P2Meta -> InferMonadD P2Meta ([FreeType P2Meta])
+ftvc m c = do
+	ts <- sequence $ map c $ stripContext $ context m
+	return $ concat $ map ftv ts
+
 mgu :: MonoType m -> MonoType m -> Unification m
 mgu (Free a _) t@(Free b _)
 	| a == b 			= Success id
@@ -122,6 +131,9 @@ applyPoly s p@(Poly a t m) = case s $ Free a m of -- in case of application over
 				return (Poly a u m)
 	_		-> return p
 
+createPoly :: [FreeType m] -> MonoType m -> m -> PolyType m
+createPoly as t m = foldr (\a t -> Poly a t m) (Mono t m) as
+
 genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
 genMgu t1 t2 = case mgu t1 t2 of
 	Fail u1 u2 -> returnInferError id $ CannotUnify u1 u2 -- Cannot infer; assume no substitution, and attempt to continue
@@ -162,7 +174,7 @@ constructInitialContext p = do
 		if(isBuiltin i)
 			then setContext i (fmap (const m) $ typeOfBuiltin (toEnum i)) c
 			else return c) is
-	c <- constructProgramContext c p
+	c <- constructProgramContext c p -- Validate all the global VarDecls; FunDecl validation does not do anything at this stage
 	return c
 
 constructProgramContext :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (InferContext P2Meta)
@@ -242,11 +254,11 @@ inferDecl c (AST.VarDecl _ i e m) = do
 	s <- inferExpr c e a
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
 	return s
-inferDecl ce (AST.FunDecl _ i args decls stmts m) = do
+inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	i <- fetchIdentID i
 	u <- ce i
 	u <- genBind m u
-	b <- genFreshConcrete m
+	b <- if(any hasReturn stmts) then genFreshConcrete m else return $ Void m
 	-- make for each argument a free type
 	argtup <- sequence $ map (\(_, AST.Identifier _ n m) -> do
 		a <- genFreshConcrete m
@@ -268,7 +280,21 @@ inferDecl ce (AST.FunDecl _ i args decls stmts m) = do
 	v <- return $ Func (map (s . snd) argtup) (s b) m
 	-- unify with type in original context
 	s <- genMgu (s u) (s v) .> s
+	do -- validate FunDecl, because after this validation is no longer possible due to possible binding by type annotation
+		fce <- ftvc m ce
+		let bs = ftvm (s v) \\ fce
+		v <- return $ createPoly bs (s v) m
+		ce <- setContext i v ce
+		validateDeclContext ce decl 
 	return s
+	where
+		hasReturn :: P2 AST.Stmt -> Bool
+		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
+		hasReturn (AST.If _ stmtt _)		= hasReturn stmtt
+		hasReturn (AST.IfElse _ stmtt stmte _)	= hasReturn stmtt || hasReturn stmte
+		hasReturn (AST.While _ stmt _)		= hasReturn stmt
+		hasReturn (AST.Return _ _)		= True
+		hasReturn _				= False
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do
