@@ -232,7 +232,7 @@ inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	-- define eventual type of this function
 	v <- return $ Func (map (s . snd) argtup) (s b) m
 	-- unify with type in original context
-	s <- genMgu (s u) v .> s
+	s <- genMgu (s u) (s v) .> s
 	return s
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
@@ -317,13 +317,13 @@ inferExpr c (AST.Binop e1 op e2 m) t = do
 	s <- inferExpr c e1 x
 	c <- apply s c
 	s <- inferExpr c e2 y .> s
-	s <- genMgu (s t) u .> s
+	s <- genMgu (s t) (s u) .> s
 	return s
 inferExpr c (AST.Unop op e m) t = do
 	(xf, uf) <- matchUnOp op
 	let (x, u) = (xf $ getMeta e, uf m)
 	s <- inferExpr c e x
-	s <- genMgu (s t) u .> s
+	s <- genMgu (s t) (s u) .> s
 	return s
 inferExpr _ (AST.Kint _ m) t = do
 	s <- genMgu (Int m) t
