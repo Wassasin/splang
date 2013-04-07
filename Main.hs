@@ -181,16 +181,6 @@ printTypingError opts filename source (CannotUnify mt1 mt2)	= do
 		monoTypePrint basicInfo coloredTypePrinter mt2
 		Console.intense " inferred here:")
 printTypingError opts filename source (ContextNotFound ident)	= Console.putMessageLn Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
-printTypingError opts filename source (PolyViolation ft mt)	= do
-	standardMessageIO filename source (src $ getMeta ft) Console.Error (do
-		Console.intense "Attempted to substitute a bound free type variable "
-		monoTypePrint basicInfo coloredTypePrinter (Free ft $ getMeta ft)
-		Console.intense " in a PolyType. "
-		Console.highLight "COMPILER BUG")
-	standardMessageIO filename source (src $ getMeta mt) Console.Note (do
-		Console.intense "With type "
-		monoTypePrint basicInfo coloredTypePrinter mt
-		Console.intense " which was inferred from here:")
 printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)
 printTypingError opts filename source (VoidUsage meta mt)	= do
 	standardMessage filename source (src $ meta) Console.Error "Using void"

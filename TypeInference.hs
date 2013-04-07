@@ -21,7 +21,7 @@ type InferState = FTid
  Cannot unify types
  IdentID could not be found in context
  A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere -}
-data InferError m = VoidUsage m (MonoType m) | TypeError (PolyType m) (PolyType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | PolyViolation (FreeType m) (MonoType m) | UnknownIdentifier (AST.Identifier m)
+data InferError m = VoidUsage m (MonoType m) | TypeError (PolyType m) (PolyType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m)
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
@@ -113,13 +113,13 @@ apply s c = return $ \i -> do
 
 applyPoly :: Substitution m -> PolyType m -> InferMonadD m (PolyType m)
 applyPoly s (Mono t m) = return $ Mono (s t) m
-applyPoly s (Poly a t m) = case s (Free a m) of
+applyPoly s p@(Poly a t m) = case s (Free a m) of -- in case of application over bound type variable, do nothing
 	(Free b n)	-> case a == b of
-		False	-> returnFatalInferError $ PolyViolation a (Free b n)
+		False	-> return p
 		True	-> do
 				u <- applyPoly s t
 				return (Poly a u m)
-	y		-> returnFatalInferError $ PolyViolation a y
+	y		-> return p
 
 createPoly :: [FreeType m] -> MonoType m -> m -> PolyType m
 createPoly as t m = foldr (\a t -> Poly a t m) (Mono t m) as
