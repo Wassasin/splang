@@ -195,20 +195,18 @@ inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (Sub
 inferProgram c (AST.Program decls _) = do
 	(s, c) <- foldl (>>=) (return (id, c)) $ map (\d -> \(s, c) -> do
 		c <- apply s c
-		inferDecl c d) decls
+		s <- inferDecl c d
+		return (s, c)) decls
 	c <- apply s c
 	return (s, c)
 
-inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
+inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta)
 inferDecl c decl@(AST.VarDecl _ i e m) = do
 	i <- fetchIdentID i
-	a <- genFreshConcrete m
-	c <- setContext i (Mono a m) c
+	(Mono a _) <- c i
 	s <- inferExpr c e a
-	c <- apply s c
-	let it = (Mono (s a) m)
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
-	return (s, c)
+	return s
 inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	i <- fetchIdentID i
 	u <- ce i
@@ -223,7 +221,9 @@ inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	-- define vardecls
 	(s, ci) <- foldl (>>=) (return (id, ci)) $ map (\d -> \(s, ci) -> do
 		ci <- apply s ci
-		inferDecl ci d) decls
+		s <- inferDecl ci d .> s
+		return (s, ci)) decls
+	ci <- apply s ci
 	-- process statements
 	s <- foldl (>>=) (return s) $ map (\stmt -> \s -> do
 		ci <- apply s ci
@@ -233,12 +233,7 @@ inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	v <- return $ Func (map (s . snd) argtup) (s b) m
 	-- unify with type in original context
 	s <- genMgu (s u) v .> s
-	v <- return $ s v
-	ce <- apply s ce
-	-- set type of this function in context
-	--let it = createPoly (ftvm v) v m
-	--c <- setContext i it c
-	return (s, ce)
+	return s
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do
