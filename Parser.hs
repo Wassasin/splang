@@ -2,6 +2,7 @@ module Parser (ParserLib.Error(..), parseSPL) where
 
 import ParserLib
 
+import qualified Source (IndexSpan)
 import qualified Lexer
 import qualified AST
 import Meta
@@ -10,24 +11,24 @@ parseSPL :: [Lexer.Token] -> Either [P1 AST.Program] Error
 parseSPL tokens = parse parseProgram tokens
 
 parseProgram :: ParseFuncD (P1 AST.Program)
-parseProgram = do
+parseProgram = newObject $ do
 	decls <- many1 parseDecl
-	produceP1 (AST.Program decls)
+	produceP1 $ AST.Program decls
 
 parseDecl :: ParseFuncD (P1 AST.Decl)
 parseDecl = parseVarDecl <|> parseFunDecl
 
 parseVarDecl :: ParseFuncD (P1 AST.Decl)
-parseVarDecl = do
+parseVarDecl = newObject $ do
 	t <- parseType
 	i <- parseIdentifier
 	equalsToken Lexer.AssignmentSign
 	e <- parseExpr
 	equalsToken Lexer.Semicolon
-	produceP1 (AST.VarDecl t i e)
+	produceP1 $ AST.VarDecl t i e
 
 parseFunDecl :: ParseFuncD (P1 AST.Decl)
-parseFunDecl = do
+parseFunDecl = newObject $ do
 	t <- parseVoidType <!> parseType
 	i <- parseIdentifier
 	equalsToken Lexer.ParenthesesOpen
@@ -37,12 +38,12 @@ parseFunDecl = do
 	vdecls <- many parseVarDecl
 	stmts <- many1 parseStmt
 	equalsToken Lexer.CurlyBracketClose
-	produceP1 (AST.FunDecl t i fargs vdecls stmts)
+	produceP1 $ AST.FunDecl t i fargs vdecls stmts
 
 parseFarg :: ParseFuncD (P1 AST.Type, P1 AST.Identifier)
 parseFarg = do
-	t <- newObject parseType
-	i <- newObject parseIdentifier
+	t <- parseType
+	i <- parseIdentifier
 	return (t, i)
 
 parseFargs :: ParseFuncD [(P1 AST.Type, P1 AST.Identifier)]
@@ -96,125 +97,121 @@ parseStmt = newObject (
 	)
 
 parseExpr :: ParseFuncD (P1 AST.Expr)
-parseExpr = newObject parseTerm1
+parseExpr = parseTerm1
 
 parseTerm1 :: ParseFuncD (P1 AST.Expr)
-parseTerm1 = do
+parseTerm1 = newObject $ do
 		b <- parseOpNot;
 		expr <- parseTerm3;
-		produceP1 (AST.Unop b expr)	
+		produceP1 $ AST.Unop b expr
 	<!> do	expr1 <- parseTerm2
 		(do
 				b <- parseOp2Bool
 				expr2 <- parseTerm1
-				produceP1 (AST.Binop expr1 b expr2)
-			<!>	return expr1)
+				produceP1 $ AST.Binop expr1 b expr2
+			<!>	passthrough expr1)
 
 parseTerm2 :: ParseFuncD (P1 AST.Expr)
-parseTerm2 = do
+parseTerm2 = newObject $ do
 		expr1 <- parseTerm3
 		(do
 				b <- parseOp2Equal
 				expr2 <- parseTerm2
-				produceP1 (AST.Binop expr1 b expr2)
-			<!>	return expr1)
+				produceP1 $ AST.Binop expr1 b expr2
+			<!>	passthrough expr1)
 
 parseTerm3 :: ParseFuncD (P1 AST.Expr)
-parseTerm3 = do
+parseTerm3 = newObject $ do
 		e1 <- parseTerm4
 		(do
 				b <- parseOp2Cons
 				e2 <- parseTerm3
-				produceP1 (AST.Binop e1 b e2)
-			<!>	return e1)
+				produceP1 $ AST.Binop e1 b e2
+			<!>	passthrough e1)
 
 parseTerm4 :: ParseFuncD (P1 AST.Expr)
-parseTerm4 = do
+parseTerm4 = newObjectd $ do
 		e <- parseTerm5
 		parseTerm4b e
 
-parseTerm4b :: (P1 AST.Expr) -> ParseFuncD (P1 AST.Expr)
-parseTerm4b e1 = (do
-		b <- parseOp2Add
-		e2 <- parseTerm5
-		result <- produceP1 (AST.Binop e1 b e2)
-		parseTerm4b result)
+parseTerm4b :: (P1 AST.Expr) -> ParseFuncD (Source.IndexSpan -> ParseFuncD (P1 AST.Expr))
+parseTerm4b e1 = 
+	do	b <- parseOp2Add
+		return $ \l -> newObjectd $ do
+			e2 <- parseTerm5
+			f <- produceP1 $ AST.Binop e1 b e2
+			parseTerm4b $ f l
 	<!> do
-		return e1
+		passthrough $ return e1
 
 parseTerm5 :: ParseFuncD (P1 AST.Expr)
-parseTerm5 = do
+parseTerm5 = newObjectd $ do
 		e <- parseTerm6
 		parseTerm5b e
 
-parseTerm5b e1 = (do
-		b <- parseOp2Mult
-		e2 <- parseTerm6
-		result <- produceP1 (AST.Binop e1 b e2)
-		parseTerm5b result)
+parseTerm5b :: (P1 AST.Expr) -> ParseFuncD (Source.IndexSpan -> ParseFuncD (P1 AST.Expr))
+parseTerm5b e1 = 
+	do	b <- parseOp2Mult
+		return $ \l -> newObjectd $ do
+			e2 <- parseTerm6
+			f <- produceP1 $ AST.Binop e1 b e2
+			parseTerm5b $ f l
 	<!> do
-		return e1
+		passthrough $ return e1
 
+parseTerm6 :: ParseFuncD (P1 AST.Expr)
 parseTerm6 = parseTerm7
-	<!> do
+	<!> do newObject $ do
 		b <- parseOpNegative
 		e <- parseTerm6
-		produceP1 (AST.Unop b e)
+		produceP1 $ AST.Unop b e
 
 parseTerm7 :: ParseFuncD (P1 AST.Expr)
-parseTerm7 = parseKint
-	<!> (do
+parseTerm7 = newObject $
+	do
+		n <- parseInteger
+		produceP1 $ AST.Kint n
+	<!> do
 		equalsToken Lexer.ParenthesesOpen
 		e1 <- parseExpr
 		do
 				equalsToken Lexer.ParenthesesClose
-				return e1
+				passthrough e1
 			<!> do
 				equalsToken Lexer.Comma
 				e2 <- parseExpr
 				equalsToken Lexer.ParenthesesClose
-				produceP1 (AST.Pair e1 e2))
+				produceP1 $ AST.Pair e1 e2
 	<!> do
 		equalsToken Lexer.TrueT
-		produceP1 (AST.Kbool True)
+		produceP1 $ AST.Kbool True
 	<!> do
 		equalsToken Lexer.FalseT
-		produceP1 (AST.Kbool False)
+		produceP1 $ AST.Kbool False
 	<!> (do
-			parseVar
+			i <- parseIdentifier
+			produceP1 $ AST.Var i
 		<|> do
 			i <- parseIdentifier
 			equalsToken Lexer.ParenthesesOpen
 			args <- parseActArgs
 			equalsToken Lexer.ParenthesesClose
-			produceP1 (AST.FunCall i args))
+			produceP1 $ AST.FunCall i args
+		)
 	<!> do
 		equalsToken Lexer.SquareBracketsOpen
 		equalsToken Lexer.SquareBracketsClose
 		produceP1 AST.Nil
-
-parseVar :: ParseFuncD (P1 AST.Expr)
-parseVar = newObject ( do
-		i <- parseIdentifier
-		produceP1 (AST.Var i)
-	)
-
-parseKint :: ParseFuncD (P1 AST.Expr)
-parseKint = newObject ( do
-		n <- parseInteger
-		produceP1 (AST.Kint n)
-	)
-	
+		
 parseActArgs :: ParseFuncD [P1 AST.Expr]
 parseActArgs = manyd parseExpr (equalsToken Lexer.Comma)
 
 parseVoidType :: ParseFuncD (P1 AST.Type)
-parseVoidType = parseOne ( \x -> case x of
+parseVoidType = parseOne $ \x -> case x of
 		Lexer.Token (Lexer.Type t) l -> case t of
-			Lexer.Void -> Just $ AST.Void (constructP1 l)
+			Lexer.Void -> Just $ AST.Void $ constructP1 l
 			_ -> Nothing
 		_ -> Nothing
-	)
 
 parseBasicType :: ParseFuncD (P1 AST.Type)
 parseBasicType = parseOne ( \x -> case x of
@@ -226,24 +223,24 @@ parseBasicType = parseOne ( \x -> case x of
 	)
 
 parseType :: ParseFuncD (P1 AST.Type)
-parseType = newObject (
-			parseBasicType
-		<|>	do
+parseType = newObject $
+		do	t <- parseBasicType
+			passthrough t
+		<|> do
 			equalsToken Lexer.ParenthesesOpen
 			t1 <- parseType
 			equalsToken Lexer.Comma
 			t2 <- parseType
 			equalsToken Lexer.ParenthesesClose
 			produceP1 (AST.Product t1 t2)
-		<|>	do
+		<|> do
 			equalsToken Lexer.SquareBracketsOpen
 			t <- parseType
 			equalsToken Lexer.SquareBracketsClose
 			produceP1 (AST.ListType t)
-		<|>	do
+		<|> do
 			i <- parseIdentifier
 			produceP1 (AST.TypeIdentifier i)
-	)
 
 operatorToken :: (Lexer.OperatorE -> Maybe (P1Meta -> a)) -> ParseFuncD a
 operatorToken f = parseOne ( \t -> case t of

@@ -1,4 +1,4 @@
-module ParserLib (Error(..), ParseFuncD(..), parse, (<|>), (<!>), many1, many, manyd1, manyd, opt, produceP1, newObject, parseToken, equalsToken, parseOne) where
+module ParserLib (Error(..), ParseFuncD(..), parse, (<|>), (<!>), many1, many, manyd1, manyd, opt, produceP1, passthrough, newObject, newObjectd, parseToken, equalsToken, parseOne) where
 
 import qualified Source
 import qualified Lexer
@@ -124,22 +124,37 @@ instance Monad ParseFuncD where
 --	return :: a -> ParseFuncD a
 	return a = mo (\ i -> (Match [(a, i)], Nothing))
 
-produce :: (Source.IndexSpan -> a) -> ParseFuncD a
-produce f = mo (\ (l, xs) -> (Match [(f l, (l, xs))], Nothing))
+produce :: (Source.IndexSpan -> a) -> ParseFuncD (Source.IndexSpan -> a)
+produce f = mo $ \(l, xs) -> (Match [(f, (l, xs))], Nothing)
 
-produceP1 :: (P1Meta -> a) -> ParseFuncD a
-produceP1 f = produce (f . constructP1)
+produceP1 :: (P1Meta -> a) -> ParseFuncD (Source.IndexSpan -> a)
+produceP1 f = produce $ f . constructP1
 
-newObject :: ParseFuncD a -> ParseFuncD a
-newObject fd = mo $ \ (Source.IndexSpan _ _, is) ->
+passthrough :: a -> ParseFuncD (Source.IndexSpan -> a)
+passthrough x = return $ \_ -> x
+
+newObject :: ParseFuncD (Source.IndexSpan -> a) -> ParseFuncD a
+newObject fd = newObjectd $ do
+	f <- fd
+	return $ \l -> return $ f l
+
+newObjectd :: ParseFuncD (Source.IndexSpan -> ParseFuncD a) -> ParseFuncD a
+newObjectd fd = mo $ \ (Source.IndexSpan _ _, is) ->
 	let Lexer.Token _ (Source.IndexSpan from _) = head is in 
 		case (bo fd) (Source.IndexSpan from from, is) of
-			(NoMatch, Nothing)-> error "COMPILER ERROR: (newObject) Parser returned no match and no error!"
+			(NoMatch, Nothing)	-> error "COMPILER ERROR: (newObject) Parser returned no match and no error!"
 			(NoMatch, Just e)	-> (NoMatch, Just e)
-			(Match xs, pe0)		-> case map (\output -> case output of
-					(x, (Source.IndexSpan _ to, os)) -> (x, (Source.IndexSpan from to, os))
-				) xs of
-					matches -> (Match matches, pe0)
+			(Match xs, pe0)		-> 
+				case flip dualmap xs $ \(g, (Source.IndexSpan _ to, os)) ->
+					let loc = Source.IndexSpan from to
+					in case (bo $ g loc) (loc, os) of
+						(NoMatch, Nothing)	-> error "COMPILER ERROR: (newObject 2) Parser returned no match and no error!"
+						(NoMatch, Just e1)	-> Left (bestMError pe0 (Just e1))
+						(Match ys, pe1)		-> Right (ys, bestMError pe0 pe1)
+				of
+					(errors, []) -> (NoMatch, foldr1 bestMError errors)
+					(_, metup) -> case unzip metup of
+						(matches, pe2s) -> (Match (concat matches), foldr1 bestMError pe2s)
 
 parseToken :: (Lexer.TokenE -> Bool) -> ParseFuncD Lexer.TokenE
 parseToken f = mo (\ i -> case i of
