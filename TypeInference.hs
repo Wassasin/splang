@@ -78,7 +78,9 @@ ftvm (List t _)		= ftvm t
 ftvm _			= []
 
 mgu :: MonoType m -> MonoType m -> Unification m
-mgu (Free _ _) (Free _ _)		= Success id
+mgu (Free a _) t@(Free b _)
+	| a == b 			= Success id
+	| otherwise			= Success (substitute a t)
 mgu (Free a al) t
 	| elem a (ftvm t)		= Fail (Free a al) t
 	| otherwise			= Success (substitute a t)
