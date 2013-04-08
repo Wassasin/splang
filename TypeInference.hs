@@ -302,9 +302,9 @@ inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
-		hasReturn (AST.If _ stmtt _)		= hasReturn stmtt
-		hasReturn (AST.IfElse _ stmtt stmte _)	= hasReturn stmtt || hasReturn stmte
-		hasReturn (AST.While _ stmt _)		= hasReturn stmt
+		hasReturn (AST.If _ _ _)		= False -- might evaluate to false, thus might not
+		hasReturn (AST.IfElse _ stmtt stmte _)	= hasReturn stmtt && hasReturn stmte -- both have to contain a return
+		hasReturn (AST.While _ _ _)		= False -- might evaluate to false, thus might not
 		hasReturn (AST.Return _ _)		= True
 		hasReturn _				= False
 
