@@ -46,6 +46,11 @@ show2 s = show s
 getFunDeclContext :: P2 Decl -> P1Context
 getFunDeclContext (FunDecl _ _ _ _ stmts _) = context $ getMeta $ last stmts
 
+exitFatal :: IO a
+exitFatal = do
+	Console.highLightLn "*** Stopping due to fatal error"
+	exitFailure
+
 exit :: Bool -> IO ()
 exit True = exitSuccess
 exit False = exitFailure
@@ -76,6 +81,8 @@ main = do
 	(pResult3, b2) <- minfer opts file source pResult2
 	when (showStages opts) $ Console.highLightLn ("*** Typing " ++ sucfail b2)
 
+	when (showStages opts) $ Console.highLightLn ("*** Done ")
+
 	let b = b0 && b1 && b2
 	exit b
 
@@ -90,7 +97,7 @@ mlex opts filename source = do
 			return xs
 		NoMatch lError -> do
 			standardMessage filename source (IndexSpan lError lError) Console.Error "Unexpected sequence of characters starting"
-			exitFailure
+			exitFatal
 
 -- filename and source are needed for error-messaging! Returns an AST or errors.
 mparse :: Options -> String -> String -> [Token] -> IO (P1 Program, Bool)
@@ -108,13 +115,13 @@ mparse opts filename source tokens = do
 			return (head ys, False)
 		Right EndOfStream		-> do
 			putStrLn "Error on end of stream"
-			exitFailure
+			exitFatal
 		Right (Unexpected (Token t l))	-> do
 			standardMessage filename source l Console.Error ("Unexpected token " ++ show t)
-			exitFailure
+			exitFatal
 		Right Ambiguity			-> do
 			Console.putMessage Console.Error filename (-1, -1) "COMPILER BUG: Ambiguous input, without results!"
-			exitFailure
+			exitFatal
 
 interleave file [] = []
 interleave file (x:xs) = Console.putMessageLn Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
@@ -135,7 +142,7 @@ midentifiers opts filename source program = do
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) (errors ++ [fe])
-			exitFailure
+			exitFatal
 
 printSemanticsError :: Options -> String -> String -> ScopingError -> IO ()
 printSemanticsError opts filename source (DuplicateDeclaration id1 gid) = case gid of
@@ -179,7 +186,7 @@ minfer opts filename source program = do
 			return (cs, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printTypingError opts filename source) (fe:errors)
-			exitFailure
+			exitFatal
 
 printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
 printTypingError opts filename source (CannotUnify m mt1 mt2)	= do
