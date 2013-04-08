@@ -96,28 +96,32 @@ parseStmt = newObject $
 		produceP1 $ AST.Expr expr
 
 parseExpr :: ParseFuncD (P1 AST.Expr)
-parseExpr = parseTerm1
+parseExpr = parseTerm0
 
-parseTerm1 :: ParseFuncD (P1 AST.Expr)
-parseTerm1 = newObject $
-	do	b <- parseOpNot
-		expr <- parseTerm3
-		produceP1 $ AST.Unop b expr
-	<!> do	expr1 <- parseTerm2
-		do
-				b <- parseOp2Bool
-				expr2 <- parseTerm1
-				produceP1 $ AST.Binop expr1 b expr2
-			<!>	passthrough expr1
-
-parseTerm2 :: ParseFuncD (P1 AST.Expr)
-parseTerm2 = newObject $ do
-		expr1 <- parseTerm3
+parseTerm0 :: ParseFuncD (P1 AST.Expr)
+parseTerm0 = newObject $ do
+		expr1 <- parseTerm1
 		do
 				b <- parseOp2Equal
-				expr2 <- parseTerm2
+				expr2 <- parseTerm0
 				produceP1 $ AST.Binop expr1 b expr2
 			<!>	passthrough expr1
+
+parseTerm1 :: ParseFuncD (P1 AST.Expr)
+parseTerm1 = newObject $ do
+	expr1 <- parseTerm2
+	do
+			b <- parseOp2Bool
+			expr2 <- parseTerm1
+			produceP1 $ AST.Binop expr1 b expr2
+		<!>	passthrough expr1
+
+parseTerm2 :: ParseFuncD (P1 AST.Expr)
+parseTerm2 = parseTerm3
+	<!> do newObject $ do
+		b <- parseOpNot
+		expr <- parseTerm2
+		produceP1 $ AST.Unop b expr
 
 parseTerm3 :: ParseFuncD (P1 AST.Expr)
 parseTerm3 = newObject $ do
