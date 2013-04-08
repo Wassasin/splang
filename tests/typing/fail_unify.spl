@@ -2,7 +2,7 @@
 
 Bool x = 5;
 
-[t] y = x;
+Bool y = head(x);
 
 Int foo(Int n){
 	return n;

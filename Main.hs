@@ -171,12 +171,12 @@ minfer opts filename source program = do
 			exitFailure
 
 printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
-printTypingError opts filename source (CannotUnify mt1 mt2)	= do
-	Console.putMessage Console.Error filename (-1, -1) "Cannot unify types "
-	monoTypePrint basicInfo coloredTypePrinter mt1
-	Console.intense " and "
-	monoTypePrint basicInfo coloredTypePrinter mt2
-	putStr "\n"
+printTypingError opts filename source (CannotUnify m mt1 mt2)	= do
+	standardMessageIO filename source (src m) Console.Error (do
+		Console.intense "Cannot unify types "
+		monoTypePrint basicInfo coloredTypePrinter mt1
+		Console.intense " and "
+		monoTypePrint basicInfo coloredTypePrinter mt2)
 	standardMessageIO filename source (src $ getMeta mt1) Console.Note (do
 		Console.intense "Type "
 		monoTypePrint basicInfo coloredTypePrinter mt1
@@ -194,7 +194,7 @@ printTypingError opts filename source (VoidUsage meta mt)	= do
 		monoTypePrint basicInfo coloredTypePrinter mt
 		Console.intense " inferred here:")
 printTypingError opts filename source (TypeError pt1 pt2)	= do
-	standardMessageIO filename source (src $ getMeta pt1) Console.Note (do
+	standardMessageIO filename source (src $ getMeta pt1) Console.Error (do
 		Console.intense "Type mismatch. Expected type "
 		monoTypePrint basicInfo coloredTypePrinter pt1
 		Console.intense " declared here:")
@@ -202,3 +202,9 @@ printTypingError opts filename source (TypeError pt1 pt2)	= do
 		Console.intense "Actual type "
 		monoTypePrint basicInfo coloredTypePrinter pt2
 		Console.intense " inferred here:")
+printTypingError opts filename source (WrongArguments es as m)	= do 
+	standardMessage filename source (src m) Console.Error (pre ++ show (length es) ++ " given, but " ++ show (length as) ++ " expected.")
+	where pre = if (length es < length as) then "Too few arguments given, " else "Too many arguments given, "
+printTypingError opts filename source (NoFunction i u m)	= standardMessageIO filename source (src m) Console.Error (do
+		Console.intense $ getString i ++ " used as function, but has type "
+		monoTypePrint basicInfo coloredTypePrinter u)

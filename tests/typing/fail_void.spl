@@ -5,8 +5,7 @@ Void foo(){
 }
 
 Void main(){
-	t x = foo();
-	s y = foo():[];
 	print(foo());
-	return x;
+	print(foo():[]);
+	return foo();
 }

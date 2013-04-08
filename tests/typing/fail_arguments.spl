@@ -1,0 +1,26 @@
+//Tim  Steenvoorden (s0712663)
+
+[Int] function (Int n, Bool b, [Int] l)
+{
+	print(n);
+	print(b);
+	print(l);
+	return l;
+}
+
+Void main ()
+{
+	[Int] list = 1:2:3:[];
+
+	// No arguments
+	function();
+	// One argument
+	function(5);
+	// Two arguments
+	function(10, True);
+	// Three arguments
+	function(15, False, list);
+	// Three arguments
+	function(15, False, list, True);
+}
+
