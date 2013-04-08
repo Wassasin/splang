@@ -100,21 +100,21 @@ parseExpr = parseTerm0
 
 parseTerm0 :: ParseFuncD (P1 AST.Expr)
 parseTerm0 = newObject $ do
-		expr1 <- parseTerm1
-		do
-				b <- parseOp2Equal
-				expr2 <- parseTerm0
-				produceP1 $ AST.Binop expr1 b expr2
-			<!>	passthrough expr1
-
-parseTerm1 :: ParseFuncD (P1 AST.Expr)
-parseTerm1 = newObject $ do
-	expr1 <- parseTerm2
+	expr1 <- parseTerm1
 	do
 			b <- parseOp2Bool
-			expr2 <- parseTerm1
+			expr2 <- parseTerm0
 			produceP1 $ AST.Binop expr1 b expr2
 		<!>	passthrough expr1
+		
+parseTerm1 :: ParseFuncD (P1 AST.Expr)
+parseTerm1 = newObject $ do
+		expr1 <- parseTerm2
+		do
+				b <- parseOp2Equal
+				expr2 <- parseTerm1
+				produceP1 $ AST.Binop expr1 b expr2
+			<!>	passthrough expr1
 
 parseTerm2 :: ParseFuncD (P1 AST.Expr)
 parseTerm2 = parseTerm3
