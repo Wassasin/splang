@@ -51,10 +51,15 @@ instance Source.Sourcable P2Meta where
 	src = source2
 
 -- Will be passed around and updated
-data ScopingContext = ScopingContext {identifiers :: P1Context, types :: TypeContext, nextFTid :: Int}
+data ScopingContext = ScopingContext {identifiers :: P1Context, types :: TypeContext, nextFTid :: Int, nextUniqueID :: Int}
 
 addIdentifier :: P1 AST.Identifier -> Scope -> PolyType P2Meta -> ScopingContext -> ScopingContext
-addIdentifier ident s at context = context { identifiers = (User ident, (s, at)) : identifiers context }
+addIdentifier ident s at context = context { identifiers = (User ident, (s, at)) : identifiers context, nextUniqueID = next }
+	where
+		(AST.Identifier _ n _) = ident
+		next = case n of
+			Nothing -> nextUniqueID context
+			Just m -> max (m+1) (nextUniqueID context)
 
 -- Forget the new structure (especially useful with fmap)
 forget :: P2Meta -> P1Meta
@@ -101,22 +106,6 @@ updateIdentifier :: AST.Identifier a -> GeneralIdentifier b -> AST.Identifier a
 updateIdentifier (AST.Identifier str _ a) (Builtin b) = AST.Identifier str (Just $ fromEnum b) a
 updateIdentifier (AST.Identifier str _ a) (User (AST.Identifier _ m _)) = AST.Identifier str m a
 
-maximalUniqueID :: Context (GeneralIdentifier a) b -> Maybe IdentID
-maximalUniqueID [] = Nothing
-maximalUniqueID ((Builtin b, _):xs) = case maximalUniqueID xs of
-	Nothing -> Just $ fromEnum b
-	Just m1 -> Just $ max (fromEnum b) m1
-maximalUniqueID ((User (Identifier _ n _), _):xs) = case maximalUniqueID xs of
-	Nothing -> n
-	Just m1 -> case n of
-		Nothing -> Just m1
-		Just m2 -> Just $ max m1 m2
-
-nextUniqueID :: Context (GeneralIdentifier a) b -> IdentID
-nextUniqueID context = case maximalUniqueID context of
-	Nothing -> 0
-	Just n -> n+1
-
 stripContext :: P1Context -> [IdentID]
 stripContext [] = []
 stripContext ((Builtin b,_):xs) = fromEnum b : stripContext xs
@@ -137,7 +126,7 @@ emptyContext = map (\x -> (Builtin x, (Global, fmap (const stupidP1Meta) (typeOf
 	where stupidP1Meta = promote $ constructP1 (Source.IndexSpan (-1) (-1))	-- TODO: fix this, if needed
 
 startContext :: ScopingContext
-startContext = ScopingContext { identifiers = emptyContext, types = [], nextFTid = 0 }
+startContext = ScopingContext { identifiers = emptyContext, types = [], nextFTid = 0, nextUniqueID = fromEnum (maxBound :: Builtins) + 1 }
 
 -- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID),
 -- and add context (with scoping and annotated types) to the AST.
@@ -166,13 +155,13 @@ assignGlobDecls context (decl:xs) = do
 
 assignGlobDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl, ScopingContext)
 assignGlobDecl context decl@(AST.VarDecl a ident b m) = do
-	let ident2 = AST.assignUniqueID ident (nextUniqueID (identifiers context))
+	let ident2 = AST.assignUniqueID ident (nextUniqueID context)
 	let (at, newContext) = getAnnotatedType context decl
 	case idLookup ident (identifiers context) of
 		Just (iy, _) -> returnWithError (AST.VarDecl a ident b m, newContext) (DuplicateDeclaration (fmap forget ident) iy)
 		Nothing -> return (AST.VarDecl a ident2 b m, addIdentifier (fmap forget ident2) Global at newContext)
 assignGlobDecl context decl@(AST.FunDecl a ident b c d m) = do
-	let ident2 = AST.assignUniqueID ident (nextUniqueID (identifiers context))
+	let ident2 = AST.assignUniqueID ident (nextUniqueID context)
 	let (at, argTypeContext) = getAnnotatedType context decl
 	let m2 = m { argsTypeContext = types argTypeContext }
 	let newContext = context { nextFTid = nextFTid argTypeContext }
@@ -190,15 +179,22 @@ updateContext newContext thing = thing { context = (identifiers newContext) }
 -- Part Three --
 assignAll :: ScopingContext -> P2 AST.Program -> ScopingResult (P2 AST.Program)
 assignAll context (AST.Program decls m) = do
-	decls2 <- sequence (map (assignDecl context) decls)
+	(decls2, context) <- assignDecls context decls
 	return (AST.Program decls2 m)
 
-assignDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl)
+assignDecls :: ScopingContext -> [P2 AST.Decl] -> ScopingResult ([P2 AST.Decl], ScopingContext)
+assignDecls context [] = return ([], context)
+assignDecls context (decl:xs) = do
+	(decl, context) <- assignDecl context decl
+	(xs, context) <- assignDecls context xs
+	return (decl:xs, context)
+
+assignDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl, ScopingContext)
 assignDecl context (AST.VarDecl a ident b m) = do
 	let at = snd . snd . fromJust $ idLookup ident (identifiers context)
 	let m2 = annotateType at m
 	y <- assignExpr b
-	return (AST.VarDecl a ident y m2)
+	return (AST.VarDecl a ident y m2, context)
 assignDecl context (AST.FunDecl t ident args decls stmtsin m) = do
 	let at = snd . snd . fromJust $ idLookup ident (identifiers context)
 	let m2 = annotateType at m
@@ -207,7 +203,7 @@ assignDecl context (AST.FunDecl t ident args decls stmtsin m) = do
 	(decls, context2) <- assignVarDecls context2 decls
 	let stmts = fmap (fmap (updateContext context2)) stmtsin -- iterate over the list, iterate through tree
 	stmts <- assignStmts stmts
-	return (AST.FunDecl t ident args decls stmts m2)
+	return (AST.FunDecl t ident args decls stmts m2, context { nextUniqueID = nextUniqueID context2 })
 
 -- In this part we update the context, so we pass it to he function
 assignFargs :: ScopingContext -> [(P2 AST.Type, P2 AST.Identifier)] -> ScopingResult ([(P2 AST.Type, P2 AST.Identifier)], ScopingContext)
@@ -221,7 +217,7 @@ assignFargs context ((t,i):rest) = do
 assignFarg :: ScopingContext -> (P2 AST.Type, P2 AST.Identifier) -> ScopingResult ((P2 AST.Type, P2 AST.Identifier), ScopingContext)
 assignFarg context (t, ident) = do
 	let (at, newContext) = getAnnotatedType context t
-	let newIdent = fmap (annotateType at) (AST.assignUniqueID ident (nextUniqueID (identifiers context)))
+	let newIdent = fmap (annotateType at) (AST.assignUniqueID ident (nextUniqueID context))
 	let newT = fmap (annotateType at) t
 	let arg = (newT, newIdent)
 	let fident = (fmap forget newIdent)
@@ -242,7 +238,7 @@ assignVarDecls context (xin:rest) = do
 assignVarDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl, ScopingContext)
 assignVarDecl context decl@(AST.VarDecl a ident b m) = do
 	b <- assignExpr b
-	let newIdent = AST.assignUniqueID ident (nextUniqueID (identifiers context))
+	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
 	let (at, newContext) = getAnnotatedType context decl
 	let newContext2 = addIdentifier fident Local at newContext
