@@ -185,8 +185,14 @@ printTypingError opts filename source (CannotUnify m mt1 mt2)	= do
 		Console.intense "Type "
 		monoTypePrint basicInfo coloredTypePrinter mt2
 		Console.intense " inferred here:")
-printTypingError opts filename source (ContextNotFound ident)	= Console.putMessageLn Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
-printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)
+printTypingError opts filename source (ContextNotFound ident)	= do
+	let loc = (-1,-1)
+	Console.putMessageLn Console.Error filename loc ("Context not found: " ++ show ident)
+	Console.putMessageLn Console.Note filename loc "This is probably caused by earlier errors"
+printTypingError opts filename source (UnknownIdentifier ident)	= do
+	let loc = Source.beginOfSpan $ src $ getMeta ident
+	standardMessage filename source (src $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)
+	Console.putMessageLn Console.Note filename (Source.convert loc source) "This is probably caused by earlier errors"
 printTypingError opts filename source (VoidUsage meta mt)	= do
 	standardMessage filename source (src $ meta) Console.Error "Using void"
 	standardMessageIO filename source (src $ getMeta mt) Console.Note (do
