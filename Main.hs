@@ -38,6 +38,10 @@ show2 s = show s
 getFunDeclContext :: P2 Decl -> P1Context
 getFunDeclContext (FunDecl _ _ _ _ stmts _) = context $ getMeta $ last stmts
 
+exit :: Bool -> IO ()
+exit True = exitSuccess
+exit False = exitFailure
+
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
@@ -47,13 +51,13 @@ main = do
 	lResult <- mlex opts file source
 	when (lexOnly opts) $ exitSuccess
 
-	pResult <- mparse opts file source (filterComment lResult)
-	when (parseOnly opts) $ exitSuccess
+	(pResult, b0) <- mparse opts file source (filterComment lResult)
+	when (parseOnly opts) $ exit b0
 
-	pResult2 <- midentifiers opts file source pResult
-	when (scopeOnly opts) $ exitSuccess
+	(pResult2, b1) <- midentifiers opts file source pResult
+	when (scopeOnly opts) $ exit b1
 
-	pResult3 <- minfer opts file source pResult2
+	(pResult3, b2) <- minfer opts file source pResult2
 
 	Console.highLightLn "Globals infered:"
 	sequence $ map (\(i, t) -> do
@@ -61,7 +65,8 @@ main = do
 		polyTypePrint basicInfo coloredTypePrinter t
 		putStr "\n") pResult3
 
-	exitSuccess
+	let b = b0 && b1 && b2
+	exit b
 
 -- filename is needed for error-messaging! Returns a list of tokens or errors.
 mlex :: Options -> String -> String -> IO [Token]
@@ -77,19 +82,19 @@ mlex opts filename source = do
 			exitFailure
 
 -- filename and source are needed for error-messaging! Returns an AST or errors.
-mparse :: Options -> String -> String -> [Token] -> IO (P1 Program)
+mparse :: Options -> String -> String -> [Token] -> IO (P1 Program, Bool)
 mparse opts filename source tokens = do
 	when (showParsingResult opts) $ Console.highLightLn "Parsing result:"
 	let pResult = parseSPL tokens
 	case pResult of
 		Left [x]			-> do
 			when (showParsingResult opts) $ prettyPrint basicInfo (astPrinter opts) x
-			return x
+			return (x, True)
 		Left ys				-> do
 			Console.putMessageLn Console.Error filename (-1, -1) "Ambiguous input - able to derive multiple programs"
 			sequence (interleave filename $ fmap (prettyPrint basicInfo (astPrinter opts)) (take 2 ys))
 			when (length ys > 2) (Console.putMessageLn Console.Note filename (-1, -1) (show ((length ys) - 2) ++ " more possible interpretations left out"))
-			exitFailure
+			return (head ys, False)
 		Right EndOfStream		-> do
 			putStrLn "Error on end of stream"
 			exitFailure
@@ -103,19 +108,19 @@ mparse opts filename source tokens = do
 interleave file [] = []
 interleave file (x:xs) = Console.putMessageLn Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
 
-midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P2 Program)
+midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P2 Program, Bool)
 midentifiers opts filename source program = do
 	let x = assignUniqueIDs program
 	case x of
 		Errors.Result newProgram [] warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			when (showScopingResult opts) $ prettyPrint (withDeclCommentLine declComments basicInfo) (astPrinter opts) newProgram
-			return newProgram
+			return (newProgram, True)
 		Errors.Result newProgram errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) errors
 			when (showParsingResult opts) $ prettyPrint (withDeclCommentLine declComments basicInfo) (astPrinter opts) newProgram
-			exitFailure
+			return (newProgram, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) (errors ++ [fe])
@@ -152,15 +157,15 @@ ifWarning kind opts = when (kind . enabledWarnings $ opts)
 declComments :: P2 AST.Decl  -> MarkupString Styles
 declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ output basicInfo (fromJust . annotatedType $ getMeta decl)
 
-minfer :: Options -> String -> String -> (P2 Program) -> IO [(AST.IdentID, PolyType P2Meta)]
+minfer :: Options -> String -> String -> (P2 Program) -> IO ([(AST.IdentID, PolyType P2Meta)], Bool)
 minfer opts filename source program = do
 	let x = infer program
 	case x of
 		Errors.Result (cs, _) [] [] -> do
-			return cs
+			return (cs, True)
 		Errors.Result (cs, _) errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
-			return cs
+			return (cs, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printTypingError opts filename source) (fe:errors)
 			exitFailure
