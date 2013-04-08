@@ -52,7 +52,49 @@ Void foo(){
 \end{lstlisting}
 
 \section{Typing}
-We infer types.
+
+Type Inferencing as explained by teachers not possible for this imperative language.
+Problems: recursion and order of declaration
+
+Thus Inferencing + Checking hybrid
+
+at funcalls, use type annotation
+at fundecl, initialize to free type variables
+when fundecl is done inferring, check result with type annotation (while checking, must exists a bijection between ftv's)
+
+\newcommand{\T}{\mathcal{T}}
+\newcommand{\U}{\mathcal{U}}
+\newcommand{\s}{\ast}
+\newcommand{\sn}[1]{{\s_{#1}}}
+
+% $\T(\Gamma, x, \sigma) = \U(\tau[\vec{\alpha} := \vec{\beta}], \sigma) \circ \ast$
+	
+$\begin{array}{rcl}
+	\T_{\mbox{d}}(\Gamma, \mbox{Program}~\vec{d}) & = & \s_n \\
+	\sn{n} & = & \T_{\mbox{d}}(\Gamma^{\sn{n-1}}, d_n) \circ \sn{n-1} \\
+	& \vdots & \\
+	\sn{2} & = & \T_{\mbox{d}}(\Gamma^{\sn{1}}, d_2) \circ \sn{1} \\
+	\sn{1} & = & \T_{\mbox{d}}(\Gamma, d_1) \\
+\end{array}$
+
+$\begin{array}{rcl}
+	\T_{\mbox{d}}(\Gamma, \mbox{VarDecl}~t~x~e) & = & \T(\Gamma, e, \tau) \\
+	\forall \emptyset . \tau	& = & \Gamma(x) \\
+\end{array}$
+
+$\begin{array}{rcl}
+	\T_{\mbox{d}}(\Gamma, \mbox{FunDecl}~t~x~\vec{\mbox{arg}}~\vec{\mbox{stmt}}) & = & \U(\theta^\sn{1}, \upsilon^\sn{1}) \circ \sn{1} \\
+	\upsilon	& = & \vec{\alpha}^\sn{1} \rightarrow \beta^\sn{1} \\
+	\sn{1}		& = & \sn{(2,n)} \\
+	\sn{(2,n)}	& = & \T(\Gamma^\sn{(2,n-1)}, \mbox{stmt}_n, \beta^\sn{(2,n-1)}) \circ \sn{(2,n-1)} \\
+	& \vdots & \\
+	\sn{(2,2)}	& = & \T(\Gamma^\sn{(2,1)}, \mbox{stmt}_2, \beta^\sn{(2,1)}) \circ \sn{(2,2)} \\
+	\sn{(2,1)}	& = & \T(\Gamma^\sn{3}, \mbox{stmt}_1, \beta^\sn{3}) \circ \sn{3} \\
+	
+	
+\end{array}$
+
+
 
 \section{Tests}
 
