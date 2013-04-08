@@ -19,13 +19,21 @@ import TypeInference
 import SemanticAnalysis
 import Errors
 
+valid :: IndexSpan -> Bool
+valid (IndexSpan n m) = n >= 0 && m >= n
+
 standardMessageIO :: String -> String -> IndexSpan -> Console.MessageE -> IO () -> IO ()
 standardMessageIO filename source idx kind message = do
-	let loc = Source.convert (Source.beginOfSpan idx) source
-	Console.putMessage kind filename loc ""
-	message
-	putStr "\n"
-	Source.pointOutIndexSpan idx source
+	when (valid idx) $ do
+		let loc = Source.convert (Source.beginOfSpan idx) source
+		Console.putMessage kind filename loc ""
+		message
+		putStr "\n"
+		Source.pointOutIndexSpan idx source
+	when (not $ valid idx) $ do
+		Console.putMessage kind filename (-1,-1) ""
+		message
+		putStr " (no location)\n"
 
 standardMessage :: String -> String -> IndexSpan -> Console.MessageE -> String -> IO ()
 standardMessage filename source idx kind message = do
