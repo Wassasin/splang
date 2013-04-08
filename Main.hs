@@ -194,7 +194,7 @@ printTypingError opts filename source (VoidUsage meta mt)	= do
 		monoTypePrint basicInfo coloredTypePrinter mt
 		Console.intense " inferred here:")
 printTypingError opts filename source (TypeError pt1 pt2)	= do
-	standardMessageIO filename source (src $ getMeta pt1) Console.Note (do
+	standardMessageIO filename source (src $ getMeta pt1) Console.Error (do
 		Console.intense "Type mismatch. Expected type "
 		monoTypePrint basicInfo coloredTypePrinter pt1
 		Console.intense " declared here:")
@@ -202,5 +202,9 @@ printTypingError opts filename source (TypeError pt1 pt2)	= do
 		Console.intense "Actual type "
 		monoTypePrint basicInfo coloredTypePrinter pt2
 		Console.intense " inferred here:")
-printTypingError opts filename source (WrongArguments es as m)	= standardMessage filename source (src m) Console.Error (pre ++ show (length es) ++ " given, but " ++ show (length as) ++ " expected.")
+printTypingError opts filename source (WrongArguments es as m)	= do 
+	standardMessage filename source (src m) Console.Error (pre ++ show (length es) ++ " given, but " ++ show (length as) ++ " expected.")
 	where pre = if (length es < length as) then "Too few arguments given, " else "Too many arguments given, "
+printTypingError opts filename source (NoFunction i u m)	= standardMessageIO filename source (src m) Console.Error (do
+		Console.intense $ getString i ++ " used as function, but has type "
+		monoTypePrint basicInfo coloredTypePrinter u)

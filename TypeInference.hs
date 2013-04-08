@@ -21,7 +21,7 @@ type InferState = FTid
  Cannot unify types
  IdentID could not be found in context
  wrong number of arguemnts in function app -}
-data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m) | WrongArguments [AST.Expr m] [MonoType m] m
+data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m) | WrongArguments [AST.Expr m] [MonoType m] m | NoFunction (AST.Identifier m) (MonoType m) m
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
@@ -392,13 +392,13 @@ inferExpr _ (AST.Kint _ m) t = do
 inferExpr _ (AST.Kbool _ m) t = do
 	s <- genMgu (Bool m) t
 	return s
-inferExpr c (AST.FunCall i es m) t = do
-	i <- fetchIdentID i
+inferExpr c (AST.FunCall ident es m) t = do
+	i <- fetchIdentID ident
 	u <- c i
 	u <- genBind m u
 	case u of
 		Func us _ _ -> when (length es /= length us) $ addInferError (WrongArguments es us m)
-		_ -> return () -- We already see below when something is not a function
+		_ -> addInferError (NoFunction ident u m)
 	r <- genFreshConcrete m
 	as <- sequence $ map (\e -> genFreshConcrete $ getMeta e) es
 	v <- return $ Func as r m
