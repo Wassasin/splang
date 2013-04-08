@@ -171,12 +171,12 @@ minfer opts filename source program = do
 			exitFailure
 
 printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
-printTypingError opts filename source (CannotUnify mt1 mt2)	= do
-	Console.putMessage Console.Error filename (-1, -1) "Cannot unify types "
-	monoTypePrint basicInfo coloredTypePrinter mt1
-	Console.intense " and "
-	monoTypePrint basicInfo coloredTypePrinter mt2
-	putStr "\n"
+printTypingError opts filename source (CannotUnify m mt1 mt2)	= do
+	standardMessageIO filename source (src m) Console.Error (do
+		Console.intense "Cannot unify types "
+		monoTypePrint basicInfo coloredTypePrinter mt1
+		Console.intense " and "
+		monoTypePrint basicInfo coloredTypePrinter mt2)
 	standardMessageIO filename source (src $ getMeta mt1) Console.Note (do
 		Console.intense "Type "
 		monoTypePrint basicInfo coloredTypePrinter mt1

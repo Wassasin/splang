@@ -21,7 +21,7 @@ type InferState = FTid
  Cannot unify types
  IdentID could not be found in context
  wrong number of arguemnts in function app -}
-data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m) | WrongArguments [AST.Expr m] [MonoType m] m | NoFunction (AST.Identifier m) (MonoType m) m
+data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify m (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m) | WrongArguments [AST.Expr m] [MonoType m] m | NoFunction (AST.Identifier m) (MonoType m) m
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
@@ -134,9 +134,9 @@ applyPoly s p@(Poly a t m) = case s $ Free a m of -- in case of application over
 createPoly :: [FreeType m] -> MonoType m -> m -> PolyType m
 createPoly as t m = foldr (\a t -> Poly a t m) (Mono t m) as
 
-genMgu :: MonoType m -> MonoType m -> InferMonadD m (Substitution m)
-genMgu t1 t2 = case mgu t1 t2 of
-	Fail u1 u2 -> returnInferError id $ CannotUnify u1 u2 -- Cannot infer; assume no substitution, and attempt to continue
+genMgu :: m -> MonoType m -> MonoType m -> InferMonadD m (Substitution m)
+genMgu m t1 t2 = case mgu t1 t2 of
+	Fail u1 u2 -> returnInferError id $ CannotUnify m u1 u2 -- Cannot infer; assume no substitution, and attempt to continue
 	Success s -> return s
 
 genFresh :: InferMonadD m (m -> MonoType m)
@@ -279,7 +279,7 @@ inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 	-- define eventual type of this function
 	v <- return $ Func (map (s . snd) argtup) (s b) m
 	-- unify with type in original context
-	s <- genMgu (s u) (s v) .> s
+	s <- genMgu m (s u) (s v) .> s
 	do -- validate FunDecl, because after this validation is no longer possible due to possible binding by type annotation
 		fce <- ftvc m ce
 		let bs = ftvm (s v) \\ fce
@@ -331,12 +331,12 @@ inferStmt c (AST.Assignment i e m) _ = do
 	s <- inferExpr c e u
 	return s
 inferStmt _ (AST.Return Nothing m) t = do
-	s <- genMgu t (Void m)
+	s <- genMgu m t (Void m)
 	return s
 inferStmt c (AST.Return (Just e) m) t = do
 	a <- genFreshConcrete m
 	s <- inferExpr c e a
-	s <- genMgu (s t) (s a) .> s
+	s <- genMgu m (s t) (s a) .> s
 	return s
 
 matchBinOp :: AST.BinaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoType m, m -> MonoType m)
@@ -370,7 +370,7 @@ inferExpr c (AST.Var i m) t = do
 	i <- fetchIdentID i
 	u <- c i
 	u <- genBind m u
-	s <- genMgu t u
+	s <- genMgu m t u
 	return s
 inferExpr c (AST.Binop e1 op e2 m) t = do
 	(xf, yf, uf) <- matchBinOp op
@@ -378,19 +378,19 @@ inferExpr c (AST.Binop e1 op e2 m) t = do
 	s <- inferExpr c e1 x
 	c <- apply s c
 	s <- inferExpr c e2 (s y) .> s
-	s <- genMgu (s t) (s u) .> s
+	s <- genMgu m (s t) (s u) .> s
 	return s
 inferExpr c (AST.Unop op e m) t = do
 	(xf, uf) <- matchUnOp op
 	let (x, u) = (xf $ getMeta e, uf m)
 	s <- inferExpr c e x
-	s <- genMgu (s t) (s u) .> s
+	s <- genMgu m (s t) (s u) .> s
 	return s
 inferExpr _ (AST.Kint _ m) t = do
-	s <- genMgu (Int m) t
+	s <- genMgu m (Int m) t
 	return s
 inferExpr _ (AST.Kbool _ m) t = do
-	s <- genMgu (Bool m) t
+	s <- genMgu m (Bool m) t
 	return s
 inferExpr c (AST.FunCall ident es m) t = do
 	i <- fetchIdentID ident
@@ -402,13 +402,13 @@ inferExpr c (AST.FunCall ident es m) t = do
 	r <- genFreshConcrete m
 	as <- sequence $ map (\e -> genFreshConcrete $ getMeta e) es
 	v <- return $ Func as r m
-	s <- genMgu u v
+	s <- genMgu m u v
 	s <- foldl (>>=) (return s) $ map (\(e, a) -> \s -> do
 		c <- apply s c
 		s <- inferExpr c e (s a) .> s
 		when(usingVoid (s a)) $ addInferError (VoidUsage m (s a))
 		return s) $ zip es as
-	s <- genMgu (s t) (s r) .> s
+	s <- genMgu m (s t) (s r) .> s
 	return s
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFreshConcrete $ getMeta e1
@@ -416,9 +416,9 @@ inferExpr c (AST.Pair e1 e2 m) t = do
 	c <- apply s c
 	a2 <- genFreshConcrete $ getMeta e2
 	s <- inferExpr c e2 a2 .> s
-	s <- genMgu (s t) (s $ Pair a1 a2 m) .> s
+	s <- genMgu m (s t) (s $ Pair a1 a2 m) .> s
 	return s
 inferExpr _ (AST.Nil m) t = do
 	a <- genFreshConcrete m
-	s <- genMgu t (List a m)
+	s <- genMgu m t (List a m)
 	return s
