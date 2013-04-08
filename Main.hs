@@ -83,6 +83,9 @@ main = do
 	(pResult3, b2) <- minfer opts file source pResult2
 	when (showStages opts) $ Console.highLightLn ("*** Typing " ++ sucfail b2)
 
+	let printingInfo = withIdentCommentInline identCommetns $ withDeclCommentLine declComments basicInfo
+	when (showTypingResult opts) $ prettyPrint printingInfo (astPrinter opts) pResult2
+
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 
 	let b = b0 && b1 && b2
@@ -174,8 +177,13 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) s
 
 ifWarning kind opts = when (kind . enabledWarnings $ opts)
 
-declComments :: P2 AST.Decl  -> MarkupString Styles
+declComments :: P2 AST.Decl -> MarkupString Styles
 declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ output basicInfo (fromJust . annotatedType $ getMeta decl)
+
+identCommetns :: P2 AST.Identifier -> MarkupString Styles
+identCommetns (AST.Identifier _ n _) = case n of
+	Nothing -> lift "?"
+	Just m -> lift $ show m
 
 minfer :: Options -> String -> String -> (P2 Program) -> IO ([(AST.IdentID, PolyType P2Meta)], Bool)
 minfer opts filename source program = do

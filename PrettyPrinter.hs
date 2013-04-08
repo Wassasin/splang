@@ -19,12 +19,12 @@ plainPrettyPrinter :: Printer (IO ())
 plainPrettyPrinter = prettyPrinter putChar (const (return ()))
 
 -- minizer output
-strip '\t' = return ()
-strip '\n' = return ()
-strip c = putChar c
+stripy '\t' = return ()
+stripy '\n' = return ()
+stripy c = putChar c
 
 miniPrettyPrinter :: Printer (IO ())
-miniPrettyPrinter = prettyPrinter strip (const (return ()))
+miniPrettyPrinter = prettyPrinter stripy (const (return ()))
 
 -- Colored Output
 syntaxColor :: Styles -> Color

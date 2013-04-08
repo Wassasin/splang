@@ -1,6 +1,6 @@
 module Options (Warnings(..), Options(..), mkOptions) where
 
-import Control.Monad.Instances
+import Control.Monad.Instances()
 import System.Console.GetOpt
 
 import PrettyPrinter
@@ -20,6 +20,7 @@ data Options = Options
 	, showLexingResult :: Bool
 	, showParsingResult :: Bool
 	, showScopingResult :: Bool
+	, showTypingResult :: Bool
 	, showStages :: Bool
 	, lexOnly :: Bool
 	, parseOnly :: Bool
@@ -34,6 +35,7 @@ defaultOptions = Options
 	, showLexingResult = False
 	, showParsingResult = False
 	, showScopingResult = False
+	, showTypingResult = True
 	, showStages = False
 	, lexOnly = False
 	, parseOnly = False
@@ -43,7 +45,7 @@ defaultOptions = Options
 
 warningsOptions :: String -> Warnings -> Warnings
 warningsOptions "no-shadow" w = w { shadowing = False }
-warningsOptions other w = w
+warningsOptions _ w = w
 
 -- Apply changes on Warnings to Options
 lift :: (Warnings -> Warnings) -> (Options -> Options)
@@ -58,6 +60,7 @@ options =
 	, Option [] ["show-lexing"]	(NoArg (\o -> o { showLexingResult = True }))		"shows the in-between lexing result"
 	, Option [] ["show-parsing"]	(NoArg (\o -> o { showParsingResult = True }))		"prettyprints the AST after parsing"
 	, Option [] ["show-scoping"]	(NoArg (\o -> o { showScopingResult = True }))		"prettyprints the AST after scoping"
+	, Option [] ["show-typing"]	(NoArg (\o -> o { showTypingResult = True }))		"prettyprints the AST after typing"
 	, Option [] ["show-stages"]	(NoArg (\o -> o { showStages = True }))			"show stages during compilation"
 	, Option [] ["lex-only"]	(NoArg (\o -> o { lexOnly = True }))			"stops after the lexing pass"
 	, Option [] ["parse-only"]	(NoArg (\o -> o { parseOnly = True }))			"stops after the parsing pass"
