@@ -1,0 +1,16 @@
+
+t id(t x){
+	return x;
+}
+
+Int id2(Int x){
+	return id(x);
+}
+
+Bool id3(Bool x){
+	return id(x);
+}
+
+Void main(){
+	id2(id(id3(True)));
+}

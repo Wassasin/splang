@@ -1,0 +1,13 @@
+[t] bla([t] l){
+	if(isEmpty(l)) return [];
+	return tail(l);
+}
+
+[Int] foo(Int a, Int b){
+	if(a > b) return [];
+	return a:foo(a+1, b);
+}
+
+Void main(){
+	print(bla(foo(1,4)));
+}
