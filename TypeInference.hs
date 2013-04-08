@@ -5,6 +5,7 @@ module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), 
 import Control.Monad
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))
+import Data.Tuple (swap)
 import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin, annotatedType)
 import Errors
 import Meta (ASTMeta, getMeta)
@@ -216,20 +217,31 @@ validateDeclContext c (AST.FunDecl _ i _ decls _ m) = do
 	sequence $ map (\d -> validateDeclContext c d) decls
 	return ()
 
-validateType :: MonoType P2Meta -> MonoType P2Meta -> InferMonadD P2Meta ()
-validateType (Func aargs ar _) (Func bargs br _) = do
-	sequence $ map (\(aarg, barg) -> validateType aarg barg) $ zip aargs bargs
-	validateType ar br
-	return ()
-validateType (Pair aa ab _) (Pair ba bb _) = do
-	validateType aa ba
-	validateType ab bb
-validateType (List a _) (List b _) = validateType a b
-validateType (Free _ _) (Free _ _) = return ()
-validateType (Int _) (Int _) = return ()
-validateType (Bool _) (Bool _) = return ()
-validateType (Void _) (Void _) = return ()
-validateType a b = returnInferError () $ TypeError a b
+validateType :: MonoType P2Meta -> MonoType P2Meta -> InferMonadD P2Meta [(FreeType P2Meta, FreeType P2Meta)]
+validateType a b = vt a b []
+	where
+		vt :: MonoType P2Meta -> MonoType P2Meta -> [(FreeType P2Meta, FreeType P2Meta)] -> InferMonadD P2Meta [(FreeType P2Meta, FreeType P2Meta)]
+		vt (Func aargs ar _) (Func bargs br _) ftmap = do
+			ftmap <- foldl (>>=) (return ftmap) $ map (\(aarg, barg) -> vt aarg barg) $ zip aargs bargs
+			vt ar br ftmap
+		vt (Pair aa ab _) (Pair ba bb _) ftmap = do
+			ftmap <- vt aa ba ftmap
+			vt ab bb ftmap
+		vt (List a _) (List b _) ftmap = vt a b ftmap
+		vt at@(Free a _) bt@(Free b _) ftmap = do
+			case find ftmap a of
+				Nothing	-> case find (map swap ftmap) b of
+					Nothing	-> return $ (a, b):ftmap
+					Just _	-> returnInferError ftmap $ TypeError at bt
+				Just c	-> if(c == b) then return ftmap else returnInferError ftmap $ TypeError at bt
+		vt (Int _) (Int _) ftmap = return ftmap
+		vt (Bool _) (Bool _) ftmap = return ftmap
+		vt (Void _) (Void _) ftmap = return ftmap
+		vt a b ftmap = returnInferError ftmap $ TypeError a b
+		
+		find :: [(FreeType P2Meta, FreeType P2Meta)] -> FreeType P2Meta -> Maybe (FreeType P2Meta)
+		find [] _ = Nothing
+		find ((xk, xv):xs) y = if(xk == y) then Just xv else find xs y
 
 infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
 infer p = flip bo 2 $ do -- FT 0 & 1 are reserved for keywords
