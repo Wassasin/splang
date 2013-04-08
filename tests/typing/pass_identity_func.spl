@@ -7,8 +7,8 @@ t id(t x)
 
 Void main()
 {
-	v f = id(True);
-	w g = id(5);
+	Bool f = id(True);
+	Int g = id(5);
 	return;
 }
 

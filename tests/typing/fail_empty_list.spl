@@ -1,0 +1,7 @@
+// Test: polymorphic list variable, fails because used as both [Int] and [Bool]
+
+Void main(){
+	[t] x = [];
+	print(1:x);
+	print(True:x);
+}

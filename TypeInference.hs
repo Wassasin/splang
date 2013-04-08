@@ -20,8 +20,8 @@ type InferState = FTid
  Annotation is wron
  Cannot unify types
  IdentID could not be found in context
- A substitution of a bound free variable in a PolyType occurred; probably did not bind the unbound type somewhere -}
-data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m)
+ wrong number of arguemnts in function app -}
+data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m) | WrongArguments [AST.Expr m] [MonoType m] m
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
@@ -396,6 +396,9 @@ inferExpr c (AST.FunCall i es m) t = do
 	i <- fetchIdentID i
 	u <- c i
 	u <- genBind m u
+	case u of
+		Func us _ _ -> when (length es /= length us) $ addInferError (WrongArguments es us m)
+		_ -> return () -- We already see below when something is not a function
 	r <- genFreshConcrete m
 	as <- sequence $ map (\e -> genFreshConcrete $ getMeta e) es
 	v <- return $ Func as r m

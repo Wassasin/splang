@@ -202,3 +202,5 @@ printTypingError opts filename source (TypeError pt1 pt2)	= do
 		Console.intense "Actual type "
 		monoTypePrint basicInfo coloredTypePrinter pt2
 		Console.intense " inferred here:")
+printTypingError opts filename source (WrongArguments es as m)	= standardMessage filename source (src m) Console.Error (pre ++ show (length es) ++ " given, but " ++ show (length as) ++ " expected.")
+	where pre = if (length es < length as) then "Too few arguments given, " else "Too many arguments given, "
