@@ -55,6 +55,21 @@ Void foo(){
 We infer types.
 
 \section{Tests}
+All tests are performed with the \texttt{--show-input --show-stages} flags, and all colors are stripped.
+\subsection{Parsing}
+\begin{itemize}
+	\item[fail\_ambi] This program can be read ambiguously. Note that the compiler detects this, and prints out all possible interpretations. However this error is not fatal, and the compilation continues, and catches a typing error: the \texttt{if}-construct expects a \texttt{Bool}, but an \texttt{Int} was given.
+\end{itemize}
+\subsection{Binding}
+\begin{itemize}
+	\item[warn\_shadowing] This shows the warnings one get when redeclaring the same identifier in a more specific scope. Note that the functions \texttt{x} and \texttt{y} are both identity functions.
+	\item[fail\_identifier\_errors] If one redeclares identifiers in the same scope, an non-fatal error will be given. Note that compilation continues and more errors are found. If an identifiers is undeclared, a suggestion is given by the compiler.
+\end{itemize}
+\subsection{Typing}
+\begin{itemize}
+	\item[fail\_arguments] Shows the error messages you get when you don't suply the right amount of arguments. Also note that the arguments that \emph{are} supplied, are also type checked.
+	\item[fail\_void\_no\_return] Shows that we do not accept a returning function without return statement. Specifically, we see that the compiler infers that \texttt{foo} returns \texttt{Void}, instead of \texttt{Int}. Furthermore we see that we cannot use values of type \texttt{Void}.
+\end{itemize}
 
 \section{Reflection}
 The work was more or less equally divided, as we seen on github:

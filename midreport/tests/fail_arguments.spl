@@ -1,0 +1,18 @@
+//Tim  Steenvoorden (s0712663), extended by also including typing errors (so we should see more than one error)
+
+[Int] function (Int n, Bool b, [Int] l)
+{
+	print(n);
+	print(b);
+	print(l);
+	return l;
+}
+
+Void main ()
+{
+	[Int] list = 1:2:3:[];
+
+	function(10, 10);
+	function(10, [], [], []);
+}
+
