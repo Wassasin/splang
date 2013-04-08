@@ -100,7 +100,7 @@ mgu (Func xs xr _) (Func ys yr _)	= foldr (\(x, y) su -> case su of
 							Fail x y	-> Fail x y
 						) (mgu xr yr) (zip xs ys)
 mgu (Pair xx xy _) (Pair yx yy _)	= case mgu xy yy of
-						Success s	-> mgu (s xx) (s yx)
+						su@(Success s)	-> compose (mgu (s xx) (s yx)) su
 						Fail x y	-> Fail x y
 mgu (List x _) (List y _)		= mgu x y
 mgu (Int _) (Int _)			= Success id
