@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Compiling examplePrograms"
-for f in ./examplePrograms/*.spl
+for f in ./{examplePrograms,tests}/*.spl
 do
 	../build/splang --show-input --show-stages "$@" $f | perl -pe 's/\e\[?.*?[\@-~]//g' > $f.txt
 done
