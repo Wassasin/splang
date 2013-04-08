@@ -51,7 +51,10 @@ instance Source.Sourcable P2Meta where
 	src = source2
 
 -- Will be passed around and updated
-type ScopingContext = (P1Context, TypeContext)
+data ScopingContext = ScopingContext {identifiers :: P1Context, types :: TypeContext}
+
+addIdentifier :: P1 AST.Identifier -> Scope -> PolyType P2Meta -> ScopingContext -> ScopingContext
+addIdentifier ident s at context = context { identifiers = (User ident, (s, at)) : identifiers context }
 
 -- Forget the new structure (especially useful with fmap)
 forget :: P2Meta -> P1Meta
@@ -119,8 +122,8 @@ stripContext [] = []
 stripContext ((Builtin b,_):xs) = fromEnum b : stripContext xs
 stripContext ((User (AST.Identifier _ n _),_):xs) = fromJust n : stripContext xs
 
-annotateType :: P1Context -> PolyType P2Meta -> P2Meta -> P2Meta
-annotateType _ t m = m { annotatedType = Just t }
+annotateType :: PolyType P2Meta -> P2Meta -> P2Meta
+annotateType t m = m { annotatedType = Just t }
 
 
 -- First identifier is always the one in the source
@@ -134,7 +137,7 @@ emptyContext = map (\x -> (Builtin x, (Global, fmap (const stupidP1Meta) (typeOf
 	where stupidP1Meta = promote $ constructP1 (Source.IndexSpan (-1) (-1))	-- TODO: fix this, if needed
 
 startContext :: ScopingContext
-startContext = (emptyContext, [])
+startContext = ScopingContext { identifiers = emptyContext, types = [] }
 
 -- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID),
 -- and add context (with scoping and annotated types) to the AST.
@@ -163,24 +166,24 @@ assignGlobDecls context (decl:xs) = do
 
 assignGlobDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl, ScopingContext)
 assignGlobDecl context decl@(AST.VarDecl a ident b m) = do
-	let ident2 = AST.assignUniqueID ident (nextUniqueID (fst context))
-	let (at, newTypeContext) = getAnnotatedType (snd context) decl
-	case idLookup ident (fst context) of
+	let ident2 = AST.assignUniqueID ident (nextUniqueID (identifiers context))
+	let (at, newTypeContext) = getAnnotatedType (types context) decl
+	case idLookup ident (identifiers context) of
 		Just (iy, _) -> returnWithError (AST.VarDecl a ident b m, context) (DuplicateDeclaration (fmap forget ident) iy)
-		Nothing -> return (AST.VarDecl a ident2 b m, ((User (fmap forget ident2), (Global, at)):(fst context), newTypeContext))
+		Nothing -> return (AST.VarDecl a ident2 b m, addIdentifier (fmap forget ident2) Global at context {types = newTypeContext})
 assignGlobDecl context decl@(AST.FunDecl a ident b c d m) = do
-	let ident2 = AST.assignUniqueID ident (nextUniqueID (fst context))
-	let (at, argTypeContext) = getAnnotatedType (snd context) decl
+	let ident2 = AST.assignUniqueID ident (nextUniqueID (identifiers context))
+	let (at, argTypeContext) = getAnnotatedType (types context) decl
 	let m2 = m { argsTypeContext = argTypeContext }
-	case idLookup ident (fst context) of
+	case idLookup ident (identifiers context) of
 		Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d m2, context) (DuplicateDeclaration (fmap forget ident) iy)
-		Nothing -> return (AST.FunDecl a ident2 b c d m2, ((User (fmap forget ident2), (Global, at)):(fst context), (snd context)))
+		Nothing -> return (AST.FunDecl a ident2 b c d m2, addIdentifier (fmap forget ident2) Global at context)
 
 
 -- Part Two --
 -- Used to assign context in subtrees (via fmap)
 updateContext :: ScopingContext -> P2Meta -> P2Meta
-updateContext newContext thing = thing { context = (fst newContext) }
+updateContext newContext thing = thing { context = (identifiers newContext) }
 
 
 -- Part Three --
@@ -190,15 +193,15 @@ assignAll context (AST.Program decls m) = do
 	return (AST.Program decls2 m)
 
 assignDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl)
-assignDecl context@(c,_) (AST.VarDecl a ident b m) = do
-	let at = snd . snd . fromJust $ idLookup ident c
-	let m2 = annotateType c at m
+assignDecl context (AST.VarDecl a ident b m) = do
+	let at = snd . snd . fromJust $ idLookup ident (identifiers context)
+	let m2 = annotateType at m
 	y <- assignExpr b
 	return (AST.VarDecl a ident y m2)
-assignDecl context@(c,tc) (AST.FunDecl t ident args decls stmtsin m) = do
-	let at = snd . snd . fromJust $ idLookup ident c
-	let m2 = annotateType c at m
-	let context2 = (c, (argsTypeContext m) ++ tc)
+assignDecl context (AST.FunDecl t ident args decls stmtsin m) = do
+	let at = snd . snd . fromJust $ idLookup ident (identifiers context)
+	let m2 = annotateType at m
+	let context2 = context { types = (argsTypeContext m) ++ (types context) }
 	(args, context2) <- assignFargs context2 args
 	(decls, context2) <- assignVarDecls context2 decls
 	let stmts = fmap (fmap (updateContext context2)) stmtsin -- iterate over the list, iterate through tree
@@ -215,17 +218,17 @@ assignFargs context ((t,i):rest) = do
 	return ((x:rest), context)
 
 assignFarg :: ScopingContext -> (P2 AST.Type, P2 AST.Identifier) -> ScopingResult ((P2 AST.Type, P2 AST.Identifier), ScopingContext)
-assignFarg (context, typecontext) (t, ident) = do
-	let (at, newTypeContext) = getAnnotatedType typecontext t
-	let newIdent = fmap (annotateType context at) (AST.assignUniqueID ident (nextUniqueID context))
-	let newT = fmap (annotateType context at) t
+assignFarg context (t, ident) = do
+	let (at, newTypeContext) = getAnnotatedType (types context) t
+	let newIdent = fmap (annotateType at) (AST.assignUniqueID ident (nextUniqueID (identifiers context)))
+	let newT = fmap (annotateType at) t
 	let arg = (newT, newIdent)
 	let fident = (fmap forget newIdent)
-	let newContext = (User fident, (Argument, at)):context
-	case idLookup ident context of
-		Just (iy, (Global, _))	-> returnWithWarning (arg, (newContext, newTypeContext)) (ShadowsDeclaration fident iy Global)
-		Just (iy, _)		-> returnWithError (arg, (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
-		Nothing			-> return (arg, (newContext, newTypeContext))
+	let newContext = addIdentifier fident Argument at context { types = newTypeContext }
+	case idLookup ident (identifiers context) of
+		Just (iy, (Global, _))	-> returnWithWarning (arg, newContext) (ShadowsDeclaration fident iy Global)
+		Just (iy, _)		-> returnWithError (arg, newContext) (DuplicateDeclaration fident iy)
+		Nothing			-> return (arg, newContext)
 
 assignVarDecls :: ScopingContext -> [P2 AST.Decl] -> ScopingResult ([P2 AST.Decl], ScopingContext)
 assignVarDecls context [] = return ([], context)
@@ -236,17 +239,17 @@ assignVarDecls context (xin:rest) = do
 	return ((x:rest), context)
 
 assignVarDecl :: ScopingContext -> P2 AST.Decl -> ScopingResult (P2 AST.Decl, ScopingContext)
-assignVarDecl (context, typecontext) decl@(AST.VarDecl a ident b m) = do
+assignVarDecl context decl@(AST.VarDecl a ident b m) = do
 	b <- assignExpr b
-	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
+	let newIdent = AST.assignUniqueID ident (nextUniqueID (identifiers context))
 	let fident = (fmap forget newIdent)
-	let (at, newTypeContext) = getAnnotatedType typecontext decl
-	let newContext = (User fident, (Local, at)):context
-	let newDecl = AST.VarDecl a newIdent b (annotateType context at m)
-	case idLookup ident context of
-		Just (iy, (Local, _))	-> returnWithError (newDecl, (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
-		Just (iy, (scope, _))	-> returnWithWarning (newDecl, (newContext, newTypeContext)) (ShadowsDeclaration fident iy scope)
-		Nothing			-> return (newDecl, (newContext, newTypeContext))
+	let (at, newTypeContext) = getAnnotatedType (types context) decl
+	let newContext = addIdentifier fident Local at context { types = newTypeContext }
+	let newDecl = AST.VarDecl a newIdent b (annotateType at m)
+	case idLookup ident (identifiers context) of
+		Just (iy, (Local, _))	-> returnWithError (newDecl, newContext) (DuplicateDeclaration fident iy)
+		Just (iy, (scope, _))	-> returnWithWarning (newDecl, newContext) (ShadowsDeclaration fident iy scope)
+		Nothing			-> return (newDecl, newContext)
 assignVarDecl _ (AST.FunDecl _ _ _ _ _ _) = error "COMPILER BUG: Unexpected function declaration inside function body."
 
 -- At this point, all contexts are fixed in the meta info
