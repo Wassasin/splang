@@ -116,7 +116,7 @@ consumeComment (str, start)
 								end = start+size
 								in Match [Token (Comment (Source.substr str 2 n)) (Source.IndexSpan start end)] (Source.precut str size, end)
 	| (Source.isPrefixOf "//" str) = case Source.findLast (\c -> c /= '\n') (Source.precut str 2) of
-							Nothing -> NoMatch start
+							Nothing -> Match [Token (Comment "") (Source.IndexSpan start (start+2))] (Source.precut str 2, start+2)
 							Just n -> let
 								size = 2+n+1
 								end = start+size
