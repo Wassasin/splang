@@ -105,6 +105,7 @@ consumeWhitespace :: LexerFunc
 consumeWhitespace (' ':xs, i) = Match [] (xs, i+1)
 consumeWhitespace ('\t':xs, i) = Match [] (xs, i+1)
 consumeWhitespace ('\n':xs, i) = Match [] (xs, i+1)
+consumeWhitespace ('\r':xs, i) = Match [] (xs, i+1)
 consumeWhitespace (_, i) = NoMatch i
 
 consumeComment :: LexerFunc
