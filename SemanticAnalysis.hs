@@ -241,7 +241,7 @@ assignVarDecl (context, typecontext) decl@(AST.VarDecl a ident b m) = do
 	let newIdent = AST.assignUniqueID ident (nextUniqueID context)
 	let fident = (fmap forget newIdent)
 	let (at, newTypeContext) = getAnnotatedType typecontext decl
-	let newContext = (User fident, (Argument, at)):context
+	let newContext = (User fident, (Local, at)):context
 	let newDecl = AST.VarDecl a newIdent b (annotateType context at m)
 	case idLookup ident context of
 		Just (iy, (Local, _))	-> returnWithError (newDecl, (newContext, newTypeContext)) (DuplicateDeclaration fident iy)
