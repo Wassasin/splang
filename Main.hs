@@ -50,28 +50,31 @@ exit :: Bool -> IO ()
 exit True = exitSuccess
 exit False = exitFailure
 
+sucfail :: Bool -> String
+sucfail True = "succeeded"
+sucfail False = "failed (but we try to continue!)"
+
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
 	source <- readFile file
 	when (showInput opts) $ putStrLn source
+	when (showStages opts) $ Console.highLightLn "*** Done reading file"
 
 	lResult <- mlex opts file source
+	when (showStages opts) $ Console.highLightLn ("*** Lexing is done")
 	when (lexOnly opts) $ exitSuccess
 
 	(pResult, b0) <- mparse opts file source (filterComment lResult)
+	when (showStages opts) $ Console.highLightLn ("*** Parsing " ++ sucfail b0)
 	when (parseOnly opts) $ exit b0
 
 	(pResult2, b1) <- midentifiers opts file source pResult
+	when (showStages opts) $ Console.highLightLn ("*** Scoping " ++ sucfail b1)
 	when (scopeOnly opts) $ exit b1
 
 	(pResult3, b2) <- minfer opts file source pResult2
-
-	Console.highLightLn "Globals infered:"
-	sequence $ map (\(i, t) -> do
-		Console.intense (show i ++ ": ")
-		polyTypePrint basicInfo coloredTypePrinter t
-		putStr "\n") pResult3
+	when (showStages opts) $ Console.highLightLn ("*** Typing " ++ sucfail b2)
 
 	let b = b0 && b1 && b2
 	exit b

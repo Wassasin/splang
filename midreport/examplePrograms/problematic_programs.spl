@@ -1,0 +1,13 @@
+/*
+Problematic programs - Compiler Construction
+
+Stein Keijzers (3004856)
+Peter Maandag (3047121)
+*/
+
+Void NegativeAssociativity(Int n) {return n - 3 - 2 - 1;}
+Void AndAssociativity(Bool b1, Bool b2, Bool b3) {return b1 && b2 && b3;}
+Void PlusAssociativity(Int n) {return n + 3 + 2 + 1;}
+Void DivAssociativity(Int n) {return n / 3 / 2 / 1;}
+Void PlusMulPriority(Int n) {return n * n + n * n;}
+Void NegativeNumber(Int n) {return n + -5;}

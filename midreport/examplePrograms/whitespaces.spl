@@ -1,0 +1,22 @@
+//Tim  Steenvoorden (s0712663)
+
+/* Some code in a comment
+
+   Void int ()
+   {id = null;}
+
+   if(x == < 6) {}
+*/
+
+// A strange name, but parsable
+Void CAPPS (Int X , Bool S)
+{
+	// Everthing on one line
+	X = 0; S = True; return;
+}
+
+Void tabbed () 
+{
+	// Indented with tabs
+	return;
+}

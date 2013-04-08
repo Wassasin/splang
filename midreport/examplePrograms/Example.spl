@@ -1,0 +1,30 @@
+/* Renze  Droog (s4290755)
+
+	Length
+   of
+   months
+*/
+
+[Int] dcLengthOfMonth = 0 : 31 : 28 : 31 : 30 : 31 : 30 : 31 : 31 : 30 : 31 : 30 : 31 : [];
+
+
+//Calculates in which month the given Int is. 1=January, 2=February, .., 12=December
+Int month(Int dayOfYear){Int tempDay = dayOfYear;Int month = 0;
+
+
+
+    
+    			 // unuseful comment
+    
+    while(month < 12)
+    {
+						if(tempDay > dcLengthOfMonth(month))
+	{{{{
+    	                tempDay = tempDay - - - - - dcLengthOfMonth(month);
+        }}}}
+	else return month + 1;
+
+       month = month + 1;
+	}
+return month + 1;
+}
