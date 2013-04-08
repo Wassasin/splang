@@ -352,7 +352,9 @@ instance AnnotatedType AST.Decl where
 			allIdents = nub $ concat $ map (\t -> typeIdentifiers t []) (rt : map fst args)
 			pc = zip allIdents [currentFTid..]
 			argTypes = map (annotatedMType pc . fst) args
-			next = maximum (map snd pc) + 1
+			next = case pc of
+				[] -> currentFTid
+				pc -> maximum (map snd pc) + 1
 
 -- And just types (eg. in VarDecl or arguments of function)
 instance AnnotatedType Type where
@@ -361,4 +363,6 @@ instance AnnotatedType Type where
 			currentFTid = nextFTid c
 			newTIs = (typeIdentifiers t []) \\ (map fst $ types c)
 			pc = types c ++ zip newTIs [currentFTid..]
-			next = maximum (map snd pc) + 1
+			next = case pc of
+				[] -> currentFTid
+				pc -> maximum (map snd pc) + 1
