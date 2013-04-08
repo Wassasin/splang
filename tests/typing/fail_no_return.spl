@@ -1,0 +1,3 @@
+Int foo(){
+	if(True){}
+}
