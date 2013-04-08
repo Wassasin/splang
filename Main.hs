@@ -62,6 +62,8 @@ sucfail False = "failed (but we try to continue!)"
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
+	when (showStages opts) $ Console.highLightLn ("*** Compiling " ++ file ++ " ***")
+
 	source <- readFile file
 	when (showInput opts) $ putStrLn source
 	when (showStages opts) $ Console.highLightLn "*** Done reading file"
