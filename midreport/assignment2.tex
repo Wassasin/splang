@@ -51,6 +51,10 @@ Void foo(){
 }
 \end{lstlisting}
 
+Globals can be defined in any order you want. This for example allows mutual recursion. This also holds for variable declarations, so one can declare a variable using variables which are defined later. But the compiler does not make a dependency graph, so using a variable which is not defined yet, will result in using uninitialized memory.
+
+As far as scoping is concerned variables can be used as a function, and functions can be passed to other functions. However the type system does not accept this, because the annotated type in the source can never be a function type.
+
 \section{Typing}
 We infer types.
 
