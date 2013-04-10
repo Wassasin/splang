@@ -146,10 +146,12 @@ $\begin{array}{rcl}
 
 
 \section{Tests}
-All tests are performed with the \texttt{--show-input --show-stages} flags, and all colors are stripped.
+All tests are performed with the \texttt{--show-input --show-stages} flags, and all colors are stripped. The output is a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration). For every \texttt{.spl} file, there is a \texttt{.spl.txt} file with gray output. The coloured output is also attached in a different pdf file.
+
 \subsection{Parsing}
 \begin{itemize}
 	\item[fail\_ambi] This program can be read ambiguously. Note that the compiler detects this, and prints out all possible interpretations. However this error is not fatal, and the compilation continues, and catches a typing error: the \texttt{if}-construct expects a \texttt{Bool}, but an \texttt{Int} was given.
+	\item[pass\_parser] This program shows that the compiler correctly handles associativity and priorities of infix operators.
 \end{itemize}
 \subsection{Binding}
 \begin{itemize}
@@ -160,6 +162,8 @@ All tests are performed with the \texttt{--show-input --show-stages} flags, and 
 \begin{itemize}
 	\item[fail\_arguments] Shows the error messages you get when you don't suply the right amount of arguments. Also note that the arguments that \emph{are} supplied, are also type checked.
 	\item[fail\_void\_no\_return] Shows that we do not accept a returning function without return statement. Specifically, we see that the compiler infers that \texttt{foo} returns \texttt{Void}, instead of \texttt{Int}. Furthermore we see that we cannot use values of type \texttt{Void}.
+	\item[pass\_merge\_sort] Shows that the compiler is capable of handling polymorphism. And is nicely shows a real world example, and also shows mutual recursion.
+	\item[pass\_reverse] Shows a basic reverse function. It is also used on a list of lists.
 \end{itemize}
 
 \section{Reflection}

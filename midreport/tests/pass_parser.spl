@@ -1,0 +1,6 @@
+Int x = 5-4-3*9/4/3+2;		// - is left assoc
+[Int] list = 1:2:3:4:[];	// : is right assoc
+[Int] list2 = 1+2*7 : list;
+
+Bool y = x == 4 || x > 5 || x != 0;
+[Bool] list3 = (x == 6) : True : y : [];

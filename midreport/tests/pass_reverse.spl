@@ -1,0 +1,15 @@
+[t] reverse([t] list)
+{
+	[t] accu = [];
+	while(!isEmpty(list))
+	{
+		accu = head(list) : accu;
+		list = tail(list);
+	}
+	return accu;
+}
+
+Void main(){
+	print(reverse(1:2:3:[]));
+	print(reverse((1:2:3:[]):[]));
+}
