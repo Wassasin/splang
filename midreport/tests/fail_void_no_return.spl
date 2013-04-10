@@ -1,3 +1,5 @@
+// multiple errors: Using Void and non-returning function foo.
+
 Void baz(Int n){
 	{}
 }

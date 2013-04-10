@@ -1,3 +1,5 @@
+// Correct code, but shadows identifiers (=> warnings)
+
 Void main(){
 	print(y(x(y(5))));
 }

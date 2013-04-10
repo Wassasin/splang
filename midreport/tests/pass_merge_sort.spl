@@ -1,4 +1,6 @@
-//Jascha  Neutelings (s0610054)
+// Jascha  Neutelings (s0610054)
+// Passing example
+
 Int length([t] list)
 {
 	if (isEmpty(list))

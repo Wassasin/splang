@@ -1,3 +1,5 @@
+// Simple example, also using lists of lists
+
 [t] reverse([t] list)
 {
 	[t] accu = [];

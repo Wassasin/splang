@@ -1,0 +1,15 @@
+// Passes, note that those t's are different
+
+[t] x = [];
+
+[t] list_id([t] list){
+	return list;
+}
+
+t id(t x){
+	return x;
+}
+
+Void main(){
+	print(id(list_id(x)));
+}

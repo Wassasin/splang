@@ -1,0 +1,9 @@
+// Typing error, t == Int == Bool is not possible
+
+[t] x = [];
+[t] y = []; // Same type as x
+
+Void main(){
+	print(1:x);    // => x is of type [Int]
+	print(True:y); // => y is of type [Bool] => error
+}

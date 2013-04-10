@@ -11,5 +11,5 @@
 
 Void main(){
 	print(reverse(1:2:3:[]));
-	print(reverse([]:[]));
+	print(reverse((1:2:3:[]):[]));
 }

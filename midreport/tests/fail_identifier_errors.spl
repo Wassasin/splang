@@ -1,4 +1,4 @@
-// Test: Show more errors in one pass
+// multiple errors: Undeclared identifiers + redaclaration
 
 Int bar = 5;
 Int foo = 6;

@@ -1,4 +1,5 @@
-//Tim  Steenvoorden (s0712663), extended by also including typing errors (so we should see more than one error)
+// Tim  Steenvoorden (s0712663)
+// extended by also including typing errors (so we should see more than one error)
 
 [Int] function (Int n, Bool b, [Int] l)
 {
