@@ -23,7 +23,9 @@
 \section{Implementation}
 For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining datastructures. Another nice things is the \emph{\texttt{do}-syntax} of haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperitave language.
 
-One feature we miss out in Haskell is for example \emph{generics} as in \emph{Clean}. Of course there are more minor irritations because of some differences between Clean and Haskell.
+One feature we miss out in Haskell is for example \emph{generics} as in \emph{Clean} (however the \texttt{deriving Functor} possibility of Haskell \emph{is} nice). Of course there are also some minor irritations because of some differences between Clean and Haskell.
+
+We depend on two libraries (other than the library which comes with Haskell), namely \emph{ansi-terminal} and \emph{edit-distance}. We use those for (resp.) coloured output in the terminal (colour scheme is based on the {\sc Clang} compiler) and suggestions when the programmer typed a undeclared identifier.
 
 \section{Parser}
 We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and sourecode information. It is implemented in a monadic way.
@@ -45,9 +47,9 @@ We distinguish three different scopes (from big to small): \emph{global}, \emph{
 \begin{lstlisting}
 Int x = 5; // Global
 Void foo(){
-    Int x = x; // Warning: x shadows global x
+    Int x = x; // ``Warning: x shadows global x''
                // x will be still initialized with the global x,
-               // so: x == 5 is true
+               // ie.: x == 5
 }
 \end{lstlisting}
 
@@ -63,8 +65,8 @@ Type variables have similar scoping rules. If two typevariables are used in the 
 [t] y = []; // Same type as x
 
 Void main(){
-	print(1:x);    // x is of type [Int]
-	print(True:y); // y is of type [Bool] => Type error
+	print(1:x);    // => x is of type [Int]
+	print(True:y); // => y is of type [Bool] => error
 }
 \end{lstlisting}
 
@@ -83,9 +85,9 @@ t x = /* ... */
 
 Our compiler mainly does typechecking, but some type inference is also needed. Type inference is hard to define in a imperitave language, as the variables one is infering, might be used differently later on (and mutual recursion is hard). This led to a system which does both type inference and type checking.
 
-We first determine the annotated types of every global variable and function. Then in each expression and function body those annotations are used to infer the actual type at every place in the expression or function body, and with this information the annotated type is checked. We also make sure that \texttt{return} statements really return what they should, and if there is no \texttt{return} statement, the function should return \texttt{Void}.
+We first determine the annotated types of every global variable and function. Then in all expressions and function bodies those annotations are used to infer the actual type at every place in the expression or function body, and with this information the annotated type is checked. We also make sure that \texttt{return} statements really return what they should, and if there is no \texttt{return} statement, the function should return \texttt{Void}.
 
-We only allow \texttt{Void} to occur as a return type of a function. So a list or tuples of voids will give an error. One also cannot supply void as argument, even when the function is polymorphic. For example \texttt{print(print(5))} will not compile for this reason.
+We only allow \texttt{Void} to occur as a return type of a function. So a list or tuples of \texttt{Void} will give an error. One also cannot supply \texttt{Void} as argument, even when the function is polymorphic. For example \texttt{print(print(5))} will not compile for this reason.
 
 We do not allow the programmer to write this:
 
@@ -93,10 +95,10 @@ We do not allow the programmer to write this:
 t x = 5;
 \end{lstlisting}
 
-Because it is weird to annotate x with a more general type than it really is. This is a explicit decision we made, technically the compiler is able to infer that \texttt{t == Int}. For variables allowing this code might seem reasonable, but allowing this also for function is wrong, as can be seen in the following example:
+Because it is weird to annotate x with a more general type than it really is. This is a explicit decision we made, technically the compiler is able to infer that \texttt{t == Int}. Allowing this code for variables might seem reasonable, but allowing this also for functions is wrong, as can be seen in the following example:
 
 \begin{lstlisting}
-Bool y = f();
+Bool x = f();
 
 // This should not be allowed
 t f(){ return 5; }
@@ -161,7 +163,9 @@ All tests are performed with the \texttt{--show-input --show-stages} flags, and 
 \end{itemize}
 
 \section{Reflection}
-The work was more or less equally divided, as we seen on github:
+In the first phase Wouter made the lexer, and Joshua made a first implementation of the parser in \emph{Parsec}, however we decided to write our own parsing library. This was mainly done by Wouter. In the second phase Joshua mainly worked on the scoping and type annotations, Wouter mainly on the type inference. All design choices were discussed together to ensure a working whole. And also in some cases one found a bug in the others code. So eventually all code understood by both of us.
+
+For a very precise description of who did what, one can have a look at our repository:
 
 \url{https://github.com/Wassasin/splang}
 
