@@ -1,0 +1,32 @@
+//Tim  Steenvoorden (s0712663)
+
+// Reverse any list
+[t] reverse ([t] list) {
+    [t] accu = [];
+    while (!isEmpty(list)) {
+        accu = head(list) : accu;
+        list = tail(list);
+    }
+    return accu;
+}
+
+// Calculate the sum of a list of integers
+Int sum ([Int] list)
+{
+    return head(list) + sum(tail(list));
+}
+
+// Calculate the product of a list of integers
+Int product ([Int] list)
+{
+    return head(list) * product(tail(list));
+}
+
+Void main ()
+{
+    [Int] list = 1:3:5:[];
+    print(sum(list));
+    print(product(list));
+}
+
+// vim: ft=c

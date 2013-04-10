@@ -11,3 +11,6 @@ build
 *.snm
 *.toc
 
+*.spl.txt
+*.DS_Store
+

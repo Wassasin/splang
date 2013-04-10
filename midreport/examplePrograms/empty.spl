@@ -1,0 +1,7 @@
+//Tim  Steenvoorden (s0712663)
+
+// Een functiebody kan niet leeg zijn, dus dit kan niet geparseerd worden.
+Void main ()
+{
+}
+

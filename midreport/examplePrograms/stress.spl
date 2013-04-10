@@ -1,0 +1,33 @@
+//Marc  Schoolderman (s0620866)
+// our pretty printer should not only print code correctly, but not 
+// introduce parentheses or braces where they are not needed
+
+fnord/**/main()  // should not paste tokens together!
+{{
+    if([])
+      if (([] : -(1*[])-(2*[]-3*[])-4/[]/-5): (1*[])-(2+[])--3*(4+[])) 
+      {
+	return !1:2; /* should parse as (!1):2, not !(1:2) */
+	[([foo],bar)] y = this_is_fine((1,(2,3))); 
+      } 
+    else Void//
+x = not_allowed((1),2); 
+/* this declarion will be made illegal in the next compilation phase */
+}}
+
+/* output:
+
+fnord main()
+{
+    {
+        if([])
+            if(([] : -(1*[])-(2*[]-3*[])-4/[]/-5) : 1*[]-(2+[])--3*(4+[])) {
+                return !1 : 2;
+                [([foo],bar)] y = this_is_fine((1,(2,3)));
+            } else
+                [Void] x = not_allowed(1, 2);
+    }
+}
+
+
+*/

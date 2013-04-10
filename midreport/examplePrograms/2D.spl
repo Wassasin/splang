@@ -1,0 +1,13 @@
+//Jan  Groothuijse (e727426)
+Int foo (Int n)
+{
+	return (2, 2);
+}
+
+(Int, Int) transpose ((Int, Int) p1, (Int, Int) p2) {
+	return ((fst(p1) + fst(p2)), (snd(p1) + snd(p2)));
+}
+
+(Int, Int) scale((Int, Int) p, Int scalar) {
+	return (fst(p) * scalar, snd(p) * scalar);
+}

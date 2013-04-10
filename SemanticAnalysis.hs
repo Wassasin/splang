@@ -1,4 +1,4 @@
-module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, GeneralIdentifier(..), P1Context, P2, P2Meta(context, annotatedType), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext, typeOfBuiltin) where
+module SemanticAnalysis (Context, Scope(..), Builtins(..), isBuiltin, builtinP2Meta, GeneralIdentifier(..), P1Context, P2, P2Meta(context, annotatedType), StringIdentifiable(..), bestMatch, ScopingError(..), ScopingWarning(..), ScopingResult, assignUniqueIDs, stripContext, typeOfBuiltin) where
 
 import Data.Maybe
 import Text.EditDistance
@@ -20,7 +20,6 @@ data Scope = Global | Argument | Local
 	deriving (Show, Eq, Read)
 
 -- Builtin functions
--- TODO: Add more of them
 data Builtins
 	= Print
 	| IsEmpty
@@ -122,8 +121,10 @@ type ScopingResult b = ErrorContainer ScopingError ScopingWarning b
 
 -- Empty context = all builtins
 emptyContext :: P1Context
-emptyContext = map (\x -> (Builtin x, (Global, fmap (const stupidP1Meta) (typeOfBuiltin x)))) [Print ..]
-	where stupidP1Meta = promote $ constructP1 (Source.IndexSpan (-1) (-1))	-- TODO: fix this, if needed
+emptyContext = map (\x -> (Builtin x, (Global, fmap (const builtinP2Meta) (typeOfBuiltin x)))) [Print ..]
+
+builtinP2Meta :: P2Meta
+builtinP2Meta = promote $ constructP1 (Source.IndexSpan (-1) (-1))	-- TODO: fix this, if needed
 
 startContext :: ScopingContext
 startContext = ScopingContext { identifiers = emptyContext, types = [], nextFTid = 0, nextUniqueID = fromEnum (maxBound :: Builtins) + 1 }

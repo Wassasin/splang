@@ -1,0 +1,30 @@
+//Jan  Groothuijse (e727426)
+Int sum([Int] l) {
+	if (!isEmpty(tl(l))) {
+		return hd(l) + sum(tl(l));
+	}
+	return hd(l);
+}
+
+Int sum1([Int] l) {
+	if (isEmpty(tl(l))) {
+		return hd(l);
+	}
+	return hd(l) + sum(tl(l));
+}
+
+Int sum2([Int] l) {
+	if (isEmpty(tl(l))) {
+		return hd(l);
+	} else {
+		return hd(l) + sum(tl(l));
+	}
+}
+
+Void main()
+{
+	print (sum([1:2:3:[]]));
+	print (sum1([1:2:3:[]]));
+	print (sum2([1:2:3:[]]));
+	return;
+}

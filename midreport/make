@@ -1,4 +1,14 @@
 #!/bin/bash
 
+rm -f all_output.log
+
+echo "Compiling examplePrograms"
+for f in ./{examplePrograms,tests}/*.spl
+do
+	../build/splang --show-input --show-stages --show-typing "$@" $f >> all_output.log
+	echo -e "\n" >> all_output.log
+	../build/splang --show-input --show-stages --show-typing "$@" $f | perl -pe 's/\e\[?.*?[\@-~]//g' > $f.txt
+done
+
 pdflatex "assignment2.tex" || exit 1
 pdflatex "assignment2.tex"

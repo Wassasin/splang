@@ -19,13 +19,21 @@ import TypeInference
 import SemanticAnalysis
 import Errors
 
+valid :: IndexSpan -> Bool
+valid (IndexSpan n m) = n >= 0 && m >= n
+
 standardMessageIO :: String -> String -> IndexSpan -> Console.MessageE -> IO () -> IO ()
 standardMessageIO filename source idx kind message = do
-	let loc = Source.convert (Source.beginOfSpan idx) source
-	Console.putMessage kind filename loc ""
-	message
-	putStr "\n"
-	Source.pointOutIndexSpan idx source
+	when (valid idx) $ do
+		let loc = Source.convert (Source.beginOfSpan idx) source
+		Console.putMessage kind filename loc ""
+		message
+		putStr "\n"
+		Source.pointOutIndexSpan idx source
+	when (not $ valid idx) $ do
+		Console.putMessage kind filename (-1,-1) ""
+		message
+		putStr " (no location)\n"
 
 standardMessage :: String -> String -> IndexSpan -> Console.MessageE -> String -> IO ()
 standardMessage filename source idx kind message = do
@@ -38,32 +46,47 @@ show2 s = show s
 getFunDeclContext :: P2 Decl -> P1Context
 getFunDeclContext (FunDecl _ _ _ _ stmts _) = context $ getMeta $ last stmts
 
+exitFatal :: IO a
+exitFatal = do
+	Console.highLightLn "*** Stopping due to fatal error"
+	exitFailure
+
 exit :: Bool -> IO ()
 exit True = exitSuccess
 exit False = exitFailure
 
+sucfail :: Bool -> String
+sucfail True = "succeeded"
+sucfail False = "failed (but we try to continue!)"
+
 main :: IO ()
 main = do
 	(opts, [file]) <- getArgs >>= mkOptions
+	when (showStages opts) $ Console.highLightLn ("*** Compiling " ++ file ++ " ***")
+
 	source <- readFile file
 	when (showInput opts) $ putStrLn source
+	when (showStages opts) $ Console.highLightLn "*** Done reading file"
 
 	lResult <- mlex opts file source
+	when (showStages opts) $ Console.highLightLn ("*** Lexing is done")
 	when (lexOnly opts) $ exitSuccess
 
 	(pResult, b0) <- mparse opts file source (filterComment lResult)
+	when (showStages opts) $ Console.highLightLn ("*** Parsing " ++ sucfail b0)
 	when (parseOnly opts) $ exit b0
 
 	(pResult2, b1) <- midentifiers opts file source pResult
+	when (showStages opts) $ Console.highLightLn ("*** Scoping " ++ sucfail b1)
 	when (scopeOnly opts) $ exit b1
 
 	(pResult3, b2) <- minfer opts file source pResult2
+	when (showStages opts) $ Console.highLightLn ("*** Typing " ++ sucfail b2)
 
-	Console.highLightLn "Globals infered:"
-	sequence $ map (\(i, t) -> do
-		Console.intense (show i ++ ": ")
-		polyTypePrint basicInfo coloredTypePrinter t
-		putStr "\n") pResult3
+	let printingInfo = withIdentCommentInline identCommetns $ withDeclCommentLine declComments basicInfo
+	when (showTypingResult opts) $ prettyPrint printingInfo (astPrinter opts) pResult2
+
+	when (showStages opts) $ Console.highLightLn ("*** Done ")
 
 	let b = b0 && b1 && b2
 	exit b
@@ -79,7 +102,7 @@ mlex opts filename source = do
 			return xs
 		NoMatch lError -> do
 			standardMessage filename source (IndexSpan lError lError) Console.Error "Unexpected sequence of characters starting"
-			exitFailure
+			exitFatal
 
 -- filename and source are needed for error-messaging! Returns an AST or errors.
 mparse :: Options -> String -> String -> [Token] -> IO (P1 Program, Bool)
@@ -97,13 +120,13 @@ mparse opts filename source tokens = do
 			return (head ys, False)
 		Right EndOfStream		-> do
 			putStrLn "Error on end of stream"
-			exitFailure
+			exitFatal
 		Right (Unexpected (Token t l))	-> do
 			standardMessage filename source l Console.Error ("Unexpected token " ++ show t)
-			exitFailure
+			exitFatal
 		Right Ambiguity			-> do
 			Console.putMessage Console.Error filename (-1, -1) "COMPILER BUG: Ambiguous input, without results!"
-			exitFailure
+			exitFatal
 
 interleave file [] = []
 interleave file (x:xs) = Console.putMessageLn Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
@@ -124,7 +147,7 @@ midentifiers opts filename source program = do
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) (errors ++ [fe])
-			exitFailure
+			exitFatal
 
 printSemanticsError :: Options -> String -> String -> ScopingError -> IO ()
 printSemanticsError opts filename source (DuplicateDeclaration id1 gid) = case gid of
@@ -154,8 +177,13 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) s
 
 ifWarning kind opts = when (kind . enabledWarnings $ opts)
 
-declComments :: P2 AST.Decl  -> MarkupString Styles
+declComments :: P2 AST.Decl -> MarkupString Styles
 declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ output basicInfo (fromJust . annotatedType $ getMeta decl)
+
+identCommetns :: P2 AST.Identifier -> MarkupString Styles
+identCommetns (AST.Identifier _ n _) = case n of
+	Nothing -> lift "?"
+	Just m -> lift $ show m
 
 minfer :: Options -> String -> String -> (P2 Program) -> IO ([(AST.IdentID, PolyType P2Meta)], Bool)
 minfer opts filename source program = do
@@ -168,7 +196,7 @@ minfer opts filename source program = do
 			return (cs, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printTypingError opts filename source) (fe:errors)
-			exitFailure
+			exitFatal
 
 printTypingError :: Options -> String -> String -> (InferError P2Meta) -> IO ()
 printTypingError opts filename source (CannotUnify m mt1 mt2)	= do
@@ -185,8 +213,14 @@ printTypingError opts filename source (CannotUnify m mt1 mt2)	= do
 		Console.intense "Type "
 		monoTypePrint basicInfo coloredTypePrinter mt2
 		Console.intense " inferred here:")
-printTypingError opts filename source (ContextNotFound ident)	= Console.putMessageLn Console.Error filename (-1, -1) ("Context not found: " ++ show ident)
-printTypingError opts filename source (UnknownIdentifier ident)	= standardMessage filename source (src $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)
+printTypingError opts filename source (ContextNotFound ident)	= do
+	let loc = (-1,-1)
+	Console.putMessageLn Console.Error filename loc ("Context not found: " ++ show ident)
+	Console.putMessageLn Console.Note filename loc "This is probably caused by earlier errors"
+printTypingError opts filename source (UnknownIdentifier ident)	= do
+	let loc = Source.beginOfSpan $ src $ getMeta ident
+	standardMessage filename source (src $ getMeta ident) Console.Error ("Identifier is unknown: " ++ getString ident)
+	Console.putMessageLn Console.Note filename (Source.convert loc source) "This is probably caused by earlier errors"
 printTypingError opts filename source (VoidUsage meta mt)	= do
 	standardMessage filename source (src $ meta) Console.Error "Using void"
 	standardMessageIO filename source (src $ getMeta mt) Console.Note (do

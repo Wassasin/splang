@@ -1,0 +1,16 @@
+// Dennis  Brentjes (s0815489)
+
+Int deducting_a_minus_id()
+{
+    return 1;
+}
+
+Void doing_just_a_funCall()
+{
+    print(4 - -deducting_a_minus_id);
+}
+
+Int main()
+{
+    doing_just_a_funCall();
+}

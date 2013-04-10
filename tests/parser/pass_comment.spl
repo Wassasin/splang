@@ -5,3 +5,5 @@
 if /* extra space */ (True)
 	x = 5 /* test */ * x;
 }
+
+// No newline after this comment :D

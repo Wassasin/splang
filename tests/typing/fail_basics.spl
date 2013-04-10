@@ -1,0 +1,23 @@
+// BORK
+
+Void main(){
+	print(main);
+
+	isEmpty(1:[]);
+	isEmpty(False);
+
+	head(1:[]);
+	head(True);
+
+	tail((3,6));
+	tail([]);
+
+	snd(2:[]);
+	snd((print(5), 5));
+	snd((main, 5));
+
+	while(5){}
+	if([]){}
+
+	return;
+}

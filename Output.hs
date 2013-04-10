@@ -1,4 +1,4 @@
-module Output (Styles(..), OpenClose(..), Markup, MarkupString, OutputInfo, lift, basicInfo, withDeclCommentLine, Output(..)) where
+module Output (Styles(..), OpenClose(..), Markup, MarkupString, OutputInfo, lift, strip, basicInfo, withDeclCommentLine, withIdentCommentInline, Output(..)) where
 
 import AST
 import qualified Typing
@@ -17,11 +17,18 @@ type MarkupString a = [Markup a]
 
 data OutputInfo a = OutputInfo
 	{ declComment :: OutputInfo a -> Decl a -> MarkupString Styles
+	, identComment :: OutputInfo a -> Identifier a -> MarkupString Styles
 	, indentation :: Int
 	, brackets :: Bool }
 
 lift :: String -> MarkupString a
 lift = fmap Left
+
+strip :: MarkupString a -> String
+strip [] = []
+strip (x:xs) = case x of
+	Right _ -> strip xs
+	Left ch -> ch:strip xs
 
 erase :: MarkupString a -> String
 erase [] = []
@@ -40,12 +47,13 @@ getIdentifierUniqueID (Identifier _ Nothing _) = ""
 
 keyword str = open Keyword ++ lift str ++ close Keyword
 constant str = open Constant ++ lift str ++ close Constant
-variable ident = open Variable ++ lift (getIdentifierString ident) ++ close Variable ++ open UniqueID ++ lift (getIdentifierUniqueID ident) ++ close UniqueID
-function ident = open Function ++ lift (getIdentifierString ident) ++ close Function ++ open UniqueID ++ lift (getIdentifierUniqueID ident) ++ close UniqueID
+variable mo ident = open Variable ++ lift (getIdentifierString ident) ++ close Variable ++ identComment mo mo ident
+function mo ident = open Function ++ lift (getIdentifierString ident) ++ close Function ++ identComment mo mo ident
 
 basicInfo :: OutputInfo a
 basicInfo = OutputInfo
 	{ declComment = (\_ _ -> lift "")
+	, identComment = (\_ _ -> lift "")
 	, indentation = 0
 	, brackets = False }
 
@@ -60,6 +68,9 @@ withoutBrackets o = o { brackets = False }
 
 withDeclCommentLine :: (Decl a -> MarkupString Styles) -> OutputInfo a -> OutputInfo a
 withDeclCommentLine f o = o { declComment = (\mo d -> tabs mo ++ open Comments ++ lift "// " ++ f d ++ close Comments ++ lift "\n") }
+
+withIdentCommentInline :: (Identifier a -> MarkupString Styles) -> OutputInfo a -> OutputInfo a
+withIdentCommentInline f o = o { identComment = (\mo d -> open Comments ++ lift "/*" ++ f d ++ lift "*/" ++ close Comments) }
 
 join :: (a -> [b]) -> [b] -> [a] -> [b]
 join _ _ [] = []
@@ -80,11 +91,11 @@ instance Output Program where
 	output mo (Program pr _)		= join (output mo) (lift "\n\n") pr
 
 instance Output Decl where
-	output mo decl@(VarDecl t i e _)	= (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ variable i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
-	output mo decl@(FunDecl t i args vdecls stmts _) = (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ function i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (output (indent mo)) (lift "\n") vdecls ++ delim (output (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
+	output mo decl@(VarDecl t i e _)	= (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ variable mo i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
+	output mo decl@(FunDecl t i args vdecls stmts _) = (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ function mo i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (output (indent mo)) (lift "\n") vdecls ++ delim (output (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
 
 outputArg :: OutputInfo a -> (Type a, Identifier a) -> MarkupString Styles
-outputArg mo (t, i) = output mo t ++ lift " " ++ variable i
+outputArg mo (t, i) = output mo t ++ lift " " ++ variable mo i
 
 instance Output Type where
 	output mo t = open Type ++ lift (outputType' t) ++ close Type where
@@ -105,7 +116,7 @@ instance Output Stmt where
 			then keyword " else "
 			else lift "\n" ++ tabs mo ++ keyword "else"
 	output mo (While e stmt _)			= tabs mo ++ keyword "while" ++ lift "(" ++ output (withoutBrackets mo) e ++ lift ")" ++ rest mo stmt
-	output mo (Assignment i e _)			= tabs mo ++ variable i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
+	output mo (Assignment i e _)			= tabs mo ++ variable mo i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
 	output mo (Return (Just e) _)			= tabs mo ++ keyword "return " ++ output (withoutBrackets mo) e ++ lift ";"
 	output mo (Return Nothing _)			= tabs mo ++ keyword "return" ++ lift ";"
 
@@ -125,12 +136,12 @@ enclose o str
 	| otherwise  = str
 
 instance Output Expr where
-	output mo (Var i _) 			= variable i
+	output mo (Var i _) 			= variable mo i
 	output mo (Binop e1 bop e2 _)		= enclose mo $ output (withBrackets mo) e1 ++ output mo bop ++ output (withBrackets mo) e2
 	output mo (Unop uop e _)		= enclose mo $ output mo uop ++ output (withBrackets mo) e
 	output mo (Kint n _)			= constant (show n)
 	output mo (Kbool b _)			= constant (show b)
-	output mo (FunCall i exprs _)		= function i ++ lift "(" ++ join (output (withoutBrackets mo)) (lift ", ") exprs ++ lift ")"
+	output mo (FunCall i exprs _)		= function mo i ++ lift "(" ++ join (output (withoutBrackets mo)) (lift ", ") exprs ++ lift ")"
 	output mo (Pair e1 e2 _)		= lift "(" ++ output (withoutBrackets mo) e1 ++ lift ", " ++ output (withoutBrackets mo) e2 ++ lift ")"
 	output mo (Nil _)			= lift "[]"
 
@@ -155,7 +166,7 @@ instance Output UnaryOperator where
 	output mo (Negative _)			= lift "-"
 
 instance Output Typing.FreeType where
-	output mo (Typing.FT i _)		= open Variable ++ lift "a" ++ close Variable ++ open UniqueID ++ lift (show i) ++ close UniqueID
+	output mo (Typing.FT i _)		= open Variable ++ lift "a" ++ lift (show i) ++ close Variable
 
 instance Output Typing.MonoType where
 	output mo (Typing.Func args r _)	= (output mo r) ++ lift "(" ++ join (output mo) (lift ", ") args ++ lift ")"

@@ -1,0 +1,6 @@
+//Tim  Steenvoorden (s0712663)
+
+// Absolute value, in an strange layout
+Int abs (Int n) { if (n<0) return-n; else return n ; }
+
+// vim: ft=c

@@ -1,0 +1,11 @@
+Void baz(Int n){
+	{}
+}
+
+Int foo(){
+	if(True){}
+}
+
+Void main(){
+	print(baz(5));
+}

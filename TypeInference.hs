@@ -6,7 +6,7 @@ import Control.Monad
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))
 import Data.Tuple (swap)
-import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin, annotatedType)
+import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBuiltin, builtinP2Meta, annotatedType)
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
@@ -173,7 +173,7 @@ constructInitialContext p = do
 	is <- return $ stripContext $ context m
 	c <- foldl (>>=) (return emptyContext) $ map (\i -> \c -> do
 		if(isBuiltin i)
-			then setContext i (fmap (const m) $ typeOfBuiltin (toEnum i)) c
+			then setContext i (fmap (const builtinP2Meta) $ typeOfBuiltin (toEnum i)) c
 			else return c) is
 	c <- constructProgramContext c p -- Validate all the global VarDecls; FunDecl validation does not do anything at this stage
 	return c

@@ -1,0 +1,8 @@
+//Wouter  Geraedts (s0814857)
+
+// Test: Should parse quickly (with monadic LL* parsers, this would be slow)
+
+Void main()
+{
+	(((((((((((((5)))))))))))));
+}
