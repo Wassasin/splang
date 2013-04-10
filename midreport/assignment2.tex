@@ -83,6 +83,10 @@ t x = /* ... */
 
 Our compiler mainly does typechecking, but some type inference is also needed. Type inference is hard to define in a imperitave language, as the variables one is infering, might be used differently later on (and mutual recursion is hard). This led to a system which does both type inference and type checking.
 
+We first determine the annotated types of every global variable and function. Then in each expression and function body those annotations are used to infer the actual type at every place in the expression or function body, and with this information the annotated type is checked. We also make sure that \texttt{return} statements really return what they should, and if there is no \texttt{return} statement, the function should return \texttt{Void}.
+
+We only allow \texttt{Void} to occur as a return type of a function. So a list or tuples of voids will give an error. One also cannot supply void as argument, even when the function is polymorphic. For example \texttt{print(print(5))} will not compile for this reason.
+
 We do not allow the programmer to write this:
 
 \begin{lstlisting}
@@ -98,7 +102,7 @@ Bool y = f();
 t f(){ return 5; }
 \end{lstlisting}
 
-Type checking the assignment of the global variable \texttt{y} is ok, since \texttt{f} returns everything you want. So we should not allow the type annotation given to the function \texttt{f}. For consistency we also enforce this for variables.
+Type checking the assignment of the global variable \texttt{y} is ok, since \texttt{f} returns everything you want. So we should not allow the type annotation given to the function \texttt{f}. For consistency we also enforce this for variables. We might at some point in the future allow this flexibility for variables.
 
 \subsection{Formal rules}
 at funcalls, use type annotation
