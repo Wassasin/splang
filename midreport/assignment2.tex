@@ -12,7 +12,7 @@
 \newcommand{\splang}{\textsc{Splang}\xspace}
 
 \title{\splang}
-\author{Wouter Geraedts \and Joshua Moerman}
+\author{Wouter Geraedts (0814857) \and Joshua Moerman (3009048)}
 \date{}
 
 \begin{document}
@@ -55,13 +55,52 @@ Globals can be defined in any order you want. This for example allows mutual rec
 
 As far as scoping is concerned variables can be used as a function, and functions can be passed to other functions. However the type system does not accept this, because the annotated type in the source can never be a function type.
 
+\subsection{Type variable scoping}
+Type variables have similar scoping rules. If two typevariables are used in the same scope, they will be exactly the same type. In the following example \texttt{x} and \texttt{y} are of the same type, and therefore the second \texttt{print} will fail to typecheck. (We will later see another reason why this program is not allowed by the compiler).
+
+\begin{lstlisting}
+[t] x = [];
+[t] y = []; // Same type as x
+
+Void main(){
+	print(1:x);    // x is of type [Int]
+	print(True:y); // y is of type [Bool] => Type error
+}
+\end{lstlisting}
+
+There is however an exception to this. We assume that if a function uses a type variable, then it is a polymorphic function. This means that type variables in function arguments are always new, in fact, this is the only way to create a new type variable with the same name. For example:
+
+\begin{lstlisting}
+t x = /* ... */
+
+// The following 't' is independent of the above
+[t] reverse([t] list){
+	/* ... */
+}
+\end{lstlisting}
+
 \section{Typing}
 
-Type Inferencing as explained by teachers not possible for this imperative language.
-Problems: recursion and order of declaration
+Our compiler mainly does typechecking, but some type inference is also needed. Type inference is hard to define in a imperitave language, as the variables one is infering, might be used differently later on (and mutual recursion is hard). This led to a system which does both type inference and type checking.
 
-Thus Inferencing + Checking hybrid
+We do not allow the programmer to write this:
 
+\begin{lstlisting}
+t x = 5;
+\end{lstlisting}
+
+Because it is weird to annotate x with a more general type than it really is. This is a explicit decision we made, technically the compiler is able to infer that \texttt{t == Int}. For variables allowing this code might seem reasonable, but allowing this also for function is wrong, as can be seen in the following example:
+
+\begin{lstlisting}
+Bool y = f();
+
+// This should not be allowed
+t f(){ return 5; }
+\end{lstlisting}
+
+Type checking the assignment of the global variable \texttt{y} is ok, since \texttt{f} returns everything you want. So we should not allow the type annotation given to the function \texttt{f}. For consistency we also enforce this for variables.
+
+\subsection{Formal rules}
 at funcalls, use type annotation
 at fundecl, initialize to free type variables
 when fundecl is done inferring, check result with type annotation (while checking, must exists a bijection between ftv's)
