@@ -177,4 +177,67 @@ For a very precise description of who did what, one can have a look at our repos
 
 \url{https://github.com/Wassasin/splang}
 
+\newpage
+\appendix
+\section{Grammar}
+
+\newcommand{\tok}[1]{'\texttt{#1}'}
+\newcommand{\I}{\hspace{0.1cm}$\mid$\hspace{0.2cm}}
+
+\begin{tabular}[t]{p{2.5cm} c p{10cm}}
+Prog		& := & Decl$^+$					\\
+Decl		& := & VarDecl \I FunDecl			\\
+VarDecl		& := & Type id \tok{=} Exp \tok{;}		\\
+FunDecl		& := & RetType id \tok{(} [ FArgs ] \tok{)} \tok{\{} VarDecl* Stmt$^+$ \tok{\}} \\
+RetType		& := & Type \I \tok{Void}			\\
+Type		& := & \tok{Int} \I \tok{Bool} \I id		\\
+		& \I & \tok{(} Type \tok{,} Type \tok{)}	\\
+		& \I & \tok{[} Type \tok{]}			\\
+FArgs		& := & Type id \I Type id \tok{,} Fargs		\\
+&&\\
+Stmt		& := & \tok{\{} Stmt* \tok{\}}			\\
+		& \I & \tok{if} \tok{(} Exp \tok{)} Stmt	\\
+		& \I & \tok{if} \tok{(} Exp \tok{)} Stmt \tok{else} Stmt \\
+		& \I & \tok{while} \tok{(} Exp \tok{)} Stmt 	\\
+		& \I & id \tok{=} Exp \tok{;}			\\
+		& \I & Exp \tok{;}				\\
+		& \I & \tok{return} Exp \tok{;}			\\
+&&\\
+Exp		& := & Term0					\\
+Term0		& := & Term1 \I Term1 Op2Bool Term0		\\
+Term1		& := & Term2 \I Term2 Op2Equal Term1		\\
+Term2		& := & Term3 \I OpNot Term2			\\
+Term3		& := & Term4 \I Term4 OpCons Term3		\\
+Term4		& := & Term5 \I Term5 Term4b			\\
+Term4b		& := & Op2Add Term5 Term4b \I $\epsilon$	\\
+Term5		& := & Term6 \I Term6 Term5b			\\
+Term5b		& := & Op2Mult Term6 Term5b \I $\epsilon$	\\
+Term6		& := & OpNegative Term6 \I Term7		\\
+Term7		& := & int					\\
+		& \I & \tok{(} Exp \tok{)}			\\
+		& \I & \tok{(} Exp \tok{,} Exp \tok{)}		\\
+		& \I & \tok{False}				\\
+		& \I & \tok{True}				\\
+		& \I & id					\\
+		& \I & FunCall					\\
+		& \I & \tok{[]}					\\
+&&\\
+FunCall		& := & id \tok{(} [ ActArgs ] \tok{)}		\\
+ActArgs		& := & Exp \I Exp \tok{,} ActArgs		\\
+&&\\
+Op2Mult		& := & \tok{$\ast$} \I \tok{/} \I \tok{\%} 	\\
+Op2Add		& := & \tok{+} \I \tok{-}			\\
+Op2Cons		& := & \tok{:}					\\
+Op2Equal	& := & \tok{==} \I \tok{<} \I \tok{>} \I \tok{<=} \I \tok{>=} \I \tok{!=} \\
+Op2Bool		& := & \tok{\&\&} \I \tok{||}			\\
+&&\\
+OpNot		& := & \tok{!}					\\
+OpNegative	& := & \tok{-}					\\
+&&\\
+int		& := & digit$^+$				\\
+id		& := & alpha \I alpha id`			\\
+id`		& := & id` \tok{\_} \I id` alphaNum
+\end{tabular}
+
+
 \end{document}

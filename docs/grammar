@@ -11,24 +11,18 @@ Stmt		:= '{' Stmt* '}'
 			 | 'if' '(' Exp ')' Stmt 'else' Stmt
 			 | 'while' '(' Exp ')' Stmt
 			 | id '=' Exp ';'
-			 | FunCall ';'
+			 | Exp ';'
 			 | 'return' Exp ';'
 
-Exp			:= Term1
+Exp		:= Term0
 
-FunCall		:= id '(' ')'
-			 | id '(' ActArgs ')'
+Term0		:= Term1 | Term1 Op2Bool Term0
 
-ActArgs		:= Exp | Exp ',' ActArgs
+Term1		:= Term2 | Term2 Op2Equal Term1
 
-Term1		:= Term2 Op2Bool Term1
-			 | OpNot Term1
-			 | Term2
+Term2		:= Term3 | OpNot Term2
 
-Term2		:= Term3 Op2Equal Term2
-			 | Term3
-
-Term3		:= Term4 OpColon Term3
+Term3		:= Term4 | Term4 OpCons Term3
 
 Term4		:= Term5
 			 | Term5 Term4b
@@ -45,17 +39,22 @@ Term5b		:= Op2Mult Term6 Term5b
 Term6		:= OpNegative Term6
 			 | Term7
 
-Term7		:= id
-			 | int
+Term7		:= int
 			 | '(' Exp ')'
+			 | '(' Exp ',' Exp ')'
 			 | 'False'
 			 | 'True'
+			 | id
 			 | FunCall
 			 | '[]'
-			 | '(' Exp ',' Exp ')'
+
+FunCall		:= id '(' [ ActArgs ] ')'
+
+ActArgs		:= Exp | Exp ',' ActArgs
 
 Op2Mult			:= '*' | '/' | '%'
-Op2Add			:= '+' | '-' | ':'
+Op2Add			:= '+' | '-'
+Op2Cons			:= ':'
 Op2Equal		:= '==' | '<' | '>' | '<=' | '>=' | '!='
 Op2Bool			:= '&&' | '||'
 
@@ -63,7 +62,6 @@ OpNot			:= '!'
 OpNegative		:= '-'
 
 int			:= digit+
-			 | '-' digit+
 
 id			:= alpha
 			 | alpha id`
