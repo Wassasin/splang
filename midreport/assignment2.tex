@@ -181,7 +181,7 @@ For a very precise description of who did what, one can have a look at our repos
 \appendix
 \section{Grammar}
 
-\newcommand{\tok}[1]{'\texttt{#1}'}
+\newcommand{\tok}[1]{`\texttt{#1}'}
 \newcommand{\I}{\hspace{0.1cm}$\mid$\hspace{0.2cm}}
 
 \begin{tabular}[t]{p{2.5cm} c p{10cm}}
@@ -235,8 +235,8 @@ OpNot		& := & \tok{!}					\\
 OpNegative	& := & \tok{-}					\\
 &&\\
 int		& := & digit$^+$				\\
-id		& := & alpha \I alpha id`			\\
-id`		& := & id` \tok{\_} \I id` alphaNum
+id		& := & alpha \I alpha id'			\\
+id'		& := & id' \tok{\_} \I id' alphaNum
 \end{tabular}
 
 
