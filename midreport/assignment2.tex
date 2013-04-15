@@ -116,7 +116,7 @@ when fundecl is done inferring, check result with type annotation (while checkin
 \newcommand{\T}{\mathcal{T}}
 \newcommand{\U}{\mathcal{U}}
 \newcommand{\s}{\ast}
-\newcommand{\sn}[1]{{\s_{#1}}}
+\newcommand{\sn}[1]{\s_{#1}}
 
 % $\T(\Gamma, x, \sigma) = \U(\tau[\vec{\alpha} := \vec{\beta}], \sigma) \circ \ast$
 	
@@ -126,23 +126,127 @@ $\begin{array}{rcl}
 	& \vdots & \\
 	\sn{2} & = & \T_{\mbox{d}}(\Gamma^{\sn{1}}, d_2) \circ \sn{1} \\
 	\sn{1} & = & \T_{\mbox{d}}(\Gamma, d_1) \\
-\end{array}$
-
-$\begin{array}{rcl}
+	
+	\\
+	
 	\T_{\mbox{d}}(\Gamma, \mbox{VarDecl}~t~x~e) & = & \T(\Gamma, e, \tau) \\
-	\forall \emptyset . \tau	& = & \Gamma(x) \\
+	\forall \emptyset . \, \tau	& = & \Gamma(x) \\
+
+	\\
+
+	\T_{\mbox{d}}(\Gamma, \mbox{FunDecl}~t~x~\vec{\mbox{arg}}~\vec{\mbox{decl}}~\vec{\mbox{stmt}}) & = & \U(\theta^{\sn{1}}, \upsilon^{\sn{1}}) \circ \sn{1} \\
+	\upsilon	& = & \vec{\alpha}^{\sn{1}} \rightarrow \beta^{\sn{1}} \\
+	\sn{1}		& = & \sn{(2,n)} \\
+	\sn{(2,n)}	& = & \T(\Gamma'^{\sn{(2,n-1)}}, \mbox{stmt}_n, \beta^{\sn{(2,n-1)}}) \circ \sn{(2,n-1)} \\
+	& \vdots & \\
+	\sn{(2,2)}	& = & \T(\Gamma'^{\sn{(2,1)}}, \mbox{stmt}_2, \beta^{\sn{(2,1)}}) \circ \sn{(2,1)} \\
+	\sn{(2,1)}	& = & \T(\Gamma'^{\sn{3}}, \mbox{stmt}_1, \beta^{\sn{3}}) \circ \sn{(3,n)} \\
+	\sn{(3,n)}	& = & \T_{\mbox{d}}(\Gamma'^{\sn{(3,n-1)}}, \mbox{decl}_n) \circ \sn{(3,n-1)} \\
+	& \vdots & \\
+	\sn{(3,2)}	& = & \T_{\mbox{d}}(\Gamma'^{\sn{(3,1)}}, \mbox{decl}_2) \circ \sn{(3,1)} \\
+	\sn{(3,1)}	& = & \T_{\mbox{d}}(\Gamma'^{\sn{4}}, \mbox{decl}_1) \circ \sn{4} \\
+	\Gamma'		& = & \Gamma' [\mbox{arg}_n.x := \alpha_n] \\
+	& \vdots & \\
+	\Gamma'		& = & \Gamma' [\mbox{arg}_2.x := \alpha_2] \\
+	\Gamma'		& = & \Gamma' [\mbox{arg}_1.x := \alpha_1] \\
+	& & \mbox{where}~\beta~\mbox{fresh} \\
+	& & \mbox{and}~\vec{\alpha}~\mbox{fresh for all~} \vec{\mbox{arg}} \\
 \end{array}$
 
 $\begin{array}{rcl}
-	\T_{\mbox{d}}(\Gamma, \mbox{FunDecl}~t~x~\vec{\mbox{arg}}~\vec{\mbox{stmt}}) & = & \U(\theta^\sn{1}, \upsilon^\sn{1}) \circ \sn{1} \\
-	\upsilon	& = & \vec{\alpha}^\sn{1} \rightarrow \beta^\sn{1} \\
-	\sn{1}		& = & \sn{(2,n)} \\
-	\sn{(2,n)}	& = & \T(\Gamma^\sn{(2,n-1)}, \mbox{stmt}_n, \beta^\sn{(2,n-1)}) \circ \sn{(2,n-1)} \\
+	\T(\Gamma, \mbox{Expr}~e, \sigma) & = & \T(\Gamma, e, \alpha) \\
+	& & \mbox{where}~\alpha~\mbox{fresh} \\
+
+	\\
+
+	\T(\Gamma, \mbox{Scope}~\vec{\mbox{stmt}}, \sigma) & = & \sn{n} \\
+	\sn{n} & = & \T(\Gamma^{\sn{n-1}}, \mbox{stmt}_n, \sigma^{\sn{n-1}}) \circ \sn{n-1} \\
 	& \vdots & \\
-	\sn{(2,2)}	& = & \T(\Gamma^\sn{(2,1)}, \mbox{stmt}_2, \beta^\sn{(2,1)}) \circ \sn{(2,2)} \\
-	\sn{(2,1)}	& = & \T(\Gamma^\sn{3}, \mbox{stmt}_1, \beta^\sn{3}) \circ \sn{3} \\
+	\sn{2} & = & \T(\Gamma^{\sn{1}}, \mbox{stmt}_2, \sigma^{\sn{1}}) \circ \sn{1} \\
+	\sn{1} & = & \T(\Gamma, \mbox{stmt}_1, \sigma) \\
+
+	\\
+
+	\T(\Gamma, \mbox{If}~e~\mbox{stmtt}, \sigma) & = & \T(\Gamma^{\s}, \mbox{stmtt}, \sigma^{\s}) \circ \s \\
+	\s & = & \T(\Gamma, e, \mbox{Bool}) \\
+
+	\\
+
+	\T(\Gamma, \mbox{IfElse}~e~\mbox{stmtt}~\mbox{stmte}, \sigma) & = & \T(\Gamma^{\s}, \mbox{stmte}, \sigma^{\s}) \circ \s \\
+	\s & = & \T(\Gamma^{\sn{1}}, \mbox{stmtt}, \sigma^{\sn{1}}) \circ \sn{1} \\
+	\sn{1} & = & \T(\Gamma, e, \mbox{Bool}) \\
+
+	\\
+
+	\T(\Gamma, \mbox{While}~e~\mbox{stmt}, \sigma) & = & \T(\Gamma^{\s}, \mbox{stmt}, \sigma^{\s}) \circ \s \\
+	\s & = & \T(\Gamma, e, \mbox{Bool}) \\
+
+	\\
+
+	\T(\Gamma, \mbox{Assignment}~i~e, \sigma) & = & \T(\Gamma, \mbox{e}, \tau [\vec{\alpha} := \vec{\beta}] ) \\
+	\forall \vec{\alpha} .\, \tau & = & \Gamma(i) \\
+	& & \mbox{where}~\vec{\beta}~\mbox{fresh} \\
+
+	\\
+
+	\T(\Gamma, \mbox{Return}, \sigma) & = & \U(\sigma, \mbox{Void}) \\
+
+	\\
+
+	\T(\Gamma, \mbox{Return}~e, \sigma) & = & \U(\sigma^{\s}, \alpha^{\s}) \circ \s \\
+	\s & = & \T(\Gamma, e, \alpha) \\
+	& & \mbox{where}~\alpha~\mbox{fresh} \\
+\end{array}$
+
+$\begin{array}{rcl}
+	\T(\Gamma, \mbox{Var}~i, \sigma) & = & \U(\sigma, \tau [\vec{\alpha} := \vec{\beta}] ) \\
+	\forall \vec{\alpha} .\, \tau & = & \Gamma(i) \\
+	& & \mbox{where}~\vec{\beta}~\mbox{fresh} \\
 	
+	\\
 	
+	\T(\Gamma, e_1 \odot e_2, \sigma) & = & \U(\sigma^{\s}, \tau^{\s}) \\
+	\s	& = & \T(\Gamma^{\sn{1}}, e_2, \gamma_2^{\sn{1}}) \circ \sn{1} \\
+	\sn{1}	& = & \T(\Gamma, e_1, \gamma_1) \\
+	& & \mbox{where}~\odot : \gamma_1 \rightarrow \gamma_2 \rightarrow \tau \\
+	
+	\\
+	
+	\T(\Gamma, \boxdot e, \sigma) & = & \U(\sigma^{\s}, \tau^{\s}) \\
+	\s	& = & \T(\Gamma, e, \gamma) \\
+	& & \mbox{where}~\boxdot : \gamma \rightarrow \tau \\
+	
+	\\
+	
+	\T(\Gamma, \mbox{Int}~i, \sigma) & = & \U(\sigma, \mbox{Int}) \\
+
+	\\
+	
+	\T(\Gamma, \mbox{Bool}~b, \sigma) & = & \U(\sigma, \mbox{Bool}) \\
+	
+	\\
+	
+	\T(\Gamma, f(e_1, \hdots, e_n), \sigma) & = & \s \\
+	\s		& = & \U(\sigma^{\sn{(1, n)}}, \rho^{\sn{(1, n)}}) \circ \sn{(1, n)} \\
+	\sn{(1, n)}	& = & \T(\Gamma^{\sn{(1, n-1)}}, e_n, \pi_n^{\sn{(1, n-1)}}) \circ \sn{(2, n-1)} \\
+	& \vdots & \\
+	\sn{(1, 2)}	& = & \T(\Gamma^{\sn{(1, 1)}}, e_2, \pi_2^{\sn{(1, 1)}}) \circ \sn{(1, 1)} \\
+	\sn{(1, 1)}	& = & \T(\Gamma^{\sn{2}}, e_1, \pi_1^{\sn{2}}) \circ \sn{2} \\
+	\sn{2}		& = & \U(\tau[\vec{\alpha} := \vec{\beta}], \pi_1 \rightarrow \hdots \rightarrow \pi_n \rightarrow \rho) \\
+	\forall \vec{\alpha} .\, \tau & = & \Gamma(f) \\
+	& & \mbox{where}~\vec{\alpha}, \vec{\beta}, \vec{\pi}, \rho~\mbox{fresh} \\
+	
+	\\
+	
+	\T(\Gamma, (e_1, e_2), \sigma)	& = & \U(\sigma^{\s}, (\alpha_1, \alpha_2)^{\s}) \circ \s \\
+	\s				& = & \T(\sigma^{\sn{1}}, e_2, \alpha_2^{\sn{1}}) \circ \sn{1} \\
+	\sn{1}				& = & \T(\sigma, e_1, \alpha_1) \\
+	& & \mbox{where}~\alpha_1, \alpha_2~\mbox{fresh} \\
+	
+	\\
+	
+	\T(\Gamma, [], \sigma)	& = & \U(\sigma, [\alpha]) \\
+	& & \mbox{where}~\alpha~\mbox{fresh} \\
 \end{array}$
 
 
