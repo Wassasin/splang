@@ -109,17 +109,27 @@ t f(){ return 5; }
 Type checking the assignment of the global variable \texttt{y} is ok, since \texttt{f} returns everything you want. So we should not allow the type annotation given to the function \texttt{f}. For consistency we also enforce this for variables. We might at some point in the future allow this flexibility for variables.
 
 \subsection{Formal rules}
-at funcalls, use type annotation
-at fundecl, initialize to free type variables
-when fundecl is done inferring, check result with type annotation (while checking, must exists a bijection between ftv's)
 
 \newcommand{\T}{\mathcal{T}}
 \newcommand{\U}{\mathcal{U}}
 \newcommand{\s}{\ast}
 \newcommand{\sn}[1]{\s_{#1}}
 
-% $\T(\Gamma, x, \sigma) = \U(\tau[\vec{\alpha} := \vec{\beta}], \sigma) \circ \ast$
-	
+As explained before we use the type annotation to support mutual recursion. To check the correctness of this annotation the type is inferred. If an annotation is not as concrete as the actual type of a declaration an error should be displayed. Between this inferred and annotated type a bijection should exist for every free type variable.
+
+For type inferencing we use the following functions:
+
+\begin{itemize}
+	\item Type Unification: \\
+		$\U \colon \mbox{Type} \rightarrow \mbox{Type} \rightarrow \mbox{Substitution}$
+	\item Type Inferencing for declarations: \\
+		$\T_{\mbox{d}} \colon \mbox{Context} \rightarrow \mbox{Decl} \rightarrow \mbox{Substitution}$
+	\item Type Inferencing for statements and expressions: \\
+		$\T \colon \mbox{Context} \rightarrow \mbox{Decl} \rightarrow \mbox{Type} \rightarrow \mbox{Substitution}$
+\end{itemize}
+
+We define $\U$ as the function stated in the course slides, and $\T_{\mbox{d}}$ and $\T$ as following:
+
 $\begin{array}{rcl}
 	\T_{\mbox{d}}(\Gamma, \mbox{Program}~\vec{d}) & = & \s_n \\
 	\sn{n} & = & \T_{\mbox{d}}(\Gamma^{\sn{n-1}}, d_n) \circ \sn{n-1} \\
