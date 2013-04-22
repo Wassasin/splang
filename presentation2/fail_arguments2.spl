@@ -1,0 +1,12 @@
+// inspired by example of Tim  Steenvoorden (s0712663)
+// but also includes typing errors
+
+Void function (Int n, Bool b, [Int] l){
+	{} // empty body not allowed :(
+}
+
+Void main (){
+	function(10, 10);
+	function(10, 10, 10, 10);
+}
+

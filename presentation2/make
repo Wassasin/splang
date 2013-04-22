@@ -1,0 +1,4 @@
+#!/bin/bash
+
+pdflatex "splang.tex" || exit 1
+pdflatex "splang.tex"

@@ -1,0 +1,80 @@
+\documentclass[14pt]{beamer}
+
+\usepackage[british]{babel}
+
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{listings}
+\usepackage{xspace}
+\usepackage{url}
+
+\newcommand{\splang}{\textsc{Splang}\xspace}
+\newcommand{\demo}{\raisebox{0.2cm}{\tiny[\textsc{Demo}]}\xspace}
+
+\title{\splang}
+\author{Wouter Geraedts \and Joshua Moerman}
+\institute{Radboud Universiteit Nijmegen}
+\date{}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+
+\begin{frame}
+Scoping (P2)
+\bigskip
+
+\begin{itemize}
+	\item Assign unique IDs to each identifier,
+	\item Shadowing is allowed\demo,
+	\item Type annotations is added to context.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}
+Typing (P2.5)
+\bigskip
+
+\begin{itemize}
+	\item Inference and checking,
+	\item Assuming type annotations in context \\
+		(makes mutual rec. easier)\demo.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+Typing (P2.5)
+\bigskip
+
+\begin{itemize}
+	\item Expressions (as usual)
+	\item Statements (depends on \texttt{return})
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}
+\begin{center}
+\Huge Demo!
+\end{center}
+\bigskip
+
+\begin{center}
+Also check out:
+\url{https://github.com/Wassasin/splang}
+\end{center}
+\end{frame}
+
+
+\begin{frame}
+\begin{center}
+\Huge Questions?
+\end{center}
+\end{frame}
+
+\end{document}

@@ -1,0 +1,11 @@
+// Lists of functions
+
+Int length([t] list){
+	if(isEmpty(list)) return 0;
+	return 1 + length(tail(list));
+}
+
+Void main(){
+	print(length(length:[])); // Should work
+	// print(length(main:length:[])); // Should fail
+}

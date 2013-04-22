@@ -1,0 +1,16 @@
+// Mutual recursion
+
+t f(s x){ return g(x); }
+s g(s x){ return f(x); }
+
+// Inference (without reading annotations)
+// f : s -> t, g : s -> t
+// OK
+
+// Only checking
+// f : s -> t, g : s -> s
+// OK (t is a type variable and can be substituted for s)
+
+// Inference + checking annotations
+// f : s -> s, g : s -> s
+// ERROR (in f)

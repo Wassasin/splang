@@ -1,0 +1,15 @@
+// Correct code, but shadows identifiers (=> warnings)
+
+Void main(){
+	print(y(x(y(5))));
+}
+
+x x(x x){
+	x y = x;
+	return x;
+}
+
+y y(y y){
+	y y = x(y);
+	return y;
+}
