@@ -223,9 +223,11 @@ validateType :: MonoType P2Meta -> MonoType P2Meta -> InferMonadD P2Meta [(FreeT
 validateType a b = vt a b []
 	where
 		vt :: MonoType P2Meta -> MonoType P2Meta -> [(FreeType P2Meta, FreeType P2Meta)] -> InferMonadD P2Meta [(FreeType P2Meta, FreeType P2Meta)]
-		vt (Func aargs ar _) (Func bargs br _) ftmap = do
-			ftmap <- foldl (>>=) (return ftmap) $ map (\(aarg, barg) -> vt aarg barg) $ zip aargs bargs
-			vt ar br ftmap
+		vt a@(Func aargs ar _) b@(Func bargs br _) ftmap
+			| length aargs /= length bargs	= returnInferError ftmap $ TypeError a b
+			| otherwise 			= do
+				ftmap <- foldl (>>=) (return ftmap) $ map (\(aarg, barg) -> vt aarg barg) $ zip aargs bargs
+				vt ar br ftmap
 		vt (Pair aa ab _) (Pair ba bb _) ftmap = do
 			ftmap <- vt aa ba ftmap
 			vt ab bb ftmap
