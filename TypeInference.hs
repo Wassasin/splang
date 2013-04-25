@@ -95,7 +95,9 @@ mgu (Free a al) t
 	| elem a (ftvm t)		= Fail (Free a al) t
 	| otherwise			= Success (substitute a t)
 mgu t (Free b bl)			= mgu (Free b bl) t
-mgu (Func xs xr _) (Func ys yr _)	= foldr (\(x, y) su -> case su of
+mgu x@(Func xs xr _) y@(Func ys yr _)
+	| length xs /= length ys	= Fail x y
+	| otherwise			= foldr (\(x, y) su -> case su of
 							Success s	-> compose (mgu (s x) (s y)) su
 							Fail x y	-> Fail x y
 						) (mgu xr yr) (zip xs ys)
