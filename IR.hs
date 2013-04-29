@@ -2,6 +2,9 @@
 
 module IR where
 
+import Control.Monad.State
+import Control.Applicative((<$>))
+
 -- cabal install derive
 import Data.DeriveTH
 import Data.Derive.Is
@@ -51,55 +54,70 @@ isaLabel :: IRStmt -> Bool
 isaLabel x = isLabel x
 
 
--- We can make some kind of monad structure here, for now, the temporary is constant :D
-getFreshTemporary = Temp () 0
+-- Keep track of the temporaries
+type CanonicalizeState = Temporary
+
+getFreshTemporary :: State CanonicalizeState IRExpr
+getFreshTemporary = do
+	t <- get
+	put (t+1)
+	return $ Temp () t
 
 
 -- Will move SEQ up, remove ESEQ
 -- Return types means, first do the statement, then do the other thing (like (E)Seq)
 class Canonicalize a where
-	canonicalize :: a -> (IRStmt, a)
+	canonicalize :: a -> State CanonicalizeState (IRStmt, a)
 
 -- In this case we don't return (Seq s1 s2) as in the slides, but (s1, s2), because that's the type ;)
--- I think this might be written donw more nicely (it's just one big pattern), but hey, this works ;)
 instance Canonicalize IRStmt where
-	canonicalize (Seq s1 s2) = (s1', s2')
-		where s1' = uncurry Seq $ canonicalize s1
-		      s2' = uncurry Seq $ canonicalize s2
-	canonicalize (Move dst src) = (s, Move dst' src')
-		where (s, [dst',src']) = canonicalize [dst, src]
-	canonicalize (Expression e) = (s, Expression e')
-		where (s, e') = canonicalize e
-	canonicalize (Jump e l) = (s, Jump e' l)
-		where (s, e') = canonicalize e
-	canonicalize (CJump op e1 e2 tl fl) = (s, CJump op e1' e2' tl fl)
-		where (s, [e1',e2']) = canonicalize [e1,e2]
+	canonicalize (Seq s1 s2) = do
+		s1' <- uncurry Seq <$> canonicalize s1
+		s2' <- uncurry Seq <$> canonicalize s2
+		return (s1', s2')
+	canonicalize (Move dst src) = do
+		(s, [dst',src']) <- canonicalize [dst, src]
+		return (s, Move dst' src')
+	canonicalize (Expression e) = do
+		(s, e') <- canonicalize e
+		return (s, Expression e')
+	canonicalize (Jump e l) = do
+		(s, e') <- canonicalize e
+		return (s, Jump e' l)
+	canonicalize (CJump op e1 e2 tl fl) = do
+		(s, [e1',e2']) <- canonicalize [e1,e2]
+		return (s, CJump op e1' e2' tl fl)
 	-- Label
-	canonicalize x = (Nop, x)
+	canonicalize x = return (Nop, x)
 
 instance Canonicalize IRExpr where
-	canonicalize (Eseq s e) = ((Seq s' s2), e')
-		where s' = uncurry Seq $ canonicalize s
-		      (s2, e') = canonicalize e
-	canonicalize (Binop b e1 e2) = (s, Binop b e1' e2')
-		where (s, [e1', e2']) = canonicalize [e1, e2]
-	canonicalize (Mem e) = (s, Mem e')
-		where (s, e') = canonicalize e
-	canonicalize (Call f l) = (s, Call f' l')
-		where (s, f':l') = canonicalize (f:l)
+	canonicalize (Eseq s e) = do
+		s' <- uncurry Seq <$> canonicalize s
+		(s2, e') <- canonicalize e
+		return ((Seq s' s2), e')
+	canonicalize (Binop b e1 e2) = do
+		(s, [e1', e2']) <- canonicalize [e1, e2]
+		return (s, Binop b e1' e2')
+	canonicalize (Mem e) = do
+		(s, e') <- canonicalize e
+		return (s, Mem e')
+	canonicalize (Call f l) = do
+		(s, f':l') <- canonicalize (f:l)
+		return (s, Call f' l')
 	-- Const, Name, Temp
-	canonicalize x = (Nop, x)
+	canonicalize x = return (Nop, x)
 
 instance Canonicalize [IRExpr] where
-	-- TODO: Make _fresh_ temporaries!
-	canonicalize [] = (Nop, [])
-	canonicalize l = foldr combine (Nop, []) l' 
+	canonicalize [] = return (Nop, [])
+	-- foldM is from left to right, so we reverse and flip
+	canonicalize l = foldM (flip combine) (Nop, []) =<< l'
 		where
-			l' = fmap canonicalize l
+			l' = mapM canonicalize (reverse l)
 			-- TODO: this can be optimized if s1 and e commute
-			combine (s, e) (s1, es) = (Seq s s', e':es)
-				where (s', e') = (Seq (Move t e) s1, t)
-				      t = getFreshTemporary
+			combine (s, e) (s1, es) = do
+				t <- getFreshTemporary
+				let (s', e') = (Seq (Move t e) s1, t)
+				return (Seq s s', e':es)
 
 
 -- Will remove SEQs, so that it'll be linear, note SEQs should be on top
@@ -140,9 +158,9 @@ partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 			| otherwise		= [Jump (Const () 0) [nextLabel]]
 
 
--- Combining all the above
+-- Combining all the above, state shouldnt start at 0, because there may already be temporaries
 linearize :: IRStmt -> [BasicBlock]
-linearize = partitionBBs [] . flatten . uncurry Seq . canonicalize
+linearize = partitionBBs [] . flatten . uncurry Seq . flip evalState 0 . canonicalize
 
 
 -- For testing/debugging
