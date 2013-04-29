@@ -35,6 +35,7 @@ data IRStmt
 	| CJump IRBOps IRExpr IRExpr Label Label -- evaluate two expressions, compare, jump to either of the labels
 	| Seq IRStmt IRStmt		-- combine statements with ;
 	| Label Label 			-- code label
+	| Nop				-- might be handy
 	deriving (Eq, Ord, Show)
 
 -- Derive the isConstructor functions :)
@@ -51,12 +52,49 @@ isaLabel x = isLabel x
 
 
 -- Will move SEQ up, remove ESEQ
-canonicallize :: IRStmt -> IRStmt
-canonicallize x = x
+-- Return types means, first do the statement, then do the other thing (like (E)Seq)
+class Canonicalize a where
+	canonicalize :: a -> (IRStmt, a)
+
+-- In this case we don't return (Seq s1 s2) as in the slides, but (s1, s2), because that's the type ;)
+-- I think this might be written donw more nicely (it's just one big pattern), but hey, this works ;)
+instance Canonicalize IRStmt where
+	canonicalize (Seq s1 s2) = (s1', s2')
+		where s1' = uncurry Seq $ canonicalize s1
+		      s2' = uncurry Seq $ canonicalize s2
+	canonicalize (Move dst src) = (s, Move dst' src')
+		where (s, [dst',src']) = canonicalize [dst, src]
+	canonicalize (Expression e) = (s, Expression e')
+		where (s, e') = canonicalize e
+	canonicalize (Jump e l) = (s, Jump e' l)
+		where (s, e') = canonicalize e
+	canonicalize (CJump op e1 e2 tl fl) = (s, CJump op e1' e2' tl fl)
+		where (s, [e1',e2']) = canonicalize [e1,e2]
+	-- Label
+	canonicalize x = (Nop, x)
+
+instance Canonicalize IRExpr where
+	canonicalize (Eseq s e) = ((Seq s' s2), e')
+		where s' = uncurry Seq $ canonicalize s
+		      (s2, e') = canonicalize e
+	canonicalize (Binop b e1 e2) = (s, Binop b e1' e2')
+		where (s, [e1', e2']) = canonicalize [e1, e2]
+	canonicalize (Mem e) = (s, Mem e')
+		where (s, e') = canonicalize e
+	canonicalize (Call f l) = (s, Call f' l')
+		where (s, f':l') = canonicalize (f:l)
+	-- Const, Name, Temp
+	canonicalize x = (Nop, x)
+
+instance (Canonicalize a) => Canonicalize [a] where
+	-- TODO: canonicalize a list of expressions
+	canonicalize x = (Nop, x)
+
 
 -- Will remove SEQs, so that it'll be linear, note SEQs should be on top
 flatten :: IRStmt -> [IRStmt]
 flatten (Seq l r) = flatten l ++ flatten r
+flatten (Nop) = []
 flatten x = [x]
 
 
@@ -93,12 +131,12 @@ partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 
 -- Combining all the above
 linearize :: IRStmt -> [BasicBlock]
-linearize = partitionBBs [] . flatten . canonicallize
+linearize = partitionBBs [] . flatten . uncurry Seq . canonicalize
 
 
 -- For testing/debugging
 printBBs :: [BasicBlock] -> IO ()
-printBBs = putStr . unlines . fmap (foldl (\x y -> x ++ " ;; " ++ y) "") . fmap (fmap show)
+printBBs = putStr . unlines . fmap (foldr (\x y -> x ++ " ;; " ++ y) "") . fmap (fmap show)
 
 c = Const () 5
 j = Jump c ["bla"]
