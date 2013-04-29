@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
 
 module IR where
 
@@ -51,6 +51,10 @@ isaLabel :: IRStmt -> Bool
 isaLabel x = isLabel x
 
 
+-- We can make some kind of monad structure here, for now, the temporary is constant :D
+getFreshTemporary = Temp () 0
+
+
 -- Will move SEQ up, remove ESEQ
 -- Return types means, first do the statement, then do the other thing (like (E)Seq)
 class Canonicalize a where
@@ -86,9 +90,16 @@ instance Canonicalize IRExpr where
 	-- Const, Name, Temp
 	canonicalize x = (Nop, x)
 
-instance (Canonicalize a) => Canonicalize [a] where
-	-- TODO: canonicalize a list of expressions
-	canonicalize x = (Nop, x)
+instance Canonicalize [IRExpr] where
+	-- TODO: Make _fresh_ temporaries!
+	canonicalize [] = (Nop, [])
+	canonicalize l = foldr combine (Nop, []) l' 
+		where
+			l' = fmap canonicalize l
+			-- TODO: this can be optimized if s1 and e commute
+			combine (s, e) (s1, es) = (Seq s s', e':es)
+				where (s', e') = (Seq (Move t e) s1, t)
+				      t = getFreshTemporary
 
 
 -- Will remove SEQs, so that it'll be linear, note SEQs should be on top
