@@ -32,7 +32,7 @@ data IRExpr
 	| Temp Type Temporary		-- Temporary (infi many)
 	| Binop IRBOps IRExpr IRExpr	-- Binary Operation
 	| Mem IRExpr			-- Expression which gives an address
-	| Call IRExpr [IRExpr]		-- Call to address (first expr) with arguments (list of exprs)
+	| Call Label [IRExpr]		-- Call to address (first expr) with arguments (list of exprs)
 	| Eseq IRStmt IRExpr		-- ???
 	deriving (Eq, Ord, Show)
 
@@ -42,6 +42,7 @@ data IRStmt
 	| Jump Label			-- jump to label
 	| CJump IRBOps IRExpr IRExpr Label Label -- evaluate two expressions, compare, jump to either of the labels
 	| Seq IRStmt IRStmt		-- combine statements with ;
+	| Ret (Maybe IRExpr)		-- returns from function
 	| Label Label 			-- code label
 	| Nop				-- might be handy
 	deriving (Eq, Ord, Show)
@@ -104,8 +105,8 @@ instance Canonicalize IRExpr where
 		(s, e') <- canonicalize e
 		return (s, Mem e')
 	canonicalize (Call f l) = do
-		(s, f':l') <- canonicalize (f:l)
-		return (s, Call f' l')
+		(s, l') <- canonicalize (l)
+		return (s, Call f l')
 	-- Const, Name, Temp
 	canonicalize x = return (Nop, x)
 
