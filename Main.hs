@@ -189,9 +189,9 @@ minfer :: Options -> String -> String -> (P2 Program) -> IO ([(AST.IdentID, Poly
 minfer opts filename source program = do
 	let x = infer program
 	case x of
-		Errors.Result (cs, _) [] [] -> do
+		Errors.Result ((program, cs), _) [] [] -> do
 			return (cs, True)
-		Errors.Result (cs, _) errors warnings -> do
+		Errors.Result ((program, cs), _) errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
 			return (cs, False)
 		Errors.FatalError fe errors warnings -> do

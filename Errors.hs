@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module Errors (ErrorContainer(..), addWarning, returnWithWarning, addError, returnWithError, returnFatal) where
 
 -- errors, warnings and data
 data ErrorContainer e w d = Result d [e] [w] | FatalError e [e] [w]
+	deriving (Functor)
 
 -- monad structure to pass the errors around
 instance Monad (ErrorContainer e w) where

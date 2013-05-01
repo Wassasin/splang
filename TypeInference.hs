@@ -3,6 +3,7 @@
 module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), InferContext, infer, extractContext) where
 
 import Control.Monad
+import Control.Applicative ((<$>))
 import Data.Maybe (fromJust)
 import Data.List (union, (\\))
 import Data.Tuple (swap)
@@ -10,7 +11,21 @@ import SemanticAnalysis (P2, P2Meta, context, stripContext, isBuiltin, typeOfBui
 import Errors
 import Meta (ASTMeta, getMeta)
 import qualified AST
+import qualified Source
 import Typing
+
+data P3Meta = P3 {source :: Source.IndexSpan, inferredType :: Maybe (MonoType P2Meta)}
+	deriving (Show, Eq, Read)
+type P3 a = a P3Meta
+
+promote :: P2Meta -> P3Meta
+promote m = P3 {source = Source.src m, inferredType = Nothing}
+
+fpromote :: Functor a => a P2Meta -> a P3Meta
+fpromote = fmap promote
+
+tpromote :: P2Meta -> MonoType P2Meta -> P3Meta
+tpromote m t = P3 {source = Source.src m, inferredType = Just t}
 
 type Substitution m = MonoType m -> MonoType m
 data Unification m = Success (Substitution m) | Fail (MonoType m) (MonoType m)
@@ -27,7 +42,9 @@ type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
 data InferMonadD m a = IM (InferMonad m a)
-type InferFunc m a = InferContext m -> a -> MonoType m -> InferMonadD m (Substitution m)
+	deriving (Functor)
+
+type InferFunc m a b = InferContext m -> a -> MonoType m -> InferMonadD m (b, Substitution m)
 
 type InferContext m = AST.IdentID -> InferMonadD m (PolyType m)
 
@@ -166,6 +183,11 @@ fetchIdentID i					= returnFatalInferError $ UnknownIdentifier i
 	s1 <- fd
 	return $ s1 . s2
 
+(?>) :: InferMonadD m (a, Substitution m) -> Substitution m -> InferMonadD m (a, Substitution m)
+(?>) fd s2 = do
+	(x, s1) <- fd
+	return $ (x, s1 . s2)
+
 emptyContext :: InferContext m
 emptyContext = \i -> returnFatalInferError $ ContextNotFound i
 
@@ -247,51 +269,57 @@ validateType a b = vt a b []
 		find [] _ = Nothing
 		find ((xk, xv):xs) y = if(xk == y) then Just xv else find xs y
 
-infer :: P2 AST.Program -> InferResult P2Meta [(AST.IdentID, PolyType P2Meta)]
+infer :: P2 AST.Program -> InferResult P2Meta (P3 AST.Program, [(AST.IdentID, PolyType P2Meta)])
 infer p = flip bo 2 $ do -- FT 0 & 1 are reserved for keywords
 	c <- constructInitialContext p
-	(_, c) <- inferProgram c p
+	(p2, s, c) <- inferProgram c p
 	validateProgramContext c p
-	extractContext (getMeta p) c
+	c2 <- extractContext (getMeta p) c
+	return (fmap (f s) p2, c2)
+	where
+		f :: Substitution P2Meta -> P3Meta -> P3Meta
+		f s m = P3 {source = source m, inferredType = case inferredType m of
+			Nothing -> Nothing
+			Just t -> Just $ s t}
 
-inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (Substitution P2Meta, InferContext P2Meta)
-inferProgram c (AST.Program decls _) = do
-	(s, c) <- foldl (>>=) (return (id, c)) $ map (\d -> \(s, c) -> do
+inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (P3 AST.Program, Substitution P2Meta, InferContext P2Meta)
+inferProgram c (AST.Program decls m) = do
+	(decls, s, c) <- foldl (>>=) (return ([], id, c)) $ map (\d -> \(ds, s, c) -> do
 		c <- apply s c
-		s <- inferDecl c d
-		return (s, c)) decls
+		(d, s) <- inferDecl c d
+		return (d:ds, s, c)) decls
 	c <- apply s c
-	return (s, c)
+	return (AST.Program decls (promote m), s, c)
 
-inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (Substitution P2Meta)
-inferDecl c (AST.VarDecl _ i e m) = do
-	i <- fetchIdentID i
-	(Mono a _) <- c i
-	s <- inferExpr c e a
+inferDecl :: InferContext P2Meta -> P2 AST.Decl -> InferMonadD P2Meta (P3 AST.Decl, Substitution P2Meta)
+inferDecl c (AST.VarDecl t i e m) = do
+	ident <- fetchIdentID i
+	(Mono a _) <- c ident
+	(e, s) <- inferExpr c e a
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
-	return s
-inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
-	i <- fetchIdentID i
-	u <- ce i
+	return (AST.VarDecl (fpromote t) (fpromote i) e (promote m), s)
+inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
+	ident <- fetchIdentID i
+	u <- ce ident
 	u <- genBind m u
 	b <- if(any hasReturn stmts) then genFreshConcrete m else return $ Void m
 	-- make for each argument a free type
-	argtup <- sequence $ map (\(_, AST.Identifier _ n m) -> do
+	(argtup, args) <- unzip <$> (sequence $ map (\(t, AST.Identifier str n m) -> do
 		a <- genFreshConcrete m
-		return (fromJust n, a)) args
+		return ((fromJust n, a), (fpromote t, AST.Identifier str n (tpromote m a)))) args)
 	-- set types for arguments in context
 	ci <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return ce) argtup
 	-- define vardecls
-	(s, ci) <- foldl (>>=) (return (id, ci)) $ map (\d -> \(s, ci) -> do
+	(decls, s, ci) <- foldl (>>=) (return ([], id, ci)) $ map (\d -> \(ds, s, ci) -> do
 		ci <- apply s ci
-		s <- inferDecl ci d .> s
-		return (s, ci)) decls
+		(d, s) <- inferDecl ci d ?> s
+		return (d:ds, s, ci)) decls
 	ci <- apply s ci
 	-- process statements
-	s <- foldl (>>=) (return s) $ map (\stmt -> \s -> do
+	(stmts, s) <- foldl (>>=) (return ([], s)) $ map (\stmt -> \(stmts, s) -> do
 		ci <- apply s ci
-		s <- inferStmt ci stmt (s b) .> s
-		return s) stmts
+		(stmt, s) <- inferStmt ci stmt (s b) ?> s
+		return (stmt:stmts, s)) stmts
 	-- define eventual type of this function
 	v <- return $ Func (map (s . snd) argtup) (s b) m
 	-- unify with type in original context
@@ -300,9 +328,9 @@ inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 		fce <- ftvc m ce
 		let bs = ftvm (s v) \\ fce
 		v <- return $ createPoly bs (s v) m
-		ce <- setContext i v ce
+		ce <- setContext ident v ce
 		validateDeclContext ce decl 
-	return s
+	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (promote m), s) -- TODO args must be properly set
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
@@ -312,48 +340,48 @@ inferDecl ce decl@(AST.FunDecl _ i args decls stmts m) = do
 		hasReturn (AST.Return _ _)		= True
 		hasReturn _				= False
 
-inferStmt :: InferFunc P2Meta (P2 AST.Stmt)
+inferStmt :: InferFunc P2Meta (P2 AST.Stmt) (P3 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do
 	a <- genFreshConcrete m
-	s <- inferExpr c e a
-	return s
-inferStmt c (AST.Scope stmts _) t = do
-	s <- foldl (>>=) (return id) $ map (\stmt -> \s -> do
+	(e, s) <- inferExpr c e a
+	return (AST.Expr e $ promote m, s)
+inferStmt c (AST.Scope stmts m) t = do
+	(stmts, s) <- foldl (>>=) (return ([], id)) $ map (\stmt -> \(stmts, s) -> do
 		c <- apply s c
-		s <- inferStmt c stmt (s t) .> s
-		return s) stmts
-	return s
-inferStmt c (AST.If e stmtt _) t = do
-	s <- inferStmt c stmtt t
+		(stmt, s) <- inferStmt c stmt (s t) ?> s
+		return (stmt:stmts, s)) stmts
+	return (AST.Scope stmts $ promote m, s)
+inferStmt c (AST.If e stmtt m) t = do
+	(stmtt, s) <- inferStmt c stmtt t
 	c <- apply s c
-	s <- inferExpr c e (Bool $ getMeta e) .> s
-	return s
-inferStmt c (AST.IfElse e stmtt stmte _) t = do
-	s <- inferStmt c stmtt t
+	(e, s) <- inferExpr c e (Bool $ getMeta e) ?> s
+	return (AST.If e stmtt $ promote m, s)
+inferStmt c (AST.IfElse e stmtt stmte m) t = do
+	(stmtt, s) <- inferStmt c stmtt t
 	c <- apply s c
-	s <- inferStmt c stmte (s t) .> s
+	(stmte, s) <- inferStmt c stmte (s t) ?> s
 	c <- apply s c
-	s <- inferExpr c e (Bool $ getMeta e) .> s
-	return s
-inferStmt c (AST.While e stmt _) t = do
-	s <- inferStmt c stmt t
+	(e, s) <- inferExpr c e (Bool $ getMeta e) ?> s
+	return (AST.IfElse e stmtt stmte $ promote m, s)
+inferStmt c (AST.While e stmt m) t = do
+	(stmt, s) <- inferStmt c stmt t
 	c <- apply s c
-	s <- inferExpr c e (Bool $ getMeta e) .> s
-	return s
+	(e, s) <- inferExpr c e (Bool $ getMeta e) ?> s
+	return (AST.While e stmt $ promote m, s)
 inferStmt c (AST.Assignment i e m) _ = do
-	i <- fetchIdentID i
-	u <- c i
+	ident <- fetchIdentID i
+	u <- c ident
 	u <- genBind m u
-	s <- inferExpr c e u
-	return s
+	(e, s) <- inferExpr c e u
+	return (AST.Assignment (fpromote i) e $ promote m, s)
 inferStmt _ (AST.Return Nothing m) t = do
 	s <- genMgu m t (Void m)
-	return s
+	return (AST.Return Nothing $ promote m, s)
 inferStmt c (AST.Return (Just e) m) t = do
 	a <- genFreshConcrete m
-	s <- inferExpr c e a
+	(e, s) <- inferExpr c e a
 	s <- genMgu m (s t) (s a) .> s
-	return s
+	return (AST.Return (Just e) $ promote m, s)
 
 matchBinOp :: AST.BinaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoType m, m -> MonoType m)
 matchBinOp (AST.Multiplication _)	= return (Int, Int, Int)
@@ -381,60 +409,64 @@ matchUnOp :: AST.UnaryOperator m -> InferMonadD m (m -> MonoType m, m -> MonoTyp
 matchUnOp (AST.Not _)		= return (Bool, Bool)
 matchUnOp (AST.Negative _)	= return (Int, Int)
 
-inferExpr :: InferFunc P2Meta (P2 AST.Expr)
+inferExpr :: InferFunc P2Meta (P2 AST.Expr) (P3 AST.Expr)
 inferExpr c (AST.Var i m) t = do
-	i <- fetchIdentID i
-	u <- c i
+	ident <- fetchIdentID i
+	u <- c ident
 	u <- genBind m u
 	s <- genMgu m t u
-	return s
+	return (AST.Var (fpromote i) $ tpromote m u, s)
 inferExpr c (AST.Binop e1 op e2 m) t = do
 	(xf, yf, uf) <- matchBinOp op
 	let (x, y, u) = (xf $ getMeta e1, yf $ getMeta e2, uf m)
-	s <- inferExpr c e1 x
+	(e1, s) <- inferExpr c e1 x
 	c <- apply s c
-	s <- inferExpr c e2 (s y) .> s
+	(e2, s) <- inferExpr c e2 (s y) ?> s
 	s <- genMgu m (s t) (s u) .> s
-	return s
+	return (AST.Binop e1 (fpromote op) e2 $ tpromote m u, s)
 inferExpr c (AST.Unop op e m) t = do
 	(xf, uf) <- matchUnOp op
 	let (x, u) = (xf $ getMeta e, uf m)
-	s <- inferExpr c e x
+	(e, s) <- inferExpr c e x
 	s <- genMgu m (s t) (s u) .> s
-	return s
-inferExpr _ (AST.Kint _ m) t = do
-	s <- genMgu m (Int m) t
-	return s
-inferExpr _ (AST.Kbool _ m) t = do
-	s <- genMgu m (Bool m) t
-	return s
-inferExpr c (AST.FunCall ident es m) t = do
-	i <- fetchIdentID ident
-	u <- c i
+	return (AST.Unop (fpromote op) e $ tpromote m u, s)
+inferExpr _ (AST.Kint x m) t = do
+	u <- return $ Int m
+	s <- genMgu m u t
+	return (AST.Kint x $ tpromote m u, s)
+inferExpr _ (AST.Kbool x m) t = do
+	u <- return $ Bool m
+	s <- genMgu m u t
+	return (AST.Kbool x $ tpromote m u, s)
+inferExpr c (AST.FunCall i es m) t = do
+	ident <- fetchIdentID i
+	u <- c ident
 	u <- genBind m u
 	case u of
 		Func us _ _ -> when (length es /= length us) $ addInferError (WrongArguments es us m)
-		_ -> addInferError (NoFunction ident u m)
+		_ -> addInferError (NoFunction i u m)
 	r <- genFreshConcrete m
 	as <- sequence $ map (\e -> genFreshConcrete $ getMeta e) es
 	v <- return $ Func as r m
 	s <- genMgu m u v
-	s <- foldl (>>=) (return s) $ map (\(e, a) -> \s -> do
+	(es, s) <- foldl (>>=) (return ([], s)) $ map (\(e, a) -> \(es, s) -> do
 		c <- apply s c
-		s <- inferExpr c e (s a) .> s
+		(e, s) <- inferExpr c e (s a) ?> s
 		when(usingVoid (s a)) $ addInferError (VoidUsage m (s a))
-		return s) $ zip es as
+		return (e:es, s)) $ zip es as
 	s <- genMgu m (s t) (s r) .> s
-	return s
+	return (AST.FunCall (fpromote i) es $ tpromote m v, s)
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFreshConcrete $ getMeta e1
-	s <- inferExpr c e1 a1
+	(e1, s) <- inferExpr c e1 a1
 	c <- apply s c
 	a2 <- genFreshConcrete $ getMeta e2
-	s <- inferExpr c e2 a2 .> s
-	s <- genMgu m (s t) (s $ Pair a1 a2 m) .> s
-	return s
+	(e2, s) <- inferExpr c e2 a2 ?> s
+	u <- return $ Pair a1 a2 m
+	s <- genMgu m (s t) (s u) .> s
+	return (AST.Pair e1 e2 $ tpromote m u, s)
 inferExpr _ (AST.Nil m) t = do
 	a <- genFreshConcrete m
-	s <- genMgu m t (List a m)
-	return s
+	u <- return $ List a m
+	s <- genMgu m t u
+	return (AST.Nil $ tpromote m u, s)
