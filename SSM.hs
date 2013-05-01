@@ -52,6 +52,10 @@ data Instruction
 	| Trap Int				-- trap; Trap to environment function. Trap invokes a systemcall, which one is determined by its argument. Currently just 1 call exists, print the topmost element on the stack as an integer in the output window.
 	| Unlink				-- unlink; Free memory for locals. Convenience instruction combining the push of MP and the adjustment of the SP.
 	| ExclusiveOr				-- xor; Exclusive Or. Replaces 2 top stack values with the bitwise exclusive or of those values.
+	| StoreHeap				-- sth; Store into Heap. Pops 1 value from the stack and stores it into the heap. Pushes the heap address of that value on the stack.
+	| StoreMultipleHeap Int			-- stmh; Store Multiple into Heap. Pops values from the stack and stores it into the heap, retaining the order of the values. Same as single store variant but the inline parameter is size. Pushes the heap address of the last value on the stack.
+	| LoadHeap Int				-- ldh; Load from Heap. Pushes a value pointed to by the value at the top of the stack. The pointer value is oﬀset by a constant oﬀset.
+	| LoadMultipleHeap Int Int		-- ldmh; Load Multiple from Heap. Pushes values pointed to by the value at the top of the stack. The pointer value is oﬀset by a constant oﬀset. Same as single load variant but the second inline parameter is size. 
 
 instance Show Instruction where
 	show (Add)				= "add"
@@ -104,3 +108,7 @@ instance Show Instruction where
 	show (Trap n)				= "trap " ++ show n
 	show (Unlink)				= "unlink"
 	show (ExclusiveOr)			= "xor"
+	show (StoreHeap)			= "sth"
+	show (StoreMultipleHeap n)		= "stmh " ++ show n
+	show (LoadHeap n)			= "ldh " ++ show n
+	show (LoadMultipleHeap n m)		= "ldmh " ++ show n ++ " " ++ show m
