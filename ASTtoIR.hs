@@ -11,18 +11,27 @@ import Data.Map as Map hiding (foldl)
 import qualified AST
 import qualified IR
 
-data TranslationState = TranslationState { labels :: [IR.Label], identifierTemporaries :: Map AST.IdentID IR.IRExpr }
+data TranslationState = TranslationState { labelNumber :: Int, labels :: [IR.Label], identifierTemporaries :: Map AST.IdentID IR.IRExpr }
 	deriving (Eq, Ord, Show)
+emptyState = TranslationState { labelNumber = 0, labels = [], identifierTemporaries = empty }
 
 addLabel :: IR.Label -> TranslationState -> TranslationState
 addLabel l s = s { labels = l:(labels s) }
 
-genLabel :: String -> State TranslationState IR.Label
-genLabel str = do
+increaseLabelNumber :: TranslationState -> TranslationState
+increaseLabelNumber s = s { labelNumber = 1 + (labelNumber s) }
+
+-- Generates unique labels, given a set of distinct strings
+genLabels :: [String] -> State TranslationState [IR.Label]
+genLabels strs = do
+	n <- labelNumber <$> get
 	ls <- labels <$> get
-	let str2 = str ++ "_" ++ show (length ls)
-	modify (addLabel str2)
-	return str2
+	strs <- Trav.forM strs (\str -> do 
+		let str2 = str ++ "_" ++ show (n)
+		modify (addLabel str2)
+		return str2)
+	modify increaseLabelNumber
+	return strs
 
 -- TODO: lookup
 getFunctionLabel :: (AST.Identifier a) -> State TranslationState IR.Label
@@ -43,17 +52,13 @@ instance Translate (AST.Stmt a) IR.IRStmt where
 		e <- translate e
 		s1 <- translate s1
 		s2 <- translate s2
-		tl <- genLabel "if_true"
-		fl <- genLabel "if_false"
-		fi <- genLabel "if_end"
+		[tl, fl, fi] <- genLabels ["_if_true", "_if_false", "_if_end"]
 		let ss = [IR.CJump e tl fl, IR.Label tl, s1, IR.Jump fi, IR.Label fl, s2, IR.Label fi]
 		return $ foldl IR.Seq IR.Nop ss
 	translate (AST.While e s _) = do
 		e <- translate e
 		s <- translate s
-		test <- genLabel "while_test"
-		true <- genLabel "while_true"
-		wend <- genLabel "while_end"
+		[test, true, wend] <- genLabels ["_while_test", "_while_true", "_while_end"]
 		let ss = [IR.Label test, IR.CJump e true wend, IR.Label true, s, IR.Jump test, IR.Label wend]
 		return $ foldl IR.Seq IR.Nop ss
 	translate (AST.Assignment (AST.Identifier _ n _) e _) = do
