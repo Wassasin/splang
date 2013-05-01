@@ -9,6 +9,8 @@ import Control.Applicative((<$>))
 import Data.DeriveTH
 import Data.Derive.Is
 
+import qualified AST
+
 type Label		= String
 type Value		= Int
 type Temporary		= Int
@@ -19,18 +21,15 @@ data Type		= Bool | Int | Pair Type Type | ListPtr Type
 data IRFunc a = Func Label [(Type, Temporary)] a (Maybe Type)
 	deriving (Functor, Eq, Ord, Show)
 
-data IRBOps
-	= Addition
-	| Substraction
-	| Multiplication
-	-- etc...
-	deriving (Eq, Ord, Show)
+type IRBOps = AST.BinaryOperator ()
+type IRUOps = AST.UnaryOperator ()
 
+-- TODO: Constants for all types
 data IRExpr
 	= Const Type Value		-- A constant
-	| Name Type Label		-- A code label
 	| Temp Type Temporary		-- Temporary (infi many)
-	| Binop IRBOps IRExpr IRExpr	-- Binary Operation
+	| Binop IRExpr IRBOps IRExpr	-- Binary Operation
+	| Unop IRUOps IRExpr		-- Unary Operation
 	| Mem IRExpr			-- Expression which gives an address
 	| Call Label [IRExpr]		-- Call to address (first expr) with arguments (list of exprs)
 	| Eseq IRStmt IRExpr		-- ???
@@ -48,7 +47,6 @@ data IRStmt
 	deriving (Eq, Ord, Show)
 
 -- Derive the isConstructor functions :)
-$( derive makeIs ''IRBOps)
 $( derive makeIs ''IRExpr)
 $( derive makeIs ''IRStmt)
 
@@ -98,9 +96,9 @@ instance Canonicalize IRExpr where
 		s' <- uncurry Seq <$> canonicalize s
 		(s2, e') <- canonicalize e
 		return ((Seq s' s2), e')
-	canonicalize (Binop b e1 e2) = do
+	canonicalize (Binop e1 b e2) = do
 		(s, [e1', e2']) <- canonicalize [e1, e2]
-		return (s, Binop b e1' e2')
+		return (s, Binop e1' b e2')
 	canonicalize (Mem e) = do
 		(s, e') <- canonicalize e
 		return (s, Mem e')

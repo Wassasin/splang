@@ -51,10 +51,10 @@ data BinaryOperator a = Multiplication a | Division a | Modulo a
 	| Plus a | Minus a | Cons a
 	| Equals a | LesserThan a | GreaterThan a | LesserEqualThan a | GreaterEqualThan a | Nequals a
 	| And a | Or a
-	deriving (Show, Eq, Read, Functor)
+	deriving (Show, Eq, Ord, Read, Functor)
 
 data UnaryOperator a = Not a | Negative a
-	deriving (Show, Eq, Read, Functor)
+	deriving (Show, Eq, Ord, Read, Functor)
 
 type IdentID = Int
 data Identifier a = Identifier String (Maybe IdentID) a
