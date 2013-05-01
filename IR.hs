@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances, DeriveFunctor #-}
 
 module IR where
 
@@ -12,7 +12,12 @@ import Data.Derive.Is
 type Label		= String
 type Value		= Int
 type Temporary		= Int
-type Type		= ()
+
+data Type		= Bool | Int | Pair Type Type | ListPtr Type
+	deriving (Eq, Ord, Show)
+
+data IRFunc a = Func Label [(Type, Temporary)] a (Maybe Type)
+	deriving (Functor, Eq, Ord, Show)
 
 data IRBOps
 	= Addition
@@ -34,7 +39,7 @@ data IRExpr
 data IRStmt
 	= Move IRExpr IRExpr		-- move dest <- source
 	| Expression IRExpr		-- evaluate expression
-	| Jump IRExpr [Label]		-- evaluate expression and jump to corresponding label?
+	| Jump Label			-- jump to label
 	| CJump IRBOps IRExpr IRExpr Label Label -- evaluate two expressions, compare, jump to either of the labels
 	| Seq IRStmt IRStmt		-- combine statements with ;
 	| Label Label 			-- code label
@@ -57,11 +62,11 @@ isaLabel x = isLabel x
 -- Keep track of the temporaries
 type CanonicalizeState = Temporary
 
-getFreshTemporary :: State CanonicalizeState IRExpr
-getFreshTemporary = do
+getFreshTemporary :: Type -> State CanonicalizeState IRExpr
+getFreshTemporary typ = do
 	t <- get
 	put (t+1)
-	return $ Temp () t
+	return $ Temp typ t
 
 
 -- Will move SEQ up, remove ESEQ
@@ -81,13 +86,10 @@ instance Canonicalize IRStmt where
 	canonicalize (Expression e) = do
 		(s, e') <- canonicalize e
 		return (s, Expression e')
-	canonicalize (Jump e l) = do
-		(s, e') <- canonicalize e
-		return (s, Jump e' l)
 	canonicalize (CJump op e1 e2 tl fl) = do
 		(s, [e1',e2']) <- canonicalize [e1,e2]
 		return (s, CJump op e1' e2' tl fl)
-	-- Label
+	-- Label, Jump
 	canonicalize x = return (Nop, x)
 
 instance Canonicalize IRExpr where
@@ -115,7 +117,7 @@ instance Canonicalize [IRExpr] where
 			l' = mapM canonicalize (reverse l)
 			-- TODO: this can be optimized if s1 and e commute
 			combine (s, e) (s1, es) = do
-				t <- getFreshTemporary
+				t <- getFreshTemporary Bool -- TODO does not always return Bool
 				let (s', e') = (Seq (Move t e) s1, t)
 				return (Seq s s', e':es)
 
@@ -155,7 +157,7 @@ partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 			| otherwise		= (freshLabel:labels, [Label freshLabel])
 		end
 			| isaJump (last ls)	= []
-			| otherwise		= [Jump (Const () 0) [nextLabel]]
+			| otherwise		= [Jump nextLabel]
 
 
 -- Combining all the above, state shouldnt start at 0, because there may already be temporaries
@@ -167,7 +169,7 @@ linearize = partitionBBs [] . flatten . uncurry Seq . flip evalState 0 . canonic
 printBBs :: [BasicBlock] -> IO ()
 printBBs = putStr . unlines . fmap (foldr (\x y -> x ++ " ;; " ++ y) "") . fmap (fmap show)
 
-c = Const () 5
-j = Jump c ["bla"]
+c = Const Int 5
+j = Jump "bla"
 l = Label "poo"
 m = Move c c
