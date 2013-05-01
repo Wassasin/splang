@@ -57,6 +57,10 @@ isaJump x = isJump x || isCJump x
 isaLabel :: IRStmt -> Bool
 isaLabel x = isLabel x
 
+-- TODO: Make a more sophisticated algorithm
+commute :: IRStmt -> IRExpr -> Bool
+commute _ (Const _ _) = True
+commute _ _ = False
 
 -- Keep track of the temporaries
 type CanonicalizeState = Temporary
@@ -114,11 +118,13 @@ instance Canonicalize [IRExpr] where
 	canonicalize l = foldM (flip combine) (Nop, []) =<< l'
 		where
 			l' = mapM canonicalize (reverse l)
-			-- TODO: this can be optimized if s1 and e commute
-			combine (s, e) (s1, es) = do
-				t <- getFreshTemporary Bool -- TODO does not always return Bool
-				let (s', e') = (Seq (Move t e) s1, t)
-				return (Seq s s', e':es)
+			combine (s, e) (s1, es) = if commute s1 e
+				then do
+					return (Seq s s1, e:es)
+				else do
+					t <- getFreshTemporary Bool -- TODO does not always return Bool
+					let (s', e') = (Seq (Move t e) s1, t)
+					return (Seq s s', e':es)
 
 
 -- Will remove SEQs, so that it'll be linear, note SEQs should be on top
