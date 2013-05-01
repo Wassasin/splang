@@ -24,12 +24,43 @@ emptyState = ()
 getFunctionLocation :: Label -> State TranslationState Int
 getFunctionLocation _ = return 0
 
+getLabelLocation :: Label -> State TranslationState Int
+getLabelLocation _ = return 0
+
 getTemporaryLocation :: Temporary -> State TranslationState Int
 getTemporaryLocation _ = return 0
 
 -- We use the Writer monad to automatically apply ++ everywhere, and the State monad for information about stack/functions/labels
 class Translate a where
 	translate :: a -> WriterT Output (State TranslationState) ()
+
+instance Translate [BasicBlock] where
+	translate bbs = mapM_ translate bbs
+
+instance Translate BasicBlock where
+	translate bb = mapM_ translate bb
+
+instance Translate IRStmt where
+	translate (Move _ _) = out SSM.Halt
+	translate (Expression e) = do
+		translate e
+	translate (Jump l) = do
+		location <- lift $ getLabelLocation l
+		out (SSM.BranchAlways location)
+	translate (CJump e tl fl) = do
+		tl <- lift $ getLabelLocation tl
+		fl <- lift $ getLabelLocation fl
+		out (SSM.BranchOnTrue tl)
+		out (SSM.BranchOnFalse fl)
+	translate (Seq s1 s2) = do
+		translate s1
+		translate s2
+	translate (Ret (Just e)) = do
+		translate e
+		out (SSM.Return)
+	translate (Ret Nothing) = do
+		out (SSM.Return)
+	translate (Label l) = out SSM.Halt
 
 instance Translate IRExpr where
 	translate (Const _ n) = do
@@ -52,6 +83,8 @@ instance Translate IRExpr where
 		location <- lift $ getFunctionLocation label
 		out (SSM.LoadConstant location)
 		out (SSM.JumpToSubroutine)
+	-- Should never occur
+	translate (Eseq _ _) = undefined
 
 
 instance Translate IRBOps where
@@ -67,5 +100,8 @@ instance Translate IRUOps where
 	translate (AST.Not _)			= out SSM.Not
 	translate (AST.Negative _)		= out SSM.Negation
 
-translateIt :: IRExpr -> Output
-translateIt expr = flip evalState emptyState . execWriterT $ translate expr
+printSSM :: Translate a => a -> IO ()
+printSSM x = mapM_ (putStrLn . show) $ flip evalState emptyState . execWriterT $ translate x
+
+f :: IRStmt -> IO ()
+f = printSSM . linearize

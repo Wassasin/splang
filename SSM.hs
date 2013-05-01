@@ -1,6 +1,7 @@
 module SSM where
 
-data Instruction = Add				-- add; Addition. Replaces 2 top stack values with the addition of those values.
+data Instruction
+	= Add					-- add; Addition. Replaces 2 top stack values with the addition of those values.
 	| AdjustStack Int			-- ajs; Adjust Stack. Adjusts the stackpointer with fixed amount.
 	| And					-- and; And. Replaces 2 top stack values with the bitwise and of those values.
 	-- | Annote Int Int Int Color String
@@ -49,6 +50,57 @@ data Instruction = Add				-- add; Addition. Replaces 2 top stack values with the
 	| SwapRegister Int			-- swpr; Swap Register. Swaps the content of a register with the top of the stack.
 	| Swap2Registers Int Int		-- swprr; Swap 2 Registers. Swaps the content of a register with another register.
 	| Trap Int				-- trap; Trap to environment function. Trap invokes a systemcall, which one is determined by its argument. Currently just 1 call exists, print the topmost element on the stack as an integer in the output window.
-	| Unlink				-- unlinks; Free memory for locals. Convenience instruction combining the push of MP and the adjustment of the SP.
+	| Unlink				-- unlink; Free memory for locals. Convenience instruction combining the push of MP and the adjustment of the SP.
 	| ExclusiveOr				-- xor; Exclusive Or. Replaces 2 top stack values with the bitwise exclusive or of those values.
-	deriving (Show) -- Of course we want out own output function for this
+
+instance Show Instruction where
+	show (Add)				= "add"
+	show (AdjustStack n)			= "ajs " ++ show n
+	show (And)				= "and"
+	show (BranchAlways n)			= "bra " ++ show n
+	show (BranchOnFalse n)			= "brf " ++ show n
+	show (BranchOnTrue n)			= "brt " ++ show n
+	show (BranchToSubroutine n)		= "bsr " ++ show n
+	show (Divide)				= "div"
+	show (Equal)				= "eq"
+	show (GreaterEqual)			= "ge"
+	show (GreaterThan)			= "gt"
+	show (Halt)				= "halt"
+	show (JumpToSubroutine)			= "jsr"
+	show (LoadViaAddress n)			= "lda " ++ show n
+	show (LoadAddressOfAddress n)		= "ldaa " ++ show n
+	show (LoadConstant n)			= "lcd " ++ show n
+	show (LoadLocal n)			= "ldl " ++ show n
+	show (LoadLocalAddress n)		= "ldla " ++ show n
+	show (LoadMultipleViaAddress n m)	= "ldma " ++ show n ++ " " ++ show m
+	show (LoadMultipleLocal n m)		= "ldml " ++ show n ++ " " ++ show m
+	show (LoadMultipleFromStack n m)	= "ldms " ++ show n ++ " " ++ show m
+	show (LoadRegister n)			= "ldr " ++ show n
+	show (LoadRegisterFromRegister n m)	= "ldrr " ++ show n ++ " " ++ show m
+	show (LoadFromStack n)			= "lds " ++ show n
+	show (LoadStackAddress n)		= "ldsa " ++ show n
+	show (LesserEqual)			= "le"
+	show (Link n)				= "link " ++ show n
+	show (LesserThan)			= "lt"
+	show (Modulo)				= "mod"
+	show (Multiply)				= "mul"
+	show (NotEqual)				= "ne"
+	show (Negation)				= "neg"
+	show (NoOperation)			= "nop"
+	show (Not)				= "not"
+	show (Or)				= "or"
+	show (Return)				= "ret"
+	show (StoreViaAddress n)		= "sta " ++ show n
+	show (StoreLocal n)			= "stl " ++ show n
+	show (StoreMultipleViaAddress n m)	= "stma " ++ show n ++ " " ++ show m
+	show (StoreMultipleLocal n m)		= "stml " ++ show n
+	show (StoreMultipleIntoStack n m)	= "stms " ++ show n ++ " " ++ show m
+	show (StoreRegister n)			= "str " ++ show n
+	show (StoreIntoStack n)			= "sts " ++ show n
+	show (Substraction)			= "sub"
+	show (SwapValues)			= "swp"
+	show (SwapRegister n)			= "swpr " ++ show n
+	show (Swap2Registers n m)		= "swprr " ++ show n ++ " " ++ show m
+	show (Trap n)				= "trap " ++ show n
+	show (Unlink)				= "unlink"
+	show (ExclusiveOr)			= "xor"
