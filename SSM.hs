@@ -51,3 +51,4 @@ data Instruction = Add				-- add; Addition. Replaces 2 top stack values with the
 	| Trap Int				-- trap; Trap to environment function. Trap invokes a systemcall, which one is determined by its argument. Currently just 1 call exists, print the topmost element on the stack as an integer in the output window.
 	| Unlink				-- unlinks; Free memory for locals. Convenience instruction combining the push of MP and the adjustment of the SP.
 	| ExclusiveOr				-- xor; Exclusive Or. Replaces 2 top stack values with the bitwise exclusive or of those values.
+	deriving (Show) -- Of course we want out own output function for this
