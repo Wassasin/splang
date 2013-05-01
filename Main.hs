@@ -18,6 +18,8 @@ import TypePrinter
 import TypeInference
 import SemanticAnalysis
 import Errors
+import IR
+import ASTtoIR
 
 valid :: IndexSpan -> Bool
 valid (IndexSpan n m) = n >= 0 && m >= n
@@ -85,6 +87,11 @@ main = do
 
 	let printingInfo = withIdentCommentInline identCommetns $ withDeclCommentLine declComments basicInfo
 	when (showTypingResult opts) $ prettyPrint printingInfo (astPrinter opts) pResult2
+
+	forM (programToIR pResult2) (\(IR.Func l args body t) -> do
+		putStrLn $ l ++ show args ++ show t
+		printBBs body
+		putStrLn ".")
 
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 

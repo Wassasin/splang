@@ -6,7 +6,7 @@ import Data.Maybe
 import Data.Traversable as Trav
 import Control.Monad.State
 import Control.Applicative((<$>))
-import Data.Map as Map hiding (foldl)
+import Data.Map as Map hiding (foldl, map)
 
 import qualified AST
 import qualified IR
@@ -20,6 +20,9 @@ addLabel l s = s { labels = l:(labels s) }
 
 increaseLabelNumber :: TranslationState -> TranslationState
 increaseLabelNumber s = s { labelNumber = 1 + (labelNumber s) }
+
+addTemporary :: AST.IdentID -> IR.IRExpr -> TranslationState -> TranslationState
+addTemporary ident temp s = s { identifierTemporaries = insert ident temp $ identifierTemporaries s }
 
 -- Generates unique labels, given a set of distinct strings
 genLabels :: [String] -> State TranslationState [IR.Label]
@@ -39,6 +42,20 @@ getFunctionLabel (AST.Identifier str _ _) = return str
 
 class Translate a b | a -> b where
 	translate :: a -> State TranslationState b
+
+instance Translate (AST.Program a) [IR.IRFunc IR.IRStmt] where
+	translate (AST.Program decls _) = Trav.mapM translate decls
+
+-- TODO: What to do with (global) variables???
+instance Translate (AST.Decl a) (IR.IRFunc IR.IRStmt) where
+	translate (AST.VarDecl _ (AST.Identifier str mn _) _ _) = do
+		let n = fromJust mn
+		modify (addTemporary n (IR.Temp IR.Bool n))
+		return $ IR.Func "globalvar" [] IR.Nop Nothing
+	translate (AST.FunDecl _ (AST.Identifier str _ _) l decls stmts _) = do
+		Trav.forM decls translate
+		stmts <- foldl IR.Seq IR.Nop <$> Trav.forM stmts translate
+		return $ IR.Func str [] stmts Nothing
 
 instance Translate (AST.Stmt a) IR.IRStmt where
 	translate (AST.Expr e _) = do
@@ -99,9 +116,10 @@ instance Translate (AST.BinaryOperator a) IR.IRBOps where
 instance Translate (AST.UnaryOperator a) IR.IRUOps where
 	translate x = return $ fmap (const ()) x
 
+programToIR :: (AST.Program a) -> [IR.IRFunc [IR.BasicBlock]]
+programToIR program = map (fmap IR.linearize) $ evalState (translate program) emptyState
 
 -- For Debugging/Testing
-emptyState = TranslationState { labels = [], identifierTemporaries = empty }
 f = IR.printBBs . IR.linearize . flip evalState emptyState . translate :: (AST.Stmt a) -> IO ()
 b = AST.Scope [AST.Expr (AST.FunCall (AST.Identifier "print" Nothing ()) [AST.Kint 5 ()] ()) (), AST.Return Nothing ()] ()
 e = AST.Binop (AST.Kint 1()) (AST.Equals ()) (AST.Kint 3()) ()
