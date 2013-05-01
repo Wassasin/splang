@@ -40,7 +40,7 @@ data IRStmt
 	= Move IRExpr IRExpr		-- move dest <- source
 	| Expression IRExpr		-- evaluate expression
 	| Jump Label			-- jump to label
-	| CJump IRBOps IRExpr IRExpr Label Label -- evaluate two expressions, compare, jump to either of the labels
+	| CJump IRExpr Label Label 	-- evaluate the bool expressions, jump to either of the labels
 	| Seq IRStmt IRStmt		-- combine statements with ;
 	| Ret (Maybe IRExpr)		-- returns from function
 	| Label Label 			-- code label
@@ -87,9 +87,9 @@ instance Canonicalize IRStmt where
 	canonicalize (Expression e) = do
 		(s, e') <- canonicalize e
 		return (s, Expression e')
-	canonicalize (CJump op e1 e2 tl fl) = do
-		(s, [e1',e2']) <- canonicalize [e1,e2]
-		return (s, CJump op e1' e2' tl fl)
+	canonicalize (CJump e tl fl) = do
+		(s, e) <- canonicalize e
+		return (s, CJump e tl fl)
 	-- Label, Jump
 	canonicalize x = return (Nop, x)
 
