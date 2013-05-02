@@ -9,6 +9,7 @@ import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldl, map)
 import TypeInference (P3, P3Meta)
 
+import qualified Typing (MonoType(..))
 import qualified AST
 import qualified IR
 
@@ -120,6 +121,23 @@ instance Translate (P3 AST.UnaryOperator) IR.IRUOps where
 
 programToIR :: (P3 AST.Program) -> [IR.IRFunc [IR.BasicBlock]]
 programToIR program = map (fmap IR.linearize) $ evalState (translate program) emptyState
+
+-- Typing
+
+instance Translate (Typing.MonoType a) IR.Type where
+	translate (Typing.Func _ _ _)	= error "COMPILER BUG: Can not directly translate a function to a datatype"
+	translate (Typing.Pair x y _)	= do
+		x <- translate x
+		y <- translate y
+		return $ IR.Pair x y
+		
+	translate (Typing.List x _)	= do
+		x <- translate x
+		return $ IR.ListPtr x
+	translate (Typing.Free _ _)	= error "COMPILER BUG: Can not translate an abstract type to a concrete datatype"
+	translate (Typing.Int _)	= return $ IR.Int
+	translate (Typing.Bool _)	= return $ IR.Bool
+	translate (Typing.Void _)	= error "COMPILER BUG: Can not translate a Void type to a concrete datatype"
 
 -- For Debugging/Testing
 f = IR.printBBs . IR.linearize . flip evalState emptyState . translate :: (P3 AST.Stmt) -> IO ()
