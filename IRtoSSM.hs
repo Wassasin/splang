@@ -1,9 +1,13 @@
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances, TupleSections #-}
 
 module IRtoSSM where
 
+import Data.Maybe (fromJust)
 import Control.Monad.State
 import Control.Monad.Writer
+import Control.Applicative((<$>))
+import Data.Map as Map hiding (foldl, map)
+
 
 -- We currently need this, because IR binops are AST binops
 import qualified AST
@@ -13,30 +17,76 @@ import qualified SSM
 -- Obvious output
 type Output = SSM.Program
 
--- Add information about the stack and temporaries
-type TranslationState = ()
+-- Can be absolute or relative addresses
+type Address = Int
+
+data TemporaryKind
+	= Global
+	| Argument
+	| Local
+
+-- Information about the stack and temporaries
+-- currentFunction is the enclosing function (handy for getting args, if needed)
+-- temporaryLocations gives information about the temps
+-- stackPtr is the stack pointer relative to the MP
+data TranslationState = TranslationState
+	{ currentFunction :: Maybe (IRFunc [BasicBlock])
+	, temporaryLocations :: Map Temporary (Address, TemporaryKind)
+	, stackPtr :: Address }
+
 emptyState :: TranslationState
-emptyState = ()
+emptyState = TranslationState
+	{ currentFunction = Nothing
+	, temporaryLocations = empty
+	, stackPtr = 0 }
+
+increaseStackPtr :: TranslationState -> TranslationState
+increaseStackPtr o = o { stackPtr = 1 + (stackPtr o) }
+
+decreaseStackPtr :: TranslationState -> TranslationState
+decreaseStackPtr o = o { stackPtr = (stackPtr o) - 1 }
+
+assignCurrentFunction :: IRFunc [BasicBlock] -> TranslationState -> TranslationState
+assignCurrentFunction f@(Func _ args _ _) o = o
+	{ currentFunction = Just f
+	, temporaryLocations = inserts $ temporaryLocations o
+	, stackPtr = 0 }
+	where
+		-- TODO: figure out real size of an argument
+		locs = map (,Argument) [(-1), (-2) ..]
+		ts = zip (map snd args) locs
+		fs = map (uncurry insert) ts
+		inserts = foldl (.) id fs
 
 -- Emit a single instruction
 out :: SSM.Instruction -> WriterT Output (State TranslationState) ()
 out x = tell [x]
 
-getTemporaryLocation :: Temporary -> State TranslationState Int
-getTemporaryLocation _ = return 0
+-- Returns relative position to MP for arguments,
+-- absolute position form 0 for globals
+-- If it couldn't be found, we asume it is a new temporary, and add it
+getTemporaryLocation :: Temporary -> State TranslationState (Maybe (Address, TemporaryKind))
+getTemporaryLocation t = Map.lookup t <$> temporaryLocations <$> get
+
+loadTemporary :: (Address, TemporaryKind) -> WriterT Output (State TranslationState) ()
+loadTemporary (location, Global)	= modify increaseStackPtr >> out (SSM.LoadViaAddress location)
+loadTemporary (location, Argument)	= modify increaseStackPtr >> out (SSM.LoadLocal location)
+loadTemporary (location, Local)		= modify increaseStackPtr >> out (SSM.LoadLocal location)
 
 
 -- We use the Writer monad to automatically apply ++ everywhere, and the State monad for information about stack/temporaries
 class Translate a where
 	translate :: a -> WriterT Output (State TranslationState) ()
 
-instance (Translate a) => Translate [IRFunc a] where
+instance Translate [IRFunc [BasicBlock]] where
 	translate fs = mapM_ translate fs
 
 -- TODO: arguments/returning/etc
-instance (Translate a) => Translate (IRFunc a) where
-	translate (Func l _ body _) = do
+instance Translate (IRFunc [BasicBlock]) where
+	translate f@(Func l _ body _) = do
+		lift . modify $ assignCurrentFunction f
 		out (SSM.Label l)
+		out (SSM.NoOperation)
 		translate body
 
 instance Translate [BasicBlock] where
@@ -47,10 +97,19 @@ instance Translate BasicBlock where
 
 instance Translate IRStmt where
 	-- TODO: Move
-	translate (Move e1 e2) = do
-		translate e1
-		translate e2
-		out (SSM.StoreLocal 0)
+	translate (Move (Temp _ t) e2) = do
+		thing <- lift $ getTemporaryLocation t
+		case thing of
+			Nothing -> do
+				translate e2 -- It simply lives on the stack
+			Just (y, Global) -> do
+				translate e2
+				out (SSM.StoreViaAddress y)
+				lift $ modify decreaseStackPtr
+			Just (y, _) -> do
+				translate e2
+				out (SSM.StoreLocal y)
+				lift $ modify decreaseStackPtr
 	translate (Expression e) = translate e
 	translate (Jump label) = out (SSM.BranchAlways label)
 	translate (CJump e tl fl) = do
@@ -71,9 +130,12 @@ instance Translate IRStmt where
 instance Translate IRExpr where
 	translate (Const _ n) = do
 		out (SSM.LoadConstant n)
+	-- TODO: Figure out whether this is sane semantics for Temps
 	translate (Temp _ t) = do
-		location <- lift $ getTemporaryLocation t
-		out (SSM.LoadLocal location)
+		t <- lift $ getTemporaryLocation t
+		case t of
+			Just n -> loadTemporary n
+			Nothing -> return () -- It lives on the stack?
 	translate (Binop e1 bop e2) = do
 		translate e1
 		translate e2
