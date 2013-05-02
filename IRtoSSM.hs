@@ -10,27 +10,23 @@ import qualified AST
 import IR
 import qualified SSM
 
-type Output = [SSM.Instruction]
+-- Obvious output
+type Output = SSM.Program
+
+-- Add information about the stack and temporaries
 type TranslationState = ()
+emptyState :: TranslationState
+emptyState = ()
 
 -- Emit a single instruction
 out :: SSM.Instruction -> WriterT Output (State TranslationState) ()
 out x = tell [x]
 
--- Add information about the stack and where the functions/labels are
-emptyState :: TranslationState
-emptyState = ()
-
-getFunctionLocation :: Label -> State TranslationState Int
-getFunctionLocation _ = return 0
-
-getLabelLocation :: Label -> State TranslationState Int
-getLabelLocation _ = return 0
-
 getTemporaryLocation :: Temporary -> State TranslationState Int
 getTemporaryLocation _ = return 0
 
--- We use the Writer monad to automatically apply ++ everywhere, and the State monad for information about stack/functions/labels
+
+-- We use the Writer monad to automatically apply ++ everywhere, and the State monad for information about stack/temporaries
 class Translate a where
 	translate :: a -> WriterT Output (State TranslationState) ()
 
@@ -44,12 +40,9 @@ instance Translate IRStmt where
 	translate (Move _ _) = out SSM.Halt
 	translate (Expression e) = do
 		translate e
-	translate (Jump l) = do
-		location <- lift $ getLabelLocation l
-		out (SSM.BranchAlways location)
+	translate (Jump label) = do
+		out (SSM.BranchAlways label)
 	translate (CJump e tl fl) = do
-		tl <- lift $ getLabelLocation tl
-		fl <- lift $ getLabelLocation fl
 		out (SSM.BranchOnTrue tl)
 		out (SSM.BranchOnFalse fl)
 	translate (Seq s1 s2) = do
@@ -60,7 +53,7 @@ instance Translate IRStmt where
 		out (SSM.Return)
 	translate (Ret Nothing) = do
 		out (SSM.Return)
-	translate (Label l) = out SSM.Halt
+	translate (Label l) = out (SSM.Label l)
 
 instance Translate IRExpr where
 	translate (Const _ n) = do
@@ -80,12 +73,9 @@ instance Translate IRExpr where
 		out (SSM.LoadViaAddress 0)
 	translate (Call label args) = do
 		mapM translate args
-		location <- lift $ getFunctionLocation label
-		out (SSM.LoadConstant location)
-		out (SSM.JumpToSubroutine)
+		out (SSM.BranchToSubroutine label)
 	-- Should never occur
-	translate (Eseq _ _) = undefined
-
+	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
 
 instance Translate IRBOps where
 	translate (AST.Multiplication _)	= out SSM.Multiply
@@ -100,8 +90,10 @@ instance Translate IRUOps where
 	translate (AST.Not _)			= out SSM.Not
 	translate (AST.Negative _)		= out SSM.Negation
 
+
+-- For testing/debugging
 printSSM :: Translate a => a -> IO ()
-printSSM x = mapM_ (putStrLn . show) $ flip evalState emptyState . execWriterT $ translate x
+printSSM = putStrLn . SSM.showProgram . flip evalState emptyState . execWriterT . translate
 
 f :: IRStmt -> IO ()
 f = printSSM . linearize

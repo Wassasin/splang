@@ -1,4 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module SSM where
+
+import Data.DeriveTH
+import Data.Derive.Is
 
 type Label = String
 
@@ -59,6 +64,8 @@ data Instruction
 	| StoreMultipleHeap Int			-- stmh; Store Multiple into Heap. Pops values from the stack and stores it into the heap, retaining the order of the values. Same as single store variant but the inline parameter is size. Pushes the heap address of the last value on the stack.
 	| LoadHeap Int				-- ldh; Load from Heap. Pushes a value pointed to by the value at the top of the stack. The pointer value is oﬀset by a constant oﬀset.
 	| LoadMultipleHeap Int Int		-- ldmh; Load Multiple from Heap. Pushes values pointed to by the value at the top of the stack. The pointer value is oﬀset by a constant oﬀset. Same as single load variant but the second inline parameter is size. 
+
+$( derive makeIs ''Instruction)
 
 instance Show Instruction where
 	show (Label l)				= l ++ ":"
@@ -121,5 +128,6 @@ type Program = [Instruction]
 
 showProgram :: Program -> String
 showProgram [] = ""
-showProgram (Label l:xs) = show l ++ showProgram xs
-showProgram (x:xs) = "\t" ++ show x ++ "\n" ++ showProgram xs
+showProgram (x:xs) = if isLabel x
+	then show x ++ showProgram xs
+	else "\t" ++ show x ++ "\n" ++ showProgram xs
