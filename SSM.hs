@@ -1,14 +1,17 @@
 module SSM where
 
+type Label = String
+
 data Instruction
-	= Add					-- add; Addition. Replaces 2 top stack values with the addition of those values.
+	= Label Label				-- Not an instruction, but can be placed in ssm
+	| Add					-- add; Addition. Replaces 2 top stack values with the addition of those values.
 	| AdjustStack Int			-- ajs; Adjust Stack. Adjusts the stackpointer with fixed amount.
 	| And					-- and; And. Replaces 2 top stack values with the bitwise and of those values.
 	-- | Annote Int Int Int Color String
-	| BranchAlways Int			-- bra; Branch Always. Jumps to the destination. Replaces the PC with the destination address.
-	| BranchOnFalse Int			-- brf; Branch on False. If a False value is on top of the stack, jump to the destination.
-	| BranchOnTrue Int			-- brt; Branch on True. If a True value is on top of the stack, jump to the destination.
-	| BranchToSubroutine Int		-- bsr; Branch to subroutine. Pushes the PC on the stack and jumps to the subroutine.
+	| BranchAlways Label			-- bra; Branch Always. Jumps to the destination. Replaces the PC with the destination address.
+	| BranchOnFalse Label			-- brf; Branch on False. If a False value is on top of the stack, jump to the destination.
+	| BranchOnTrue Label			-- brt; Branch on True. If a True value is on top of the stack, jump to the destination.
+	| BranchToSubroutine Label		-- bsr; Branch to subroutine. Pushes the PC on the stack and jumps to the subroutine.
 	| Divide				-- div; Division. Replaces 2 top stack values with the division of those values.
 	| Equal					-- eq; Test for equal. Replaces 2 top stack values with boolean result of the test. False is encoded as 0, True as 1. Used in combination with brf. This is a variant of cmp combined with beq.
 	| GreaterEqual				-- ge; Test for greater or equal. Replaces 2 top stack values with boolean result of the test. False is encoded as 0, True as 1. Used in combination with brf. This is a variant of cmp combined with bge.
@@ -17,7 +20,7 @@ data Instruction
 	| JumpToSubroutine			-- jsr; Jump to subroutine. Pops a destination from the stack, pushes the PC on the stack and jumps to the destination.
 	| LoadViaAddress Int			-- lda; Load via Address. Dereferencing. Pushes the value pointed to by the value at the top of the stack. The pointer value is offset by a constant offset.
 	| LoadAddressOfAddress Int		-- ldaa; Load Address of Address. Pushes the address of a value relative to the address on top of the stack. This instruction effectively adds a constant to the top of the stack.
-	| LoadConstant Int			-- lcd; Load Constant. Pushes the inline constant on the stack.
+	| LoadConstant Int			-- ldc; Load Constant. Pushes the inline constant on the stack.
 	| LoadLocal Int				-- ldl; Load Local. Pushes a value relative to the markpointer.
 	| LoadLocalAddress Int			-- ldla; Load Local Address. Pushes the address of a value relative to the markpointer.
 	| LoadMultipleViaAddress Int Int	-- ldma; Load Multiple via Address. Pushes values relative to by the value at the top of the stack. Same as single load variant but second inline parameter is size.
@@ -58,6 +61,7 @@ data Instruction
 	| LoadMultipleHeap Int Int		-- ldmh; Load Multiple from Heap. Pushes values pointed to by the value at the top of the stack. The pointer value is oﬀset by a constant oﬀset. Same as single load variant but the second inline parameter is size. 
 
 instance Show Instruction where
+	show (Label l)				= l ++ ":"
 	show (Add)				= "add"
 	show (AdjustStack n)			= "ajs " ++ show n
 	show (And)				= "and"
@@ -73,7 +77,7 @@ instance Show Instruction where
 	show (JumpToSubroutine)			= "jsr"
 	show (LoadViaAddress n)			= "lda " ++ show n
 	show (LoadAddressOfAddress n)		= "ldaa " ++ show n
-	show (LoadConstant n)			= "lcd " ++ show n
+	show (LoadConstant n)			= "ldc " ++ show n
 	show (LoadLocal n)			= "ldl " ++ show n
 	show (LoadLocalAddress n)		= "ldla " ++ show n
 	show (LoadMultipleViaAddress n m)	= "ldma " ++ show n ++ " " ++ show m
@@ -112,3 +116,10 @@ instance Show Instruction where
 	show (StoreMultipleHeap n)		= "stmh " ++ show n
 	show (LoadHeap n)			= "ldh " ++ show n
 	show (LoadMultipleHeap n m)		= "ldmh " ++ show n ++ " " ++ show m
+
+type Program = [Instruction]
+
+showProgram :: Program -> String
+showProgram [] = ""
+showProgram (Label l:xs) = show l ++ showProgram xs
+showProgram (x:xs) = "\t" ++ show x ++ "\n" ++ showProgram xs
