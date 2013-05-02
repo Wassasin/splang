@@ -3,9 +3,10 @@
 module SSM where
 
 import Data.DeriveTH
-import Data.Derive.Is
 
 type Label = String
+data Register = PC | SP | MP | RR
+	deriving (Show)
 
 data Instruction
 	= Label Label				-- Not an instruction, but can be placed in ssm
@@ -31,8 +32,8 @@ data Instruction
 	| LoadMultipleViaAddress Int Int	-- ldma; Load Multiple via Address. Pushes values relative to by the value at the top of the stack. Same as single load variant but second inline parameter is size.
 	| LoadMultipleLocal Int Int		-- ldml; Load Multiple Local. Pushes values relative to the markpointer. Same as single load variant but second inline parameter is size.
 	| LoadMultipleFromStack Int Int		-- ldms; Load Multiple from Stack. Pushes values relative to the top of the stack. Same as single load variant but second inline parameter is size.
-	| LoadRegister Int			-- ldr; Load Register. Pushes a value from a register. Registers 0, 1, 2 and 3 are called PC (program counter), SP (stack pointer), MP (mark pointer) and RR (return register) respectively.
-	| LoadRegisterFromRegister Int Int	-- ldrr; Load Register from Register. Copy the content of the second register to the first. Does not affect the stack.
+	| LoadRegister Register			-- ldr; Load Register. Pushes a value from a register. Registers 0, 1, 2 and 3 are called PC (program counter), SP (stack pointer), MP (mark pointer) and RR (return register) respectively.
+	| LoadRegisterFromRegister Register Register -- ldrr; Load Register from Register. Copy the content of the second register to the first. Does not affect the stack.
 	| LoadFromStack Int			-- lds; Load from Stack. Pushes a value relative to the top of the stack.
 	| LoadStackAddress Int			-- ldsa; Load Stack Address. Pushes the address of a value relative to the stackpointer.
 	| LesserEqual				-- le; Test for less or equal. Replaces 2 top stack values with boolean result of the test. False is encoded as 0, True as 1. Used in combination with brf. This is a variant of cmp combined with ble.
@@ -51,12 +52,12 @@ data Instruction
 	| StoreMultipleViaAddress Int Int	-- stma; Store Multiple via Address. Pops values from the stack and stores it in a location relative to the value at the top of the stack. Same as single store variant but second inline parameter is size.
 	| StoreMultipleLocal Int Int		-- stml; Store Multiple Local. Pops values from the stack and stores it in a location relative to the markpointer. Same as single store variant but second inline parameter is size.
 	| StoreMultipleIntoStack Int Int	-- stms; Store Multiple into Stack. Pops values from the stack and stores it in a location relative to the top of the stack. Same as single store variant but second inline parameter is size.
-	| StoreRegister Int			-- str; Store Register. Pops a value from the stack and stores it in a location relative to the markpointer. See also ldr.
+	| StoreRegister Register		-- str; Store Register. Pops a value from the stack and stores it in a location relative to the markpointer. See also ldr.
 	| StoreIntoStack Int			-- sts; Store into Stack. Pops a value from the stack and stores it in a location relative to the top of the stack.
 	| Substraction				-- sub; Substraction. Replaces 2 top stack values with the subtraction of those values.
 	| SwapValues				-- swp; Swap values. Swaps the 2 topmost values on the stack.
-	| SwapRegister Int			-- swpr; Swap Register. Swaps the content of a register with the top of the stack.
-	| Swap2Registers Int Int		-- swprr; Swap 2 Registers. Swaps the content of a register with another register.
+	| SwapRegister Register			-- swpr; Swap Register. Swaps the content of a register with the top of the stack.
+	| Swap2Registers Register Register	-- swprr; Swap 2 Registers. Swaps the content of a register with another register.
 	| Trap Int				-- trap; Trap to environment function. Trap invokes a systemcall, which one is determined by its argument. Currently just 1 call exists, print the topmost element on the stack as an integer in the output window.
 	| Unlink				-- unlink; Free memory for locals. Convenience instruction combining the push of MP and the adjustment of the SP.
 	| ExclusiveOr				-- xor; Exclusive Or. Replaces 2 top stack values with the bitwise exclusive or of those values.
@@ -90,8 +91,8 @@ instance Show Instruction where
 	show (LoadMultipleViaAddress n m)	= "ldma " ++ show n ++ " " ++ show m
 	show (LoadMultipleLocal n m)		= "ldml " ++ show n ++ " " ++ show m
 	show (LoadMultipleFromStack n m)	= "ldms " ++ show n ++ " " ++ show m
-	show (LoadRegister n)			= "ldr " ++ show n
-	show (LoadRegisterFromRegister n m)	= "ldrr " ++ show n ++ " " ++ show m
+	show (LoadRegister r)			= "ldr " ++ show r
+	show (LoadRegisterFromRegister r1 r2)	= "ldrr " ++ show r1 ++ " " ++ show r2
 	show (LoadFromStack n)			= "lds " ++ show n
 	show (LoadStackAddress n)		= "ldsa " ++ show n
 	show (LesserEqual)			= "le"
@@ -108,14 +109,14 @@ instance Show Instruction where
 	show (StoreViaAddress n)		= "sta " ++ show n
 	show (StoreLocal n)			= "stl " ++ show n
 	show (StoreMultipleViaAddress n m)	= "stma " ++ show n ++ " " ++ show m
-	show (StoreMultipleLocal n m)		= "stml " ++ show n
+	show (StoreMultipleLocal n m)		= "stml " ++ show n ++ " " ++ show m
 	show (StoreMultipleIntoStack n m)	= "stms " ++ show n ++ " " ++ show m
-	show (StoreRegister n)			= "str " ++ show n
+	show (StoreRegister r)			= "str " ++ show r
 	show (StoreIntoStack n)			= "sts " ++ show n
 	show (Substraction)			= "sub"
 	show (SwapValues)			= "swp"
-	show (SwapRegister n)			= "swpr " ++ show n
-	show (Swap2Registers n m)		= "swprr " ++ show n ++ " " ++ show m
+	show (SwapRegister r)			= "swpr " ++ show r
+	show (Swap2Registers r1 r2)		= "swprr " ++ show r1 ++ " " ++ show r2
 	show (Trap n)				= "trap " ++ show n
 	show (Unlink)				= "unlink"
 	show (ExclusiveOr)			= "xor"
