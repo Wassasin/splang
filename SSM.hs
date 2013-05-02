@@ -72,10 +72,10 @@ instance Show Instruction where
 	show (Add)				= "add"
 	show (AdjustStack n)			= "ajs " ++ show n
 	show (And)				= "and"
-	show (BranchAlways n)			= "bra " ++ show n
-	show (BranchOnFalse n)			= "brf " ++ show n
-	show (BranchOnTrue n)			= "brt " ++ show n
-	show (BranchToSubroutine n)		= "bsr " ++ show n
+	show (BranchAlways l)			= "bra " ++ l
+	show (BranchOnFalse l)			= "brf " ++ l
+	show (BranchOnTrue l)			= "brt " ++ l
+	show (BranchToSubroutine l)		= "bsr " ++ l
 	show (Divide)				= "div"
 	show (Equal)				= "eq"
 	show (GreaterEqual)			= "ge"
