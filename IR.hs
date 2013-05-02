@@ -169,6 +169,7 @@ partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 linearize :: IRStmt -> [BasicBlock]
 linearize = partitionBBs [] . flatten . uncurry Seq . flip evalState 0 . canonicalize
 
+-- TODO: Analyse traces and remove redundant labels
 
 -- For testing/debugging
 printBBs :: [BasicBlock] -> IO ()

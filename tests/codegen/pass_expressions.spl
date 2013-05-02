@@ -1,0 +1,4 @@
+Void main(){
+	if(True)	1 + 2 + (3 + 4 + 5 * 1 * 2) * 38;
+	if(False)	1 + 2;
+}

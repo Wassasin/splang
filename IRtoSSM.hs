@@ -30,6 +30,15 @@ getTemporaryLocation _ = return 0
 class Translate a where
 	translate :: a -> WriterT Output (State TranslationState) ()
 
+instance (Translate a) => Translate [IRFunc a] where
+	translate fs = mapM_ translate fs
+
+-- TODO: arguments/returning/etc
+instance (Translate a) => Translate (IRFunc a) where
+	translate (Func l _ body _) = do
+		out (SSM.Label l)
+		translate body
+
 instance Translate [BasicBlock] where
 	translate bbs = mapM_ translate bbs
 
@@ -37,12 +46,15 @@ instance Translate BasicBlock where
 	translate bb = mapM_ translate bb
 
 instance Translate IRStmt where
-	translate (Move _ _) = out SSM.Halt
-	translate (Expression e) = do
-		translate e
-	translate (Jump label) = do
-		out (SSM.BranchAlways label)
+	-- TODO: Move
+	translate (Move e1 e2) = do
+		translate e1
+		translate e2
+		out (SSM.StoreLocal 0)
+	translate (Expression e) = translate e
+	translate (Jump label) = out (SSM.BranchAlways label)
 	translate (CJump e tl fl) = do
+		translate e
 		out (SSM.BranchOnTrue tl)
 		out (SSM.BranchOnFalse fl)
 	translate (Seq s1 s2) = do
@@ -51,9 +63,10 @@ instance Translate IRStmt where
 	translate (Ret (Just e)) = do
 		translate e
 		out (SSM.Return)
-	translate (Ret Nothing) = do
-		out (SSM.Return)
+	-- TODO: probably more than just return
+	translate (Ret Nothing) = out (SSM.Return)
 	translate (Label l) = out (SSM.Label l)
+	translate (Nop) = out (SSM.NoOperation)
 
 instance Translate IRExpr where
 	translate (Const _ n) = do
@@ -91,9 +104,12 @@ instance Translate IRUOps where
 	translate (AST.Negative _)		= out SSM.Negation
 
 
+irToSSM :: Translate a => a -> SSM.Program
+irToSSM = flip evalState emptyState . execWriterT . translate
+
 -- For testing/debugging
 printSSM :: Translate a => a -> IO ()
-printSSM = putStrLn . SSM.showProgram . flip evalState emptyState . execWriterT . translate
+printSSM = putStrLn . SSM.showProgram . irToSSM
 
 f :: IRStmt -> IO ()
 f = printSSM . linearize
