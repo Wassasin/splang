@@ -297,7 +297,7 @@ inferDecl c (AST.VarDecl t i e m) = do
 	(Mono a _) <- c ident
 	(e, s) <- inferExpr c e a
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
-	return (AST.VarDecl (fpromote t) (fpromote i) e (promote m), s)
+	return (AST.VarDecl (fpromote t) (fpromote i) e (tpromote m a), s)
 inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 	ident <- fetchIdentID i
 	u <- ce ident
@@ -330,7 +330,7 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 		v <- return $ createPoly bs (s v) m
 		ce <- setContext ident v ce
 		validateDeclContext ce decl 
-	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (promote m), s) -- TODO args must be properly set
+	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (tpromote m v), s)
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
