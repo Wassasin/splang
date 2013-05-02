@@ -95,7 +95,7 @@ main = do
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 
 	Console.highLightLn ("IR:")
-	let ir = programToIR pResult2
+	let ir = programToIR pResult3
 	forM ir (\(IR.Func l args body t) -> do
 		putStrLn $ l ++ show args ++ show t
 		printBBs body
@@ -201,15 +201,15 @@ identCommetns (AST.Identifier _ n _) = case n of
 	Nothing -> lift "?"
 	Just m -> lift $ show m
 
-minfer :: Options -> String -> String -> (P2 Program) -> IO ([(AST.IdentID, PolyType P2Meta)], Bool)
+minfer :: Options -> String -> String -> (P2 Program) -> IO (P3 Program, Bool)
 minfer opts filename source program = do
 	let x = infer program
 	case x of
 		Errors.Result ((program, cs), _) [] [] -> do
-			return (cs, True)
+			return (program, True)
 		Errors.Result ((program, cs), _) errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
-			return (cs, False)
+			return (program, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printTypingError opts filename source) (fe:errors)
 			exitFatal

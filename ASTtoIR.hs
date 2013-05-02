@@ -7,7 +7,9 @@ import Data.Traversable as Trav
 import Control.Monad.State
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldl, map)
+import TypeInference (P3, P3Meta)
 
+import qualified Typing (MonoType(..))
 import qualified AST
 import qualified IR
 
@@ -42,12 +44,12 @@ getFunctionLabel (AST.Identifier str _ _) = return str
 class Translate a b | a -> b where
 	translate :: a -> State TranslationState b
 
-instance Translate (AST.Program a) [IR.IRFunc IR.IRStmt] where
+instance Translate (P3 AST.Program) [IR.IRFunc IR.IRStmt] where
 	translate (AST.Program decls _) = Trav.mapM translate decls
 
 -- TODO: What to do with (global) variables???
 -- TODO: Do something with function arguments
-instance Translate (AST.Decl a) (IR.IRFunc IR.IRStmt) where
+instance Translate (P3 AST.Decl) (IR.IRFunc IR.IRStmt) where
 	translate (AST.VarDecl _ (AST.Identifier str mn _) _ _) = do
 		let n = fromJust mn
 		modify (addTemporary n (IR.Temp IR.Bool n))
@@ -57,7 +59,7 @@ instance Translate (AST.Decl a) (IR.IRFunc IR.IRStmt) where
 		stmts <- foldl IR.Seq IR.Nop <$> Trav.forM stmts translate
 		return $ IR.Func str [] stmts Nothing
 
-instance Translate (AST.Stmt a) IR.IRStmt where
+instance Translate (P3 AST.Stmt) IR.IRStmt where
 	translate (AST.Expr e _) = do
 		e <- translate e
 		return $ IR.Expression e
@@ -89,7 +91,7 @@ instance Translate (AST.Stmt a) IR.IRStmt where
 -- TODO: do something when the function is polymorphic
 -- TODO: pair
 -- TODO: get right type of ListPtr
-instance Translate (AST.Expr a) IR.IRExpr where
+instance Translate (P3 AST.Expr) IR.IRExpr where
 	translate (AST.Var (AST.Identifier _ n _) _) = fromJust <$> Map.lookup (fromJust n) <$> identifierTemporaries <$> get
 	translate (AST.Binop e1 bop e2 _) = do
 		e1 <- translate e1
@@ -111,17 +113,31 @@ instance Translate (AST.Expr a) IR.IRExpr where
 	translate (AST.Nil _) = return $ IR.Const (IR.ListPtr IR.Int) 0
 
 
-instance Translate (AST.BinaryOperator a) IR.IRBOps where
+instance Translate (P3 AST.BinaryOperator) IR.IRBOps where
 	translate x = return $ fmap (const ()) x
 
-instance Translate (AST.UnaryOperator a) IR.IRUOps where
+instance Translate (P3 AST.UnaryOperator) IR.IRUOps where
 	translate x = return $ fmap (const ()) x
 
-programToIR :: (AST.Program a) -> [IR.IRFunc [IR.BasicBlock]]
+programToIR :: (P3 AST.Program) -> [IR.IRFunc [IR.BasicBlock]]
 programToIR program = map (fmap IR.linearize) $ evalState (translate program) emptyState
 
+-- Typing
+
+instance Translate (Typing.MonoType a) IR.Type where
+	translate (Typing.Func _ _ _)	= error "COMPILER BUG: Can not directly translate a function to a datatype"
+	translate (Typing.Pair x y _)	= do
+		x <- translate x
+		y <- translate y
+		return $ IR.Pair x y
+		
+	translate (Typing.List x _)	= do
+		x <- translate x
+		return $ IR.ListPtr x
+	translate (Typing.Free _ _)	= error "COMPILER BUG: Can not translate an abstract type to a concrete datatype"
+	translate (Typing.Int _)	= return $ IR.Int
+	translate (Typing.Bool _)	= return $ IR.Bool
+	translate (Typing.Void _)	= error "COMPILER BUG: Can not translate a Void type to a concrete datatype"
+
 -- For Debugging/Testing
-f = IR.printBBs . IR.linearize . flip evalState emptyState . translate :: (AST.Stmt a) -> IO ()
-b = AST.Scope [AST.Expr (AST.FunCall (AST.Identifier "print" Nothing ()) [AST.Kint 5 ()] ()) (), AST.Return Nothing ()] ()
-e = AST.Binop (AST.Kint 1()) (AST.Equals ()) (AST.Kint 3()) ()
-s = AST.Scope [AST.While e b (), AST.While e b (), AST.Return Nothing ()] ()
+f = IR.printBBs . IR.linearize . flip evalState emptyState . translate :: (P3 AST.Stmt) -> IO ()

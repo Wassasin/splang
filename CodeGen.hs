@@ -4,7 +4,7 @@ import qualified AST
 import qualified SSM
 import ASTtoIR
 import IRtoSSM
+import TypeInference (P3)
 
--- Eventually we only accept typed ASTs (aka: P4 AST.Program?)
-generateSSM :: AST.Program a -> SSM.Program
+generateSSM :: P3 AST.Program -> SSM.Program
 generateSSM = irToSSM . programToIR
