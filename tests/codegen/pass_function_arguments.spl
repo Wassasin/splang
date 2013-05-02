@@ -1,0 +1,8 @@
+Void f(Int x, Int y, Int z){
+	x = y + z;
+	// return (x + y) + (z + x) + f(z, y, x);
+}
+
+Void main(){
+	f(1, 2, 3);
+}
