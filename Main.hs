@@ -19,6 +19,9 @@ import TypeInference
 import SemanticAnalysis
 import Errors
 
+import ASTtoIR (programToIR)
+import IRtoSSM (irToSSM)
+import IR
 import qualified CodeGen
 import qualified SSM
 
@@ -91,8 +94,15 @@ main = do
 
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 
+	Console.highLightLn ("IR:")
+	let ir = programToIR pResult2
+	forM ir (\(IR.Func l args body t) -> do
+		putStrLn $ l ++ show args ++ show t
+		printBBs body
+		putStrLn ".")
+
 	Console.highLightLn ("SSM:")
-	putStrLn . SSM.showProgram . CodeGen.generateSSM $ pResult2
+	putStrLn . SSM.showProgram . irToSSM $ ir
 
 	let b = b0 && b1 && b2
 	exit b
