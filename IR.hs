@@ -7,7 +7,6 @@ import Control.Applicative((<$>))
 
 -- cabal install derive
 import Data.DeriveTH
-import Data.Derive.Is
 
 import qualified AST
 
@@ -58,9 +57,18 @@ isaLabel :: IRStmt -> Bool
 isaLabel x = isLabel x
 
 -- TODO: Make a more sophisticated algorithm
+sideEffectSensitive :: IRExpr -> Bool
+sideEffectSensitive (Const _ _) = False
+sideEffectSensitive (Temp _ _) = True
+sideEffectSensitive (Binop e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
+sideEffectSensitive (Unop _ e1) = sideEffectSensitive e1
+sideEffectSensitive (Mem e1) = sideEffectSensitive e1
+sideEffectSensitive (Call _ ls) = any sideEffectSensitive ls
+sideEffectSensitive (Eseq _ _) = True
+
+-- TODO: also take s into account
 commute :: IRStmt -> IRExpr -> Bool
-commute _ (Const _ _) = True
-commute _ _ = False
+commute _ e = not $ sideEffectSensitive e
 
 -- Keep track of the temporaries
 type CanonicalizeState = Temporary
@@ -141,8 +149,9 @@ genFreshLabel :: [Label] -> Label
 genFreshLabel [] = "start"
 genFreshLabel l = "fresh" ++ show (length l)
 
+-- TODO: rewrite useing State monad
 partitionBBs :: [Label] -> [IRStmt] -> [BasicBlock]
-partitionBBs labels []		= []
+partitionBBs _ []		= []
 partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 	where
 		span (l1, [])		= (l1, [])
@@ -156,6 +165,7 @@ partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 		nextLabel = case rs of
 			[]		-> "end"
 			(Label str:_)	-> str
+			_		-> error "COMPILER BUG: The impossible happend (impossible pattern match)"
 		freshLabel = genFreshLabel labels
 		(labels2, begin)
 			| isaLabel (head ls)	= (labels, [])
@@ -166,6 +176,7 @@ partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 
 
 -- Combining all the above, state shouldnt start at 0, because there may already be temporaries
+-- TODO: if partitionBBS uses State monad, keep the state
 linearize :: IRStmt -> [BasicBlock]
 linearize = partitionBBs [] . flatten . uncurry Seq . flip evalState 0 . canonicalize
 

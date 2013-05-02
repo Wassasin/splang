@@ -90,6 +90,7 @@ instance Translate IRExpr where
 	-- Should never occur
 	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
 
+-- TODO: compare operators
 instance Translate IRBOps where
 	translate (AST.Multiplication _)	= out SSM.Multiply
 	translate (AST.Division _)		= out SSM.Divide

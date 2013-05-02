@@ -28,7 +28,6 @@ addTemporary ident temp s = s { identifierTemporaries = insert ident temp $ iden
 genLabels :: [String] -> State TranslationState [IR.Label]
 genLabels strs = do
 	n <- labelNumber <$> get
-	ls <- labels <$> get
 	strs <- Trav.forM strs (\str -> do 
 		let str2 = str ++ "_" ++ show (n)
 		modify (addLabel str2)
@@ -47,12 +46,13 @@ instance Translate (AST.Program a) [IR.IRFunc IR.IRStmt] where
 	translate (AST.Program decls _) = Trav.mapM translate decls
 
 -- TODO: What to do with (global) variables???
+-- TODO: Do something with function arguments
 instance Translate (AST.Decl a) (IR.IRFunc IR.IRStmt) where
 	translate (AST.VarDecl _ (AST.Identifier str mn _) _ _) = do
 		let n = fromJust mn
 		modify (addTemporary n (IR.Temp IR.Bool n))
-		return $ IR.Func "globalvar" [] IR.Nop Nothing
-	translate (AST.FunDecl _ (AST.Identifier str _ _) l decls stmts _) = do
+		return $ IR.Func ("globalvar_"++str) [] IR.Nop Nothing
+	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts _) = do
 		Trav.forM decls translate
 		stmts <- foldl IR.Seq IR.Nop <$> Trav.forM stmts translate
 		return $ IR.Func str [] stmts Nothing
@@ -101,12 +101,13 @@ instance Translate (AST.Expr a) IR.IRExpr where
 		e <- translate e
 		return $ IR.Unop uop e
 	translate (AST.Kint n _) = return $ IR.Const IR.Int n
-	translate (AST.Kbool n _) = return $ IR.Const IR.Bool 0
+	translate (AST.Kbool True _) = return $ IR.Const IR.Bool (-1)
+	translate (AST.Kbool False _) = return $ IR.Const IR.Bool 0
 	translate (AST.FunCall ident l _) = do
 		flabel <- getFunctionLabel ident
 		l <- Trav.mapM translate l
 		return $ IR.Call flabel l
-	translate (AST.Pair e1 e2 _) = error "COMPILER BUG: Pairs not yet implemented"
+	translate (AST.Pair _ _ _) = error "COMPILER BUG: Pairs not yet implemented"
 	translate (AST.Nil _) = return $ IR.Const (IR.ListPtr IR.Int) 0
 
 
