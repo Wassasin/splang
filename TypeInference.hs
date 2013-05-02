@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), InferContext, infer, extractContext) where
+module TypeInference (PolyType(..), MonoType(..), Substitution, InferError(..), InferContext, infer, extractContext, P3, P3Meta(..)) where
 
 import Control.Monad
 import Control.Applicative ((<$>))

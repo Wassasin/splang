@@ -92,7 +92,7 @@ main = do
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 
 	Console.highLightLn ("SSM:")
-	putStrLn . SSM.showProgram . CodeGen.generateSSM $ pResult2
+	putStrLn . SSM.showProgram . CodeGen.generateSSM $ pResult3
 
 	let b = b0 && b1 && b2
 	exit b
@@ -191,15 +191,15 @@ identCommetns (AST.Identifier _ n _) = case n of
 	Nothing -> lift "?"
 	Just m -> lift $ show m
 
-minfer :: Options -> String -> String -> (P2 Program) -> IO ([(AST.IdentID, PolyType P2Meta)], Bool)
+minfer :: Options -> String -> String -> (P2 Program) -> IO (P3 Program, Bool)
 minfer opts filename source program = do
 	let x = infer program
 	case x of
 		Errors.Result ((program, cs), _) [] [] -> do
-			return (cs, True)
+			return (program, True)
 		Errors.Result ((program, cs), _) errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
-			return (cs, False)
+			return (program, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printTypingError opts filename source) (fe:errors)
 			exitFatal
