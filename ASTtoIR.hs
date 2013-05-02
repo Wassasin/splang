@@ -55,9 +55,10 @@ instance Translate (P3 AST.Decl) (IR.IRFunc IR.IRStmt) where
 		modify (addTemporary n (IR.Temp IR.Bool n))
 		return $ IR.Func ("globalvar_"++str) [] IR.Nop Nothing
 	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts _) = do
+		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Temp IR.Int n))
 		Trav.forM decls translate
 		stmts <- foldl IR.Seq IR.Nop <$> Trav.forM stmts translate
-		return $ IR.Func str [] stmts Nothing
+		return $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts Nothing
 
 instance Translate (P3 AST.Stmt) IR.IRStmt where
 	translate (AST.Expr e _) = do
