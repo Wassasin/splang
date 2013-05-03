@@ -170,10 +170,3 @@ instance Translate IRUOps where
 
 irToSSM :: Translate a => a -> SSM.Program
 irToSSM = flip evalState emptyState . execWriterT . translate
-
--- For testing/debugging
-printSSM :: Translate a => a -> IO ()
-printSSM = putStrLn . SSM.showProgram . irToSSM
-
-f :: IRStmt -> IO ()
-f = printSSM . linearize

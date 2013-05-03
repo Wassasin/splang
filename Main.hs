@@ -19,10 +19,8 @@ import TypeInference
 import SemanticAnalysis
 import Errors
 
-import ASTtoIR (programToIR)
-import IRtoSSM (irToSSM)
-import IR
 import qualified CodeGen
+import qualified IR
 import qualified SSM
 
 valid :: IndexSpan -> Bool
@@ -95,21 +93,22 @@ main = do
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 
 	Console.highLightLn ("IR:")
-	let ir = programToIR pResult3
+	let ir = CodeGen.toIR pResult3
 	forM ir (\(IR.Func l args body t) -> do
 		putStrLn $ l ++ show args ++ show t
 		print body
 		putStrLn "")
 
-	Console.highLightLn ("IR lin.:")
-	let ir2 = map (fmap IR.linearize) $ ir
+	Console.highLightLn ("Canonical IR:")
+	let ir2 = CodeGen.canonicalizeIR ir
 	forM ir2 (\(IR.Func l args body t) -> do
 		putStrLn $ l ++ show args ++ show t
-		printBBs body
+		IR.printBBs body
 		putStrLn "")
 
 	Console.highLightLn ("SSM:")
-	putStrLn . SSM.showProgram . irToSSM $ ir2
+	let ssm = CodeGen.toSSM ir2
+	putStrLn . SSM.showProgram $ ssm
 
 	let b = b0 && b1 && b2
 	exit b

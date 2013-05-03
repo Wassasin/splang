@@ -2,8 +2,10 @@
 
 module IR where
 
-import Control.Monad.State
+import Prelude hiding (mapM)
+import Control.Monad.State hiding (mapM)
 import Control.Applicative((<$>))
+import Data.Traversable
 
 -- cabal install derive
 import Data.DeriveTH
@@ -46,6 +48,7 @@ data IRStmt
 	deriving (Eq, Ord, Show)
 
 type BasicBlock = [IRStmt]
+type Program a = [IRFunc a]
 
 -- Derive the isConstructor functions :)
 $( derive makeIs ''IRExpr)
@@ -156,7 +159,7 @@ freshLabel :: PartitionState -> Label
 freshLabel [] = "start"
 freshLabel l = "fresh" ++ show (length l)
 
-genBegin :: Bool -> State PartitionState [IRStmt]
+genBegin :: (Functor m, Monad m) => Bool -> StateT PartitionState m [IRStmt]
 genBegin True = return []
 genBegin False = do
 	freshLabel <- freshLabel <$> get
@@ -164,7 +167,7 @@ genBegin False = do
 	return [Label freshLabel]
 
 -- TODO: also keep "end" in state
-partitionBBs :: [IRStmt] -> State PartitionState [BasicBlock]
+partitionBBs :: (Functor m, Monad m) => [IRStmt] -> StateT PartitionState m [BasicBlock]
 partitionBBs []		= return []
 partitionBBs (x:xs)	= do
 	begin <- genBegin (isaLabel (head ls))
@@ -190,10 +193,23 @@ partitionBBs (x:xs)	= do
 startWith :: s -> State s a -> a
 startWith = flip evalState
 
+startWithT :: Monad m => s -> StateT s m a -> m a
+startWithT = flip evalStateT
+
 -- Combining all the above, state shouldnt start at 0, because there may already be temporaries
 -- TODO: if partitionBBS uses State monad, keep the state
-linearize :: IRStmt -> [BasicBlock]
-linearize = startWith [] . partitionBBs . flatten . uncurry Seq . startWith 0 . canonicalize
+linearizeStmt :: IRStmt -> StateT PartitionState (State CanonicalizeState) [BasicBlock]
+linearizeStmt s = do
+	(s1, s2) <- lift (canonicalize s)
+	partitionBBs . flatten $ Seq s1 s2
+
+linearizeFunc :: IRFunc IRStmt -> StateT PartitionState (State CanonicalizeState) (IRFunc [BasicBlock])
+linearizeFunc (Func a b body c) = do
+	body <- linearizeStmt body
+	return $ Func a b body c
+
+linearize :: IR.Program IRStmt -> IR.Program [BasicBlock]
+linearize = startWith 0 . startWithT [] . mapM linearizeFunc
 
 -- TODO: Analyse traces and remove redundant labels
 

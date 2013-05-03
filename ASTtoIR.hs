@@ -120,11 +120,7 @@ instance Translate (P3 AST.BinaryOperator) IR.IRBOps where
 instance Translate (P3 AST.UnaryOperator) IR.IRUOps where
 	translate x = return $ fmap (const ()) x
 
-programToIR :: (P3 AST.Program) -> [IR.IRFunc IR.IRStmt]
-programToIR program = evalState (translate program) emptyState
-
 -- Typing
-
 instance Translate (Typing.MonoType a) IR.Type where
 	translate (Typing.Func _ _ _)	= error "COMPILER BUG: Can not directly translate a function to a datatype"
 	translate (Typing.Pair x y _)	= do
@@ -140,5 +136,5 @@ instance Translate (Typing.MonoType a) IR.Type where
 	translate (Typing.Bool _)	= return $ IR.Bool
 	translate (Typing.Void _)	= error "COMPILER BUG: Can not translate a Void type to a concrete datatype"
 
--- For Debugging/Testing
-f = IR.printBBs . IR.linearize . flip evalState emptyState . translate :: (P3 AST.Stmt) -> IO ()
+translateProgram :: (P3 AST.Program) -> [IR.IRFunc IR.IRStmt]
+translateProgram program = evalState (translate program) emptyState
