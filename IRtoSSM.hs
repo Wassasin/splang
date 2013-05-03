@@ -53,7 +53,7 @@ assignCurrentFunction f@(Func _ args _ _) o = o
 	, stackPtr = 0 }
 	where
 		-- TODO: figure out real size of an argument
-		locs = map (,Argument) [(-1), (-2) ..]
+		locs = map (,Argument) [(-2), (-3) ..]
 		ts = zip (map snd args) locs
 		fs = map (uncurry insert) ts
 		inserts = foldl (.) id fs
@@ -81,12 +81,17 @@ class Translate a where
 instance Translate [IRFunc [BasicBlock]] where
 	translate fs = mapM_ translate fs
 
+functionStart :: Label -> WriterT Output (State TranslationState) ()
+functionStart l = do
+	out (SSM.Label l)
+	out (SSM.LoadRegister SSM.MP)
+	out (SSM.LoadRegisterFromRegister SSM.MP SSM.SP)
+
 -- TODO: arguments/returning/etc
 instance Translate (IRFunc [BasicBlock]) where
 	translate f@(Func l _ body _) = do
 		lift . modify $ assignCurrentFunction f
-		out (SSM.Label l)
-		out (SSM.NoOperation)
+		functionStart l
 		translate body
 
 instance Translate [BasicBlock] where
@@ -121,9 +126,12 @@ instance Translate IRStmt where
 		translate s2
 	translate (Ret (Just e)) = do
 		translate e
+		out (SSM.StoreRegister SSM.RR)
+		out (SSM.StoreRegister SSM.MP)
 		out (SSM.Return)
-	-- TODO: probably more than just return
-	translate (Ret Nothing) = out (SSM.Return)
+	translate (Ret Nothing) = do
+		out (SSM.StoreRegister SSM.MP)
+		out (SSM.Return)
 	translate (Label l) = out (SSM.Label l)
 	translate (Nop) = out (SSM.NoOperation)
 
@@ -150,6 +158,9 @@ instance Translate IRExpr where
 	translate (Call label args) = do
 		mapM translate args
 		out (SSM.BranchToSubroutine label)
+		out (SSM.AdjustStack (negate $ length args))
+		-- TODO: not always load the RR
+		out (SSM.LoadRegister SSM.RR)
 	-- Should never occur
 	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
 
@@ -167,6 +178,29 @@ instance Translate IRUOps where
 	translate (AST.Not _)			= out SSM.Not
 	translate (AST.Negative _)		= out SSM.Negation
 
+printFunc :: WriterT Output (State TranslationState) ()
+printFunc = do
+	functionStart "print"
+	out (SSM.LoadLocal (-2))
+	out (SSM.Trap 0)
+	out (SSM.StoreRegister SSM.MP)
+	out (SSM.Return)
+
+header :: WriterT Output (State TranslationState) ()
+header = do
+	out (SSM.BranchToSubroutine "main")
+	printFunc
+
+footer :: WriterT Output (State TranslationState) ()
+footer = do
+	out (SSM.Label "end")
+	out SSM.Halt
+
+total :: Translate a => a -> WriterT Output (State TranslationState) ()
+total p = do
+	header
+	translate p
+	footer
 
 irToSSM :: Translate a => a -> SSM.Program
-irToSSM = flip evalState emptyState . execWriterT . translate
+irToSSM = flip evalState emptyState . execWriterT . total
