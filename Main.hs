@@ -98,11 +98,18 @@ main = do
 	let ir = programToIR pResult3
 	forM ir (\(IR.Func l args body t) -> do
 		putStrLn $ l ++ show args ++ show t
+		print body
+		putStrLn "")
+
+	Console.highLightLn ("IR lin.:")
+	let ir2 = map (fmap IR.linearize) $ ir
+	forM ir2 (\(IR.Func l args body t) -> do
+		putStrLn $ l ++ show args ++ show t
 		printBBs body
-		putStrLn ".")
+		putStrLn "")
 
 	Console.highLightLn ("SSM:")
-	putStrLn . SSM.showProgram . irToSSM $ ir
+	putStrLn . SSM.showProgram . irToSSM $ ir2
 
 	let b = b0 && b1 && b2
 	exit b

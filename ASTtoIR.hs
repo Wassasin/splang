@@ -57,7 +57,7 @@ instance Translate (P3 AST.Decl) (IR.IRFunc IR.IRStmt) where
 	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts _) = do
 		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Temp IR.Int n))
 		Trav.forM decls translate
-		stmts <- foldl IR.Seq IR.Nop <$> Trav.forM stmts translate
+		stmts <- foldl IR.Seq IR.Nop <$> Trav.mapM translate stmts
 		return $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts Nothing
 
 instance Translate (P3 AST.Stmt) IR.IRStmt where
@@ -120,8 +120,8 @@ instance Translate (P3 AST.BinaryOperator) IR.IRBOps where
 instance Translate (P3 AST.UnaryOperator) IR.IRUOps where
 	translate x = return $ fmap (const ()) x
 
-programToIR :: (P3 AST.Program) -> [IR.IRFunc [IR.BasicBlock]]
-programToIR program = map (fmap IR.linearize) $ evalState (translate program) emptyState
+programToIR :: (P3 AST.Program) -> [IR.IRFunc IR.IRStmt]
+programToIR program = evalState (translate program) emptyState
 
 -- Typing
 
