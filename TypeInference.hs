@@ -287,7 +287,7 @@ inferProgram c (AST.Program decls m) = do
 	(decls, s, c) <- foldl (>>=) (return ([], id, c)) $ map (\d -> \(ds, s, c) -> do
 		c <- apply s c
 		(d, s) <- inferDecl c d
-		return (d:ds, s, c)) decls
+		return (ds++[d], s, c)) decls
 	c <- apply s c
 	return (AST.Program decls (promote m), s, c)
 
@@ -313,13 +313,13 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 	(decls, s, ci) <- foldl (>>=) (return ([], id, ci)) $ map (\d -> \(ds, s, ci) -> do
 		ci <- apply s ci
 		(d, s) <- inferDecl ci d ?> s
-		return (d:ds, s, ci)) decls
+		return (ds++[d], s, ci)) decls
 	ci <- apply s ci
 	-- process statements
 	(stmts, s) <- foldl (>>=) (return ([], s)) $ map (\stmt -> \(stmts, s) -> do
 		ci <- apply s ci
 		(stmt, s) <- inferStmt ci stmt (s b) ?> s
-		return (stmt:stmts, s)) stmts
+		return (stmts++[stmt], s)) stmts
 	-- define eventual type of this function
 	v <- return $ Func (map (s . snd) argtup) (s b) m
 	-- unify with type in original context
@@ -349,7 +349,7 @@ inferStmt c (AST.Scope stmts m) t = do
 	(stmts, s) <- foldl (>>=) (return ([], id)) $ map (\stmt -> \(stmts, s) -> do
 		c <- apply s c
 		(stmt, s) <- inferStmt c stmt (s t) ?> s
-		return (stmt:stmts, s)) stmts
+		return (stmts++[stmt], s)) stmts
 	return (AST.Scope stmts $ promote m, s)
 inferStmt c (AST.If e stmtt m) t = do
 	(stmtt, s) <- inferStmt c stmtt t
@@ -453,7 +453,7 @@ inferExpr c (AST.FunCall i es m) t = do
 		c <- apply s c
 		(e, s) <- inferExpr c e (s a) ?> s
 		when(usingVoid (s a)) $ addInferError (VoidUsage m (s a))
-		return (e:es, s)) $ zip es as
+		return (es++[e], s)) $ zip es as
 	s <- genMgu m (s t) (s r) .> s
 	return (AST.FunCall (fpromote i) es $ tpromote m v, s)
 inferExpr c (AST.Pair e1 e2 m) t = do
