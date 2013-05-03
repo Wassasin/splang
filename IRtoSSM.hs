@@ -14,6 +14,7 @@ import qualified AST
 import IR
 import qualified SSM
 
+
 -- Obvious output
 type Output = SSM.Program
 
@@ -25,35 +26,34 @@ data TemporaryKind
 	| Argument
 	| Local
 
+
 -- Information about the stack and temporaries
--- currentFunction is the enclosing function (handy for getting args, if needed)
 -- temporaryLocations gives information about the temps
 -- stackPtr is the stack pointer relative to the MP
 data TranslationState = TranslationState
-	{ currentFunction :: Maybe (IRFunc [BasicBlock])
-	, temporaryLocations :: Map Temporary (Address, TemporaryKind)
+	{ temporaryLocations :: Map Temporary (Address, TemporaryKind)
 	, stackPtr :: Address }
 
-emptyState :: TranslationState
 emptyState = TranslationState
-	{ currentFunction = Nothing
-	, temporaryLocations = empty
+	{ temporaryLocations = empty
 	, stackPtr = 0 }
 
-increaseStackPtr :: TranslationState -> TranslationState
+-- Some useful thingies
 increaseStackPtr o = o { stackPtr = 1 + (stackPtr o) }
-
-decreaseStackPtr :: TranslationState -> TranslationState
 decreaseStackPtr o = o { stackPtr = (stackPtr o) - 1 }
 
+-- (-1) is reserved for storing the old mark pointer
+firstArgument = (-2)
+nextArgument = pred
+
+-- Stores information about arguments in the state
 assignCurrentFunction :: IRFunc [BasicBlock] -> TranslationState -> TranslationState
 assignCurrentFunction f@(Func _ args _ _) o = o
-	{ currentFunction = Just f
-	, temporaryLocations = inserts $ temporaryLocations o
+	{ temporaryLocations = inserts $ temporaryLocations o
 	, stackPtr = 0 }
 	where
 		-- TODO: figure out real size of an argument
-		locs = map (,Argument) [(-2), (-3) ..]
+		locs = map (,Argument) [firstArgument, (nextArgument firstArgument) ..]
 		ts = zip (map snd args) locs
 		fs = map (uncurry insert) ts
 		inserts = foldl (.) id fs
@@ -68,10 +68,18 @@ out x = tell [x]
 getTemporaryLocation :: Temporary -> State TranslationState (Maybe (Address, TemporaryKind))
 getTemporaryLocation t = Map.lookup t <$> temporaryLocations <$> get
 
+-- Pushes an temporary on the stack
 loadTemporary :: (Address, TemporaryKind) -> WriterT Output (State TranslationState) ()
 loadTemporary (location, Global)	= modify increaseStackPtr >> out (SSM.LoadViaAddress location)
 loadTemporary (location, Argument)	= modify increaseStackPtr >> out (SSM.LoadLocal location)
 loadTemporary (location, Local)		= modify increaseStackPtr >> out (SSM.LoadLocal location)
+
+-- Preamble for functions
+functionStart :: Label -> WriterT Output (State TranslationState) ()
+functionStart l = do
+	out (SSM.Label l)
+	out (SSM.LoadRegister SSM.MP)
+	out (SSM.LoadRegisterFromRegister SSM.MP SSM.SP)
 
 
 -- We use the Writer monad to automatically apply ++ everywhere, and the State monad for information about stack/temporaries
@@ -80,12 +88,6 @@ class Translate a where
 
 instance Translate [IRFunc [BasicBlock]] where
 	translate fs = mapM_ translate fs
-
-functionStart :: Label -> WriterT Output (State TranslationState) ()
-functionStart l = do
-	out (SSM.Label l)
-	out (SSM.LoadRegister SSM.MP)
-	out (SSM.LoadRegisterFromRegister SSM.MP SSM.SP)
 
 -- TODO: arguments/returning/etc
 instance Translate (IRFunc [BasicBlock]) where
@@ -178,10 +180,12 @@ instance Translate IRUOps where
 	translate (AST.Not _)			= out SSM.Not
 	translate (AST.Negative _)		= out SSM.Negation
 
+
+-- Basics for a ssm program
 printFunc :: WriterT Output (State TranslationState) ()
 printFunc = do
 	functionStart "print"
-	out (SSM.LoadLocal (-2))
+	out (SSM.LoadLocal firstArgument)
 	out (SSM.Trap 0)
 	out (SSM.StoreRegister SSM.MP)
 	out (SSM.Return)
@@ -196,6 +200,7 @@ footer = do
 	out (SSM.Label "end")
 	out SSM.Halt
 
+-- Tie it together
 total :: Translate a => a -> WriterT Output (State TranslationState) ()
 total p = do
 	header
