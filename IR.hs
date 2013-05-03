@@ -45,13 +45,15 @@ data IRStmt
 	| Nop				-- might be handy
 	deriving (Eq, Ord, Show)
 
+type BasicBlock = [IRStmt]
+
 -- Derive the isConstructor functions :)
 $( derive makeIs ''IRExpr)
 $( derive makeIs ''IRStmt)
 
 -- Bit more general
 isaJump :: IRStmt -> Bool
-isaJump x = isJump x || isCJump x
+isaJump x = isJump x || isCJump x || isRet x
 
 isaLabel :: IRStmt -> Bool
 isaLabel x = isLabel x
@@ -63,11 +65,12 @@ sideEffectSensitive (Temp _ _) = True
 sideEffectSensitive (Binop e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
 sideEffectSensitive (Unop _ e1) = sideEffectSensitive e1
 sideEffectSensitive (Mem e1) = sideEffectSensitive e1
-sideEffectSensitive (Call _ ls) = any sideEffectSensitive ls
+sideEffectSensitive (Call _ _) = True
 sideEffectSensitive (Eseq _ _) = True
 
 -- TODO: also take s into account
 commute :: IRStmt -> IRExpr -> Bool
+commute Nop _ = True
 commute _ e = not $ sideEffectSensitive e
 
 -- Keep track of the temporaries
@@ -91,9 +94,13 @@ instance Canonicalize IRStmt where
 		s1' <- uncurry Seq <$> canonicalize s1
 		s2' <- uncurry Seq <$> canonicalize s2
 		return (s1', s2')
+	canonicalize (Move dst@(Temp _ _) src) = do
+		(s, src) <- canonicalize src
+		return (s, Move dst src)
+	-- Figure out whether this is always sane semantics
 	canonicalize (Move dst src) = do
-		(s, [dst',src']) <- canonicalize [dst, src]
-		return (s, Move dst' src')
+		(s, [dst, src]) <- canonicalize [dst, src]
+		return (s, Move dst src)
 	canonicalize (Expression e) = do
 		(s, e') <- canonicalize e
 		return (s, Expression e')
@@ -143,16 +150,26 @@ flatten x = [x]
 
 
 -- Such that the first one is a label, last one is a jump
-type BasicBlock = [IRStmt]
+type PartitionState = [Label]
 
-genFreshLabel :: [Label] -> Label
-genFreshLabel [] = "start"
-genFreshLabel l = "fresh" ++ show (length l)
+freshLabel :: PartitionState -> Label
+freshLabel [] = "start"
+freshLabel l = "fresh" ++ show (length l)
 
--- TODO: rewrite useing State monad
-partitionBBs :: [Label] -> [IRStmt] -> [BasicBlock]
-partitionBBs _ []		= []
-partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
+genBegin :: Bool -> State PartitionState [IRStmt]
+genBegin True = return []
+genBegin False = do
+	freshLabel <- freshLabel <$> get
+	modify (freshLabel:)
+	return [Label freshLabel]
+
+-- TODO: also keep "end" in state
+partitionBBs :: [IRStmt] -> State PartitionState [BasicBlock]
+partitionBBs []		= return []
+partitionBBs (x:xs)	= do
+	begin <- genBegin (isaLabel (head ls))
+	rest <- partitionBBs rs
+	return $ [begin ++ ls ++ end] ++ rest
 	where
 		span (l1, [])		= (l1, [])
 		span (l1, (y:ys))
@@ -166,19 +183,17 @@ partitionBBs labels (x:xs)	= [begin ++ ls ++ end] ++ partitionBBs labels2 rs
 			[]		-> "end"
 			(Label str:_)	-> str
 			_		-> error "COMPILER BUG: The impossible happend (impossible pattern match)"
-		freshLabel = genFreshLabel labels
-		(labels2, begin)
-			| isaLabel (head ls)	= (labels, [])
-			| otherwise		= (freshLabel:labels, [Label freshLabel])
 		end
 			| isaJump (last ls)	= []
 			| otherwise		= [Jump nextLabel]
 
+startWith :: s -> State s a -> a
+startWith = flip evalState
 
 -- Combining all the above, state shouldnt start at 0, because there may already be temporaries
 -- TODO: if partitionBBS uses State monad, keep the state
 linearize :: IRStmt -> [BasicBlock]
-linearize = partitionBBs [] . flatten . uncurry Seq . flip evalState 0 . canonicalize
+linearize = startWith [] . partitionBBs . flatten . uncurry Seq . startWith 0 . canonicalize
 
 -- TODO: Analyse traces and remove redundant labels
 

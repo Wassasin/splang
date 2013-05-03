@@ -140,6 +140,7 @@ instance Translate IRExpr where
 		translate e1
 		translate e2
 		translate bop
+		lift $ modify decreaseStackPtr
 	translate (Unop uop e) = do
 		translate e
 		translate uop
