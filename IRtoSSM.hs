@@ -122,7 +122,7 @@ instance Translate IRStmt where
 	translate (CJump e tl fl) = do
 		translate e
 		out (SSM.BranchOnTrue tl)
-		out (SSM.BranchOnFalse fl)
+		out (SSM.BranchAlways fl)
 	translate (Seq s1 s2) = do
 		translate s1
 		translate s2
@@ -158,7 +158,7 @@ instance Translate IRExpr where
 		translate e
 		out (SSM.LoadViaAddress 0)
 	translate (Call label args) = do
-		mapM translate args
+		mapM translate $ reverse args
 		out (SSM.BranchToSubroutine label)
 		out (SSM.AdjustStack (negate $ length args))
 		-- TODO: not always load the RR
@@ -175,6 +175,12 @@ instance Translate IRBOps where
 	translate (AST.Minus _)			= out SSM.Substraction
 	translate (AST.And _)			= out SSM.And
 	translate (AST.Or _)			= out SSM.Or
+	translate (AST.Equals _)		= out SSM.Equal
+	translate (AST.LesserThan _)		= out SSM.LesserThan
+	translate (AST.GreaterThan _)		= out SSM.GreaterThan
+	translate (AST.LesserEqualThan _)	= out SSM.LesserEqual
+	translate (AST.GreaterEqualThan _)	= out SSM.GreaterEqual
+	translate (AST.Nequals _)		= out SSM.NotEqual
 
 instance Translate IRUOps where
 	translate (AST.Not _)			= out SSM.Not
