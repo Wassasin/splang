@@ -86,11 +86,10 @@ main = do
 
 	(pResult3, b2) <- minfer opts file source pResult2
 	when (showStages opts) $ Console.highLightLn ("*** Typing " ++ sucfail b2)
+	when (typeOnly opts) $ exit b2
 
-	let printingInfo = withIdentCommentInline identCommetns $ withDeclCommentLine declComments basicInfo
-	when (showTypingResult opts) $ prettyPrint printingInfo (astPrinter opts) pResult2
-
-	when (showStages opts) $ Console.highLightLn ("*** Done ")
+	let b = b0 && b1 && b2
+	unless (b || forceCodegen opts) $ exit b
 
 	Console.highLightLn ("IR:")
 	let ir = CodeGen.toIR pResult3
@@ -110,10 +109,10 @@ main = do
 	let ssm = CodeGen.toSSM ir2
 	putStrLn . SSM.showProgram $ ssm
 
-	let b = b0 && b1 && b2
+	when (showStages opts) $ Console.highLightLn ("*** Done ")
 	exit b
 
--- filename is needed for error-messaging! Returns a list of tokens or errors.
+-- *** Lexing
 mlex :: Options -> String -> String -> IO [Token]
 mlex opts filename source = do
 	when (showLexingResult opts) $ Console.highLightLn "Lexing result:"
@@ -126,7 +125,7 @@ mlex opts filename source = do
 			standardMessage filename source (IndexSpan lError lError) Console.Error "Unexpected sequence of characters starting"
 			exitFatal
 
--- filename and source are needed for error-messaging! Returns an AST or errors.
+-- *** Parsing
 mparse :: Options -> String -> String -> [Token] -> IO (P1 Program, Bool)
 mparse opts filename source tokens = do
 	when (showParsingResult opts) $ Console.highLightLn "Parsing result:"
@@ -153,18 +152,29 @@ mparse opts filename source tokens = do
 interleave file [] = []
 interleave file (x:xs) = Console.putMessageLn Console.Note file (-1, -1) "Possible interpretation:" : x : interleave file xs
 
+-- *** Scoping
+identCommetns :: AST.Identifier a -> MarkupString Styles
+identCommetns (AST.Identifier _ n _) = case n of
+	Nothing -> lift "?"
+	Just m -> lift $ show m
+
+declComments :: P2 AST.Decl -> MarkupString Styles
+declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ output basicInfo (fromJust . annotatedType $ getMeta decl)
+
+midentifiersPrintingInfo = withIdentCommentInline identCommetns $ withDeclCommentLine declComments basicInfo
+
 midentifiers :: Options -> String -> String -> (P1 Program) -> IO (P2 Program, Bool)
 midentifiers opts filename source program = do
 	let x = assignUniqueIDs program
 	case x of
 		Errors.Result newProgram [] warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
-			when (showScopingResult opts) $ prettyPrint (withDeclCommentLine declComments basicInfo) (astPrinter opts) newProgram
+			when (showScopingResult opts) $ prettyPrint midentifiersPrintingInfo (astPrinter opts) newProgram
 			return (newProgram, True)
 		Errors.Result newProgram errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) errors
-			when (showParsingResult opts) $ prettyPrint (withDeclCommentLine declComments basicInfo) (astPrinter opts) newProgram
+			when (showParsingResult opts) $ prettyPrint midentifiersPrintingInfo (astPrinter opts) newProgram
 			return (newProgram, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
@@ -199,22 +209,25 @@ printSemanticsWarning opts filename source (ShadowsDeclaration id1 (Builtin b) s
 
 ifWarning kind opts = when (kind . enabledWarnings $ opts)
 
-declComments :: P2 AST.Decl -> MarkupString Styles
-declComments decl = lift (getString (getIdentifier decl) ++ " :: ") ++ output basicInfo (fromJust . annotatedType $ getMeta decl)
-
-identCommetns :: P2 AST.Identifier -> MarkupString Styles
-identCommetns (AST.Identifier _ n _) = case n of
+-- *** Typing
+declComments2 :: P3 AST.Decl -> MarkupString Styles
+declComments2 decl = lift (getString (getIdentifier decl) ++ " :: ") ++ case t of
+	Just t1 -> output basicInfo t1
 	Nothing -> lift "?"
-	Just m -> lift $ show m
+	where t = inferredType $ getMeta decl
+
+minferPrintingInfo = withDeclCommentLine declComments2 basicInfo
 
 minfer :: Options -> String -> String -> (P2 Program) -> IO (P3 Program, Bool)
 minfer opts filename source program = do
 	let x = infer program
 	case x of
 		Errors.Result ((program, cs), _) [] [] -> do
+			when (showTypingResult opts) $ prettyPrint minferPrintingInfo (astPrinter opts) program
 			return (program, True)
 		Errors.Result ((program, cs), _) errors warnings -> do
 			sequence $ map (printTypingError opts filename source) errors
+			when (showTypingResult opts) $ prettyPrint minferPrintingInfo (astPrinter opts) program
 			return (program, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printTypingError opts filename source) (fe:errors)

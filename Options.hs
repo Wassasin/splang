@@ -25,6 +25,8 @@ data Options = Options
 	, lexOnly :: Bool
 	, parseOnly :: Bool
 	, scopeOnly :: Bool
+	, typeOnly :: Bool
+	, forceCodegen :: Bool
 	, enabledWarnings :: Warnings
 	}
 
@@ -40,6 +42,8 @@ defaultOptions = Options
 	, lexOnly = False
 	, parseOnly = False
 	, scopeOnly = False
+	, typeOnly = False
+	, forceCodegen = False
 	, enabledWarnings = allWarnings
 	}
 
@@ -65,6 +69,8 @@ options =
 	, Option [] ["lex-only"]	(NoArg (\o -> o { lexOnly = True }))			"stops after the lexing pass"
 	, Option [] ["parse-only"]	(NoArg (\o -> o { parseOnly = True }))			"stops after the parsing pass"
 	, Option [] ["scope-only"]	(NoArg (\o -> o { scopeOnly = True }))			"stops after the scoping pass"
+	, Option [] ["type-only"]	(NoArg (\o -> o { typeOnly = True }))			"stops after the typing pass"
+	, Option [] ["force-codegen"]	(NoArg (\o -> o { forceCodegen = True }))		"will generate code, even when there are (non-fatal) errors in analysis"
 	, Option "W" []			(ReqArg (fmap lift warningsOptions) "warning")		"Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
 	]
 
