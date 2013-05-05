@@ -10,5 +10,5 @@
 # 	../build/splang --show-input --show-stages --show-typing "$@" $f | perl -pe 's/\e\[?.*?[\@-~]//g' > $f.txt
 # done
 
-pdflatex "assignment2.tex" || exit 1
-pdflatex "assignment2.tex"
+pdflatex "report.tex" || exit 1
+pdflatex "report.tex"

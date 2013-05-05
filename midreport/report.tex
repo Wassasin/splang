@@ -10,8 +10,9 @@
 \usepackage{url}
 
 \newcommand{\splang}{\textsc{Splang}\xspace}
+\newcommand{\flag}[1]{\texttt{#1}}
 
-\title{\splang}
+\title{The \splang compiler}
 \author{Wouter Geraedts (0814857) \and Joshua Moerman (3009048)}
 \date{}
 
@@ -20,12 +21,46 @@
 
 \tableofcontents
 
+\section{Overview}
+\subsection{Getting started}
+Get the source from \url{https://github.com/Wassasin/splang}. In order to compile it you'll need to install the following haskell packages:
+\begin{lstlisting}
+$ cabal update
+$ cabal install ansi-terminal
+$ cabal install edit-distance
+$ cabal install derive
+\end{lstlisting}
+
+Then to compile \texttt{some.spl}, simply run \texttt{./run some.spl}. This will first compile the compiler (if needed), then compile \texttt{some.spl}. If you only want to tidy \texttt{some.spl} up, you can use \texttt{./parse} instead (this will provide the needed compiler flags).
+
+Use \texttt{./run -h} to see all compiler flags.
+
+\subsection{Compilation phases}
+Our compiler uses several compilation phases. A summary is given in table~\ref{tab:overview}. One can stop compiling after a phase by using the corresponding compiler flags \flag{--<phase>-only} and output the result after a phase with \flag{--show-<phase>}, note that not all phases have readable results. In the reading phase every error is a fatal one. In the analysis phase compilation will continue on errors (if possible). Code will only be generated for correct code, unless the \flag{--force-codegen} flag is given.
+
+\begin{table}
+\begin{tabular}{l l p{8cm}}
+\multicolumn{2}{c}{Phase} & \multicolumn{1}{c}{Description}\\
+\hline Reading
+ & Lexing & Converts the file to a list of tokens, this strips whitespace and comments. \\
+ & Parsing & Parses the list of tokens and generates the AST. \\
+\hline Analysis
+ & Scoping & Checks usage of identifiers, gives errors on redeclarations and undeclared identifiers. This phase rewrites the AST to contain unique identifiers. \\
+ & Typing & Checks and infers types of the program. Rewrites the AST to contain types in each expression. \\
+\hline Code gen
+ & AST to IR & Converts to the AST to our IR. \\
+ & Canonicalize IR & Converts the IR into a IR consisting of basic blocks. \\
+ & Generate SSM & Translates the canonical IR into SSM instructions.
+\end{tabular}
+\caption{Overview of all the phases of the \splang compiler}
+\label{tab:overview}
+\end{table}
+
+
 \section{Implementation}
-For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining datastructures. Another nice things is the \emph{\texttt{do}-syntax} of Haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperative language.
+For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining datastructures. Another nice things is the \emph{\texttt{do}-syntax} of Haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperative language. Another nice feature is of course nested pattern-matching, which turned out to be really usefull in code generation.
 
-One feature we miss out in Haskell is for example \emph{generics} as in \emph{Clean} (however the \texttt{deriving Functor} possibility of Haskell \emph{is} nice). Of course there are also some minor irritations because of some differences between Clean and Haskell.
-
-We depend on two libraries (other than the library which comes with Haskell), namely \emph{ansi-terminal} and \emph{edit-distance}. We use those for (resp.) coloured output in the terminal (colour scheme is based on the {\sc Clang} compiler) and suggestions when the programmer typed a undeclared identifier.
+We depend on the libraries mentioned above (other than the library which comes with Haskell). We use \emph{ansi-terminal} for coloured output in the terminal (colour scheme is based on the {\sc Clang} compiler), \emph{edit-distance} for suggestions when the programmer typed a undeclared identifier and \emph{derive} to derive functions/typeclasses for some datastructures.
 
 \section{Parser}
 We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and sourecode information. It is implemented in a monadic way.
@@ -259,7 +294,15 @@ $\begin{array}{rcl}
 	& & \mbox{where}~\alpha~\mbox{fresh} \\
 \end{array}$
 
+\section{Semantics}
+A chapter describing the chosen semantics of SPL.
 
+\section{SSM}
+A chapter explaining the compilation schemes used in your compiler. A
+concise informal or semiformal description suﬃces, so a formal description
+of the compilation scheme is welcome, but not required. Typical things to
+5explain here are calling conventions, stack management, stack layout, heap
+layout, and heap management.
 
 \section{Tests}
 All tests are performed with the \texttt{--show-input --show-stages} flags, and all colors are stripped. The output is a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration). For every \texttt{.spl} file, there is a \texttt{.spl.txt} file with gray output. The coloured output is also attached in a different pdf file.
@@ -282,6 +325,10 @@ All tests are performed with the \texttt{--show-input --show-stages} flags, and 
 	\item[pass\_reverse] Shows a basic reverse function. It is also used on a list of lists.
 	\item[fail\_empty\_list] Shows our compilers output on the \emph{Empty list} example discussed above. Note that the type \texttt{t} is used in different ways (both \texttt{Int} and \texttt{Bool}).
 	\item[pass\_polymorphism] Shows polymorphism and also scoping of type variables.
+\end{itemize}
+\subsection{Code generation}
+\begin{itemize}
+	\item no tests yet...
 \end{itemize}
 
 \section{Reflection}
