@@ -1,0 +1,25 @@
+// Tests the order of evaluation (left to right), and also printing, and integer arithmetic
+
+Int a(){
+	return 5;
+}
+
+Int b(){
+	return 6;
+}
+
+Int c(){
+	return 7;
+}
+
+Void f(Int x, Int y, Int z){
+	print(x);
+	print(y);
+	print(z);
+}
+
+Void main(){
+	f(a(), b(), c());
+	print(a() - b() - c());
+	print(a() + b() * c());
+}

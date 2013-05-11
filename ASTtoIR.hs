@@ -58,6 +58,7 @@ instance Translate (P3 AST.Decl) (IR.IRFunc IR.IRStmt) where
 		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Temp IR.Int n))
 		Trav.forM decls translate
 		stmts <- foldl IR.Seq IR.Nop <$> Trav.mapM translate stmts
+		stmts <- return $ IR.Seq stmts (IR.Ret Nothing) -- FIXME: ugly hack to ensure functions always return
 		return $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts Nothing
 
 instance Translate (P3 AST.Stmt) IR.IRStmt where

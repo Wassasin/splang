@@ -345,7 +345,7 @@ However such programs will never terminate, so they are not very useful in pract
 % layout, and heap management.
 
 \subsection{Calling convention and stack management}
-When calling a function, the caller makes sure pushes the arguments on the stack, in reverse order. The callee is allowed to change these in its calculation, and will return via the return register (RR). It's then the callers job to clean up the pushed arguments.
+When calling a function, the caller makes sure pushes the arguments on the stack, in normal order (first arguments first). The callee is allowed to change these in its calculation, and will return via the return register (RR). It's then the callers job to clean up the pushed arguments.
 
 For the call the \texttt{bsr} and \texttt{ret} instructions are used. So on top of the arguments there will be a return address. The callee then also pushes the mark pointer (MP) on the stack and updates the MP to the current stack pointer (SP). On return the callee resets the original MP.
 

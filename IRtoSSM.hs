@@ -43,8 +43,10 @@ increaseStackPtr o = o { stackPtr = 1 + (stackPtr o) }
 decreaseStackPtr o = o { stackPtr = (stackPtr o) - 1 }
 
 -- (-1) is reserved for storing the old mark pointer
-firstArgument = (-2)
-nextArgument = pred
+lastArgument :: Address
+lastArgument = (-2)
+prevArgument :: Address -> Address
+prevArgument = pred
 
 -- Stores information about arguments in the state
 assignCurrentFunction :: IRFunc [BasicBlock] -> TranslationState -> TranslationState
@@ -53,7 +55,8 @@ assignCurrentFunction f@(Func _ args _ _) o = o
 	, stackPtr = 0 }
 	where
 		-- TODO: figure out real size of an argument
-		locs = map (,Argument) [firstArgument, (nextArgument firstArgument) ..]
+		nArgs = length args
+		locs = map (,Argument) [lastArgument - nArgs + 1 ..]
 		ts = zip (map snd args) locs
 		fs = map (uncurry insert) ts
 		inserts = foldl (.) id fs
@@ -129,9 +132,12 @@ instance Translate IRStmt where
 	translate (Ret (Just e)) = do
 		translate e
 		out (SSM.StoreRegister SSM.RR)
+		-- This cleans up the stack
+		out (SSM.LoadRegisterFromRegister SSM.SP SSM.MP)
 		out (SSM.StoreRegister SSM.MP)
 		out (SSM.Return)
 	translate (Ret Nothing) = do
+		out (SSM.LoadRegisterFromRegister SSM.SP SSM.MP)
 		out (SSM.StoreRegister SSM.MP)
 		out (SSM.Return)
 	translate (Label l) = out (SSM.Label l)
@@ -158,10 +164,10 @@ instance Translate IRExpr where
 		translate e
 		out (SSM.LoadViaAddress 0)
 	translate (Call label args) = do
-		mapM translate $ reverse args
+		mapM translate args
 		out (SSM.BranchToSubroutine label)
 		out (SSM.AdjustStack (negate $ length args))
-		-- TODO: not always load the RR
+		-- TODO: not always load the RR, maybe it doesnt do any harm
 		out (SSM.LoadRegister SSM.RR)
 	-- Should never occur
 	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
@@ -191,7 +197,7 @@ instance Translate IRUOps where
 printFunc :: WriterT Output (State TranslationState) ()
 printFunc = do
 	functionStart "print"
-	out (SSM.LoadLocal firstArgument)
+	out (SSM.LoadLocal lastArgument)
 	out (SSM.Trap 0)
 	out (SSM.StoreRegister SSM.MP)
 	out (SSM.Return)
@@ -199,6 +205,7 @@ printFunc = do
 header :: WriterT Output (State TranslationState) ()
 header = do
 	out (SSM.BranchToSubroutine "main")
+	out (SSM.BranchAlways "end")
 	printFunc
 
 footer :: WriterT Output (State TranslationState) ()

@@ -1,0 +1,14 @@
+// Tests recursion, and if-else statements
+
+Int fib(Int n){
+	if(n == 0) return 1;
+	if(n == 1) return 1;
+	return fib(n-2) + fib(n-1);
+}
+
+Void main(){
+	print(fib(3));
+	print(fib(4));
+	print(fib(5));
+	print(fib(10));
+}
