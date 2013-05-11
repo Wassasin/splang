@@ -11,3 +11,8 @@ Int sum(Int s, Int n){
 Void main(){
 	print(sum(0, 10));
 }
+
+/*
+Output:
+55
+*/
