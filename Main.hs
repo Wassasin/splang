@@ -91,22 +91,23 @@ main = do
 	let b = b0 && b1 && b2
 	unless (b || forceCodegen opts) $ exit b
 
-	Console.highLightLn ("IR:")
 	let ir = CodeGen.toIR pResult3
-	forM ir (\(IR.Func l args body t) -> do
-		putStrLn $ l ++ show args ++ show t
-		print body
-		putStrLn "")
-
-	Console.highLightLn ("Canonical IR:")
 	let ir2 = CodeGen.canonicalizeIR ir
-	forM ir2 (\(IR.Func l args body t) -> do
-		putStrLn $ l ++ show args ++ show t
-		IR.printBBs body
-		putStrLn "")
-
-	Console.highLightLn ("SSM:")
 	let ssm = CodeGen.toSSM ir2
+
+	--Console.highLightLn ("IR:")
+	--forM ir (\(IR.Func l args body t) -> do
+	--	putStrLn $ l ++ show args ++ show t
+	--	print body
+	--	putStrLn "")
+
+	--Console.highLightLn ("Canonical IR:")
+	--forM ir2 (\(IR.Func l args body t) -> do
+	--	putStrLn $ l ++ show args ++ show t
+	--	IR.printBBs body
+	--	putStrLn "")
+
+	--Console.highLightLn ("SSM:")
 	putStrLn . SSM.showProgram $ ssm
 
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
