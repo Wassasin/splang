@@ -16,6 +16,19 @@
 \author{Wouter Geraedts (0814857) \and Joshua Moerman (3009048)}
 \date{}
 
+% mechanism to handle todos
+\newcommand{\todo}[1]{
+	\addcontentsline{tdo}{todo}{\protect{#1}}
+	$\ast$ \marginpar{\tiny $\ast$ #1}
+}
+\makeatletter
+	\newcommand \listoftodos{\section*{Todo list} \@starttoc{tdo}}
+	\newcommand\l@todo[2]{
+		\par\noindent \textit{#2}, \parbox{10cm}{#1}\par
+	}
+\makeatother
+
+
 \begin{document}
 \maketitle
 
@@ -295,14 +308,53 @@ $\begin{array}{rcl}
 \end{array}$
 
 \section{Semantics}
-A chapter describing the chosen semantics of SPL.
+The semantics are straight forward. Integer arithmetic is the usual arithmetic, with overflow behaviour and division rounding defined by the target (i.e. by the SSM). Also the boolean operators work as usual. We don't do short-circuiting, so in the following code \texttt{f} will be called:
+\begin{lstlisting}
+if(False && f()){
+	// ...
+}
+\end{lstlisting}
+
+If one calls multiple statements in one statements, generally those functions will be called from left to right, unless one of the functions is nested in another function call. So in the following example \texttt{a}, \texttt{b} and \texttt{c} are called (in this order) before \texttt{f}:
+\begin{lstlisting}
+	Int x = f(a(), b(), c());
+\end{lstlisting}
+
+All functions take arguments by value. There are no mechanism to update a datastructure (i.e. tuple or list). So one always has to construct such an object fully.
+
+Polymorphic functions will be instantiated for each use. This is very alike the templating system in C++. We decided to do this because we also want to target LLVM bitcode, which is strongly typed (without polymorphism). Of course we can easily write a program which requires infinitely many types, for example:
+
+\begin{lstlisting}
+Void f(t x){
+	f((x,x));
+}
+
+Void main(){
+	f(5);
+}
+\end{lstlisting}
+
+However such programs will never terminate, so they are not very useful in practice. In order to guarantee that the \splang compiler terminates, we will only instantiate untill a certain depth is reached. We regard this as a small drawback, but the advantage of this is that we know the exact concrete types when generating code, and we can easily decide to call a specific version of the function.
 
 \section{SSM}
-A chapter explaining the compilation schemes used in your compiler. A
-concise informal or semiformal description suﬃces, so a formal description
-of the compilation scheme is welcome, but not required. Typical things to
-5explain here are calling conventions, stack management, stack layout, heap
-layout, and heap management.
+% what should this chapter contain:
+% A chapter explaining the compilation schemes used in your compiler. A
+% concise informal or semiformal description suﬃces, so a formal description
+% of the compilation scheme is welcome, but not required. Typical things to
+% 5explain here are calling conventions, stack management, stack layout, heap
+% layout, and heap management.
+
+\subsection{Calling convention and stack management}
+When calling a function, the caller makes sure pushes the arguments on the stack, in reverse order. The callee is allowed to change these in its calculation, and will return via the return register (RR). It's then the callers job to clean up the pushed arguments.
+
+For the call the \texttt{bsr} and \texttt{ret} instructions are used. So on top of the arguments there will be a return address. The callee then also pushes the mark pointer (MP) on the stack and updates the MP to the current stack pointer (SP). On return the callee resets the original MP.
+
+\todo{Discuss global variables}
+
+\subsection{Tuples and lists}
+Tuples will be flattened, and used as usual objects on the stack. So for example a functions that takes a tuple of two elements will in fact simply take two arguments. This is possible because we always know the exact type which is being used, and hence the exact size of such a tuple. \todo{Discuss how to return tuples}
+
+Lists will be pushed on the heap as a linked list. So the value we have on the stack is a pointer to the first element of the list.
 
 \section{Tests}
 All tests are performed with the \texttt{--show-input --show-stages} flags, and all colors are stripped. The output is a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration). For every \texttt{.spl} file, there is a \texttt{.spl.txt} file with gray output. The coloured output is also attached in a different pdf file.
@@ -328,7 +380,10 @@ All tests are performed with the \texttt{--show-input --show-stages} flags, and 
 \end{itemize}
 \subsection{Code generation}
 \begin{itemize}
-	\item no tests yet...
+	\item[pass_recfib] Tests recursion and simple integer arithmetic.
+	\item[pass_order] Tests the order of evaluation
+	\item[pass_loop] Tests while loops.
+	\todo{Add tests with tuples and lists}
 \end{itemize}
 
 \section{Reflection}
@@ -400,5 +455,6 @@ id		& := & alpha \I alpha id'			\\
 id'		& := & id' \tok{\_} \I id' alphaNum
 \end{tabular}
 
+\listoftodos
 
 \end{document}

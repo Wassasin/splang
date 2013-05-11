@@ -1,3 +1,5 @@
+// Tests while loop
+
 Int sum(Int s, Int n){
 	while(n >= 0){
 		s = s + n;
