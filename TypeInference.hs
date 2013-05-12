@@ -455,7 +455,7 @@ inferExpr c (AST.FunCall i es m) t = do
 		when(usingVoid (s a)) $ addInferError (VoidUsage m (s a))
 		return (es++[e], s)) $ zip es as
 	s <- genMgu m (s t) (s r) .> s
-	return (AST.FunCall (fpromote i) es $ tpromote m v, s)
+	return (AST.FunCall (fpromote i) es $ tpromote m r, s)
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFreshConcrete $ getMeta e1
 	(e1, s) <- inferExpr c e1 a1
