@@ -125,7 +125,3 @@ instance ASTWalker AST.Identifier where
 	walk ftup@(fp, fd, ft, fs, fe, fi) i = do
 		i <- fi i
 		return i
-
-class ASTWalkerNop a where
-	nop :: Monad b => a m -> b (a m)
-	nop x = return x

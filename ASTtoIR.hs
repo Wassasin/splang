@@ -128,7 +128,8 @@ instance Translate (Typing.MonoType a) IR.Type where
 		x <- translate x
 		y <- translate y
 		return $ IR.Pair x y
-		
+	translate (Typing.List (Typing.Free _ _) _)	= do
+		return $ IR.ListAbstractEmpty
 	translate (Typing.List x _)	= do
 		x <- translate x
 		return $ IR.ListPtr x

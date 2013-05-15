@@ -16,7 +16,7 @@ type Label		= String
 type Value		= Int
 type Temporary		= Int
 
-data Type		= Bool | Int | Pair Type Type | ListPtr Type
+data Type		= Bool | Int | Pair Type Type | ListPtr Type | ListAbstractEmpty
 	deriving (Eq, Ord, Show)
 
 data IRFunc a = Func Label [(Type, Temporary)] a (Maybe Type)

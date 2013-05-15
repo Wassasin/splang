@@ -1,6 +1,9 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor #-}
 
 module AST where
+
+-- cabal install derive
+import Data.DeriveTH
 
 -- Deriving functor makes it possible to transform Program a into Program b whenever we have a function a -> b
 -- For example we can do (fmap (const ()) program) to get rid of all meta-information
@@ -68,3 +71,9 @@ getIdentifierString (Identifier str _ _) = str
 
 type Integer = Int
 type Boolean = Bool
+
+-- Derive the isVarDecl functions
+$( derive makeIs ''Decl)
+$( derive makeIs ''Type)
+$( derive makeIs ''Stmt)
+$( derive makeIs ''Expr)
