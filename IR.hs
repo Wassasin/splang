@@ -29,6 +29,7 @@ type IRUOps = AST.UnaryOperator ()
 data IRExpr
 	= Const Type Value		-- A constant
 	| Temp Type Temporary		-- Temporary (infi many)
+	| Data Type Temporary		-- Persistent temporary, ie: globals, varargs, locals, but not subexpressions
 	| Binop IRExpr IRBOps IRExpr	-- Binary Operation
 	| Unop IRUOps IRExpr		-- Unary Operation
 	| Mem IRExpr			-- Expression which gives an address
@@ -64,7 +65,8 @@ isaLabel x = isLabel x
 -- TODO: Make a more sophisticated algorithm
 sideEffectSensitive :: IRExpr -> Bool
 sideEffectSensitive (Const _ _) = False
-sideEffectSensitive (Temp _ _) = True
+sideEffectSensitive (Temp _ _) = False
+sideEffectSensitive (Data _ _) = True
 sideEffectSensitive (Binop e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
 sideEffectSensitive (Unop _ e1) = sideEffectSensitive e1
 sideEffectSensitive (Mem e1) = sideEffectSensitive e1
@@ -97,10 +99,12 @@ instance Canonicalize IRStmt where
 		s1' <- uncurry Seq <$> canonicalize s1
 		s2' <- uncurry Seq <$> canonicalize s2
 		return (s1', s2')
+	canonicalize (Move dst@(Data _ _) src) = do
+		(s, src) <- canonicalize src
+		return (s, Move dst src)
 	canonicalize (Move dst@(Temp _ _) src) = do
 		(s, src) <- canonicalize src
 		return (s, Move dst src)
-	-- Figure out whether this is always sane semantics
 	canonicalize (Move dst src) = do
 		(s, [dst, src]) <- canonicalize [dst, src]
 		return (s, Move dst src)
@@ -127,7 +131,7 @@ instance Canonicalize IRExpr where
 	canonicalize (Call f l) = do
 		(s, l') <- canonicalize (l)
 		return (s, Call f l')
-	-- Const, Name, Temp
+	-- Const, Name, Temp, Data
 	canonicalize x = return (Nop, x)
 
 instance Canonicalize [IRExpr] where

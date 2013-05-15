@@ -7,7 +7,7 @@ import Data.Traversable as Trav
 import Control.Monad.State
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldl, map)
-import TypeInference (P3, P3Meta)
+import TypeInference (P3, P3Meta, inferredType)
 
 import qualified Typing (MonoType(..))
 import qualified AST
@@ -50,16 +50,29 @@ instance Translate (P3 AST.Program) [IR.IRFunc IR.IRStmt] where
 -- TODO: What to do with (global) variables???
 -- TODO: Do something with function arguments
 instance Translate (P3 AST.Decl) (IR.IRFunc IR.IRStmt) where
-	translate (AST.VarDecl _ (AST.Identifier str mn _) _ _) = do
+	translate (AST.VarDecl _ (AST.Identifier str mn _) e m) = do
+		t <- translate (fromJust $ inferredType m)
+		e <- translate e
 		let n = fromJust mn
-		modify (addTemporary n (IR.Temp IR.Bool n))
-		return $ IR.Func ("globalvar_"++str) [] IR.Nop Nothing
+		let d = IR.Data t n
+		modify (addTemporary n d)
+		return $ IR.Func ("init_globalvar_"++str) [] (IR.Expression e) Nothing
 	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts _) = do
-		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Temp IR.Int n))
-		Trav.forM decls translate
-		stmts <- foldl IR.Seq IR.Nop <$> Trav.mapM translate stmts
-		stmts <- return $ IR.Seq stmts (IR.Ret Nothing) -- FIXME: ugly hack to ensure functions always return
+		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Data IR.Int n))
+		decls <- Trav.mapM translateLocalVarDecl decls
+		stmts <- Trav.mapM translate stmts
+		stmts <- return . foldl IR.Seq IR.Nop $ decls ++ stmts ++ [IR.Ret Nothing] -- FIXME: ugly hack to ensure functions always return
 		return $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts Nothing
+
+translateLocalVarDecl :: P3 AST.Decl -> State TranslationState IR.IRStmt
+translateLocalVarDecl (AST.FunDecl{}) = error "COMPILER BUG: function declarations cannot occur in function body."
+translateLocalVarDecl (AST.VarDecl _ (AST.Identifier str mn _) e m) = do
+	t <- translate (fromJust $ inferredType m)
+	e <- translate e
+	let identid = (fromJust mn)
+	let d = IR.Data t identid
+	modify (addTemporary identid d)
+	return $ IR.Move d e
 
 instance Translate (P3 AST.Stmt) IR.IRStmt where
 	translate (AST.Expr e _) = do

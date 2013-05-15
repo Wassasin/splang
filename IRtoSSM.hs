@@ -61,6 +61,10 @@ assignCurrentFunction f@(Func _ args _ _) o = o
 		fs = map (uncurry insert) ts
 		inserts = foldl (.) id fs
 
+-- Pushes a persistent value on the stack
+saveOnStack :: Temporary -> TranslationState -> TranslationState
+saveOnStack t o = o { temporaryLocations = insert t (stackPtr o, Local) $ temporaryLocations o }
+
 -- Emit a single instruction
 out :: SSM.Instruction -> WriterT Output (State TranslationState) ()
 out x = tell [x]
@@ -68,14 +72,14 @@ out x = tell [x]
 -- Returns relative position to MP for arguments,
 -- absolute position form 0 for globals
 -- If it couldn't be found, we asume it is a new temporary, and add it
-getTemporaryLocation :: Temporary -> State TranslationState (Maybe (Address, TemporaryKind))
-getTemporaryLocation t = Map.lookup t <$> temporaryLocations <$> get
+getDataLocation :: Temporary -> State TranslationState (Maybe (Address, TemporaryKind))
+getDataLocation t = Map.lookup t <$> temporaryLocations <$> get
 
 -- Pushes an temporary on the stack
-loadTemporary :: (Address, TemporaryKind) -> WriterT Output (State TranslationState) ()
-loadTemporary (location, Global)	= modify increaseStackPtr >> out (SSM.LoadViaAddress location)
-loadTemporary (location, Argument)	= modify increaseStackPtr >> out (SSM.LoadLocal location)
-loadTemporary (location, Local)		= modify increaseStackPtr >> out (SSM.LoadLocal location)
+loadData :: (Address, TemporaryKind) -> WriterT Output (State TranslationState) ()
+loadData (location, Global)	= out (SSM.LoadViaAddress location) >> modify increaseStackPtr
+loadData (location, Argument)	= out (SSM.LoadLocal location) >> modify increaseStackPtr
+loadData (location, Local)	= out (SSM.LoadLocal location) >> modify increaseStackPtr
 
 -- Preamble for functions
 functionStart :: Label -> WriterT Output (State TranslationState) ()
@@ -106,12 +110,14 @@ instance Translate BasicBlock where
 	translate bb = mapM_ translate bb
 
 instance Translate IRStmt where
-	-- TODO: Move
-	translate (Move (Temp _ t) e2) = do
-		thing <- lift $ getTemporaryLocation t
+	translate (Move (Data _ t) e2) = do
+		c <- lift $ get
+		thing <- lift $ getDataLocation t
 		case thing of
 			Nothing -> do
 				translate e2 -- It simply lives on the stack
+				c2 <- lift $ get
+				lift . modify $ saveOnStack t
 			Just (y, Global) -> do
 				translate e2
 				out (SSM.StoreViaAddress y)
@@ -120,6 +126,9 @@ instance Translate IRStmt where
 				translate e2
 				out (SSM.StoreLocal y)
 				lift $ modify decreaseStackPtr
+	translate (Move (Temp _ t) e2) = do
+		translate e2
+		lift $ modify increaseStackPtr
 	translate (Expression e) = translate e
 	translate (Jump label) = out (SSM.BranchAlways label)
 	translate (CJump e tl fl) = do
@@ -146,12 +155,13 @@ instance Translate IRStmt where
 instance Translate IRExpr where
 	translate (Const _ n) = do
 		out (SSM.LoadConstant n)
-	-- TODO: Figure out whether this is sane semantics for Temps
-	translate (Temp _ t) = do
-		t <- lift $ getTemporaryLocation t
-		case t of
-			Just n -> loadTemporary n
-			Nothing -> return () -- It lives on the stack?
+		lift $ modify increaseStackPtr
+	translate (Data _ t) = do
+		thing <- lift $ getDataLocation t
+		case thing of
+			Nothing -> error "COMPILER BUG: using a non-existing value"
+			Just x -> loadData x
+	translate (Temp _ t) = return () -- It lives on the stack?
 	translate (Binop e1 bop e2) = do
 		translate e1
 		translate e2
