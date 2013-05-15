@@ -8,6 +8,7 @@ import Control.Monad.State
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldl, map)
 import TypeInference (P3, P3Meta, inferredType)
+import Templating (template)
 
 import qualified Typing (MonoType(..))
 import qualified AST
@@ -152,4 +153,4 @@ instance Translate (Typing.MonoType a) IR.Type where
 	translate (Typing.Void _)	= error "COMPILER BUG: Can not translate a Void type to a concrete datatype"
 
 translateProgram :: (P3 AST.Program) -> [IR.IRFunc IR.IRStmt]
-translateProgram program = evalState (translate program) emptyState
+translateProgram program = evalState (translate $ template $ program) emptyState

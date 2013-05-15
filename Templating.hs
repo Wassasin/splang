@@ -1,11 +1,10 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Templating where
+module Templating (template) where
 
 import Data.Traversable as Trav
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Maybe (fromJust)
 
 import Typing (MonoType(..))
 import SemanticAnalysis (P2, P2Meta(..))
@@ -52,9 +51,13 @@ iterateIdentID = do
 	put $ state { nextUniqueID = newid + 1 }
 	return newid
 
+guardJust :: String -> Maybe a -> a
+guardJust str Nothing = error str
+guardJust _ (Just x) = x
+
 template :: AST.Program P3Meta -> AST.Program P3Meta
 template p@(AST.Program decls m) = flip evalState (newState p) $ do
-	let fm = getMeta $ fromJust $ inferredType m
+	let fm = getMeta $ guardJust "COMPILER BUG: fm is not set" $ inferredType m
 	appendToQueue $ (findMain decls, Func [] (Void fm) fm)
 	varDecls <- templateVarDecls decls
 	funDecls <- templateFunDecls $ createFunDeclMap decls
@@ -63,7 +66,7 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		findMain :: [P3 AST.Decl] -> AST.IdentID
 		findMain [] = error "Program error: function main not found" -- TODO
 		findMain (AST.VarDecl _ _ _ _ : decls) = findMain decls
-		findMain (decl@(AST.FunDecl _ (AST.Identifier str (Just id) _) _ _ _ _) : decls) = if str == "main" then id else findMain decls
+		findMain (AST.FunDecl _ (AST.Identifier str (Just id) _) _ _ _ _ : decls) = if str == "main" then id else findMain decls
 	
 		templateVarDecls :: [P3 AST.Decl] -> TemplateMonad [P3 AST.Decl]
 		templateVarDecls decls = Trav.mapM (rewrite id) $ filter AST.isVarDecl decls -- rewrite all global vardecls for concrete types
@@ -72,9 +75,12 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		templateFunDecls declmap = whileM (not . null . queue) $ do
 			state <- get
 			let key@(id, t):keys = queue state -- is always non-empty due to whileM-condition
+			modify (\state -> state { queue = tail $ queue $ state }) -- remove top from queue
 			let Just newid = (nameMap state) key
 			let AST.FunDecl ftd (AST.Identifier fstr (Just fid) fim) fargs fdecls fstmts fm = declmap id
-			let TypeInference.Success s = TypeInference.mgu t $ fromJust $ inferredType $ fm
+			let s = case TypeInference.mgu t $ guardJust "mgu" $ inferredType $ fm of
+				TypeInference.Success s -> s
+				_ -> error "Can not infer"
 			rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, fid, t)) (Just newid) fim) fargs fdecls fstmts fm
 
 		createFunDeclMap :: [P3 AST.Decl] -> FunctionDeclMap
@@ -88,9 +94,9 @@ class ASTWalker.ASTWalker a => Templateable a where
 		where
 			fe :: Substitution P2Meta -> AST.Expr P3Meta -> TemplateMonad (AST.Expr P3Meta)
 			fe s (AST.FunCall (AST.Identifier istr (Just iid) im) exprs m) = do
-				let exprst = map (s . fromJust . inferredType . getMeta) exprs
-				let rt = s $ fromJust $ inferredType im 
-				let t = Typing.Func exprst rt $ getMeta $ fromJust $ inferredType im
+				let exprst = map (s . (guardJust "exprst") . inferredType . getMeta) exprs
+				let rt = s $ guardJust "COMPILER BUG: rt is not set" $ inferredType m 
+				let t = Typing.Func exprst rt $ getMeta $ guardJust "COMPILER BUG: t is not set" $ inferredType m
 				let key = (iid, t)
 				state <- get
 				newid <- case (nameMap state) key of
@@ -101,7 +107,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 						modify $ \state -> state { nameMap = append key newid $ nameMap state } -- add mapping of (id, type) to newid
 						return newid
 				return $ AST.FunCall (AST.Identifier (mangle (istr, iid, t)) (Just newid) im) exprs m
-			fe s e = do
+			fe _ e = do
 				return e
 	
 	maxIdentID :: a m -> AST.IdentID
@@ -123,7 +129,7 @@ instance Mangle (String, AST.IdentID, MonoType a) where
 	mangle (str, i, t) = str ++ show i ++ "_" ++ mangle t
 
 instance Mangle (MonoType a) where
-	mangle (Typing.Func args r _)	= "r" ++ (mangle r) ++ (concat $ map (('a':).mangle) args)
+	mangle (Typing.Func args r _)	= (mangle r) ++ "_" ++ (concat $ map mangle args)
 	mangle (Typing.Pair x y _)	= "p" ++ (mangle x) ++ (mangle y)
 	mangle (Typing.List (Typing.Free _ _) _)	= "lf"
 	mangle (Typing.List x _)	= "l" ++ mangle x
