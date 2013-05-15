@@ -7,7 +7,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Maybe (fromJust)
 
-import Typing (MonoType)
+import Typing (MonoType(..))
 import SemanticAnalysis (P2, P2Meta(..))
 import TypeInference (P3, P3Meta(..), Substitution)
 import Meta (getMeta)
@@ -52,30 +52,35 @@ iterateIdentID = do
 	put $ state { nextUniqueID = newid + 1 }
 	return newid
 
---template :: AST.Program P3Meta -> AST.Program P3Meta
---template p = flip evalState emptyState . execWriterT . templateF
---where
-	-- create map
-	-- find Void main(), add to queue
-	-- until queue is empty
-		-- rewrite
+template :: AST.Program P3Meta -> AST.Program P3Meta
+template p@(AST.Program decls m) = flip evalState (newState p) $ do
+	let fm = getMeta $ fromJust $ inferredType m
+	appendToQueue $ (findMain decls, Func [] (Void fm) fm)
+	varDecls <- templateVarDecls decls
+	funDecls <- templateFunDecls $ createFunDeclMap decls
+	return $ AST.Program (varDecls ++ funDecls) m
+	where
+		findMain :: [P3 AST.Decl] -> AST.IdentID
+		findMain [] = error "Program error: function main not found" -- TODO
+		findMain (AST.VarDecl _ _ _ _ : decls) = findMain decls
+		findMain (decl@(AST.FunDecl _ (AST.Identifier str (Just id) _) _ _ _ _) : decls) = if str == "main" then id else findMain decls
+	
+		templateVarDecls :: [P3 AST.Decl] -> TemplateMonad [P3 AST.Decl]
+		templateVarDecls decls = Trav.mapM (rewrite id) $ filter AST.isVarDecl decls -- rewrite all global vardecls for concrete types
 
-templateVarDecls :: [P3 AST.Decl] -> TemplateMonad [P3 AST.Decl]
-templateVarDecls decls = Trav.mapM (rewrite id) $ filter AST.isVarDecl decls -- rewrite all global vardecls for concrete types
+		templateFunDecls :: FunctionDeclMap -> TemplateMonad [P3 AST.Decl]
+		templateFunDecls declmap = whileM (not . null . queue) $ do
+			state <- get
+			let key@(id, t):keys = queue state -- is always non-empty due to whileM-condition
+			let Just newid = (nameMap state) key
+			let AST.FunDecl ftd (AST.Identifier fstr (Just fid) fim) fargs fdecls fstmts fm = declmap id
+			let TypeInference.Success s = TypeInference.mgu t $ fromJust $ inferredType $ fm
+			rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, fid, t)) (Just newid) fim) fargs fdecls fstmts fm
 
-templateFunDecls :: FunctionDeclMap -> TemplateMonad [P3 AST.Decl]
-templateFunDecls declmap = whileM (null . queue) $ do
-	state <- get
-	let key@(id, t):keys = queue state -- is always non-empty due to whileM-condition
-	let Just newid = (nameMap state) key
-	let AST.FunDecl ftd (AST.Identifier fstr (Just fid) fim) fargs fdecls fstmts fm = declmap id
-	let TypeInference.Success s = TypeInference.mgu t $ fromJust $ inferredType $ fm
-	rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, fid, t)) (Just newid) fim) fargs fdecls fstmts fm
-
-createFunDeclMap :: [P3 AST.Decl] -> FunctionDeclMap
-createFunDeclMap [] = \_ -> error "COMPILER BUG: Referenced to non-existant function"
-createFunDeclMap (AST.VarDecl _ _ _ _ : decls) = createFunDeclMap decls
-createFunDeclMap (decl@(AST.FunDecl _ (AST.Identifier _ (Just id) _) _ _ _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
+		createFunDeclMap :: [P3 AST.Decl] -> FunctionDeclMap
+		createFunDeclMap [] = \_ -> error "COMPILER BUG: Referenced to non-existant function"
+		createFunDeclMap (AST.VarDecl _ _ _ _ : decls) = createFunDeclMap decls
+		createFunDeclMap (decl@(AST.FunDecl _ (AST.Identifier _ (Just id) _) _ _ _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
 
 class ASTWalker.ASTWalker a => Templateable a where
 	rewrite :: Substitution P2Meta -> a P3Meta -> TemplateMonad (a P3Meta)
