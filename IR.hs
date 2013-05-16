@@ -37,7 +37,14 @@ data IRExpr
 	| Unop IRUOps IRExpr		-- Unary Operation
 	| Mem IRExpr			-- Expression which gives an address
 	| Call Label [IRExpr]		-- Call to address (first expr) with arguments (list of exprs)
+	| Builtin IRBuiltin
 	| Eseq IRStmt IRExpr		-- ???
+	deriving (Eq, Ord, Show)
+
+data IRBuiltin
+	= MakePair IRExpr IRExpr
+	| First IRExpr
+	| Second IRExpr
 	deriving (Eq, Ord, Show)
 
 data IRStmt
@@ -56,6 +63,7 @@ type Program a = ([IRFunc a], [IRGlob])
 
 -- Derive the isConstructor functions :)
 $( derive makeIs ''IRExpr)
+$( derive makeIs ''IRBuiltin)
 $( derive makeIs ''IRStmt)
 
 -- Bit more general

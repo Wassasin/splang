@@ -20,12 +20,19 @@ type Output = SSM.Program
 
 -- Can be absolute or relative addresses
 type Address = Int
+type Size = Int
 
 data DataKind
 	= Global
 	| Argument
 	| Local
 
+sizeOf :: Type -> Size
+sizeOf Bool = 1
+sizeOf Int = 1
+sizeOf (Pair t1 t2) = sizeOf t1 + sizeOf t2
+sizeOf (ListPtr _) = 1
+sizeOf ListAbstractEmpty = 1
 
 -- Information about the stack and temporaries
 -- temporaryLocations gives information about the temps
@@ -39,8 +46,10 @@ emptyState = TranslationState
 	, stackPtr = 0 }
 
 -- Some useful thingies
-increaseStackPtr o = o { stackPtr = 1 + (stackPtr o) }
-decreaseStackPtr o = o { stackPtr = (stackPtr o) - 1 }
+increaseStackPtrBy n o = o { stackPtr = n + (stackPtr o) }
+increaseStackPtr = increaseStackPtrBy 1
+decreaseStackPtrBy n o = o { stackPtr = (stackPtr o) - n }
+decreaseStackPtr = decreaseStackPtrBy 1
 
 -- (-1) is reserved for storing the old mark pointer
 lastArgument :: Address
@@ -61,6 +70,9 @@ assignCurrentFunction (Func _ args _ _) o = o
 		fs = map (uncurry insert) ts
 		inserts = foldl (.) id fs
 
+addToLocations :: Temporary -> (Address, DataKind) -> TranslationState -> TranslationState
+addToLocations t x o = o { temporaryLocations = insert t x $ temporaryLocations o }
+
 -- Pushes a persistent value on the stack
 saveOnStack :: Temporary -> TranslationState -> TranslationState
 saveOnStack t o = o { temporaryLocations = insert t (stackPtr o, Local) $ temporaryLocations o }
@@ -76,10 +88,9 @@ getDataLocation :: Temporary -> State TranslationState (Maybe (Address, DataKind
 getDataLocation t = Map.lookup t <$> temporaryLocations <$> get
 
 -- Pushes an temporary on the stack
-loadData :: (Address, DataKind) -> WriterT Output (State TranslationState) ()
-loadData (location, Global)	= out (SSM.LoadRegister SSM.R5) >> out (SSM.LoadViaAddress location) >> modify increaseStackPtr
-loadData (location, Argument)	= out (SSM.LoadLocal location) >> modify increaseStackPtr
-loadData (location, Local)	= out (SSM.LoadLocal location) >> modify increaseStackPtr
+loadData :: (Address, DataKind) -> Size -> WriterT Output (State TranslationState) ()
+loadData (location, Global) n	= out (SSM.LoadRegister SSM.R5) >> out (SSM.LoadMultipleViaAddress location n) >> modify (increaseStackPtrBy n)
+loadData (location, _) n	= out (SSM.LoadMultipleLocal location n) >> modify (increaseStackPtrBy n)
 
 -- Preamble for functions
 functionStart :: Label -> WriterT Output (State TranslationState) ()
@@ -106,13 +117,12 @@ instance Translate (Program [BasicBlock]) where
 
 instance Translate [IRGlob] where
 	translate gs = do
-		-- Push globals on stack
+		-- Push globals on stack (zero initialized)
 		forM_ gs (\(Glob n t _) -> do
-			out (SSM.LoadConstant 0)
-			lift $ modify increaseStackPtr
+			replicateM_ (sizeOf t) $ out (SSM.LoadConstant 0)
 			s <- lift $ get
-			let tlocs2 = insert n ((stackPtr s), Global) (temporaryLocations s)
-			lift $ put s { temporaryLocations = tlocs2 })
+			lift . modify $ addToLocations n (1 + (stackPtr s), Global)
+			lift . modify $ increaseStackPtrBy (sizeOf t))
 		-- Initialise them
 		forM_ gs (\(Glob _ _ label) -> out (SSM.BranchToSubroutine label))
 
@@ -133,24 +143,29 @@ instance Translate BasicBlock where
 	translate bb = mapM_ translate bb
 
 instance Translate IRStmt where
-	translate (Move (Data _ t) e2) = do
-		thing <- lift $ getDataLocation t
+	translate (Move (Data ty n) e2) = do
+		thing <- lift $ getDataLocation n
 		case thing of
+			-- New local variable
 			Nothing -> do
-				translate e2 -- It simply lives on the stack
-				lift . modify $ saveOnStack t
+				-- TODO: use sizeOf here
+				translate e2
+				lift . modify $ saveOnStack n
+			-- Global variable
 			Just (y, Global) -> do
 				translate e2
 				out (SSM.LoadRegister SSM.R5)
-				out (SSM.StoreViaAddress y)
-				lift $ modify decreaseStackPtr
+				out (SSM.StoreMultipleViaAddress y (sizeOf ty))
+				lift . modify . decreaseStackPtrBy $ sizeOf ty
+			-- Local variable or argument
 			Just (y, _) -> do
 				translate e2
-				out (SSM.StoreLocal y)
-				lift $ modify decreaseStackPtr
-	translate (Move (Temp _ t) e2) = do
+				out (SSM.StoreMultipleLocal y (sizeOf ty))
+				lift . modify . decreaseStackPtrBy $ sizeOf ty
+	translate (Move (Temp ty n) e2) = do
+		-- Temporary (not persistent)
 		translate e2
-		lift $ modify increaseStackPtr
+		lift . modify . increaseStackPtrBy $ sizeOf ty
 	translate (Expression e) = translate e
 	translate (Jump label) = out (SSM.BranchAlways label)
 	translate (CJump e tl fl) = do
@@ -178,12 +193,12 @@ instance Translate IRExpr where
 	translate (Const _ n) = do
 		out (SSM.LoadConstant n)
 		lift $ modify increaseStackPtr
-	translate (Data _ t) = do
-		thing <- lift $ getDataLocation t
+	translate (Data ty n) = do
+		thing <- lift $ getDataLocation n
 		case thing of
 			Nothing -> error "COMPILER BUG: using a non-existing value"
-			Just x -> loadData x
-	translate (Temp _ t) = return () -- It lives on the stack?
+			Just x -> loadData x (sizeOf ty)
+	translate (Temp _ _) = return () -- It lives on the stack?
 	translate (Binop e1 bop e2) = do
 		translate e1
 		translate e2
@@ -201,6 +216,9 @@ instance Translate IRExpr where
 		out (SSM.AdjustStack (negate $ length args))
 		-- TODO: not always load the RR, maybe it doesnt do any harm
 		out (SSM.LoadRegister SSM.RR)
+	translate (Builtin (MakePair e1 e2)) = do
+		translate e1
+		translate e2
 	-- Should never occur
 	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
 

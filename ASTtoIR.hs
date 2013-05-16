@@ -130,7 +130,10 @@ instance Translate (P3 AST.Expr) IR.IRExpr where
 		flabel <- getFunctionLabel ident
 		l <- Trav.mapM translate l
 		return $ IR.Call flabel l
-	translate (AST.Pair _ _ _) = error "COMPILER BUG: Pairs not yet implemented"
+	translate (AST.Pair e1 e2 _) = do
+		e1 <- translate e1
+		e2 <- translate e2
+		return $ IR.Builtin (IR.MakePair e1 e2)
 	translate (AST.Nil _) = return $ IR.Const (IR.ListPtr IR.Int) 0
 
 
