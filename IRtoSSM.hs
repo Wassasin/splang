@@ -106,19 +106,22 @@ class Translate a where
 
 instance Translate (Program [BasicBlock]) where
 	translate (fs, gs) = do
+		-- Store current stack ptr for globals
 		out (SSM.LoadRegisterFromRegister SSM.R5 SSM.SP)
+		-- Initialise globals
 		translate gs
+		-- GO!
 		out (SSM.BranchToSubroutine "main")
 		out (SSM.BranchAlways "end")
-		printFunc
 		translate fs
 		out (SSM.Label "end")
 		out SSM.Halt
 
 instance Translate [IRGlob] where
 	translate gs = do
-		-- Push globals on stack (zero initialized)
+		-- Push globals on stack
 		forM_ gs (\(Glob n t _) -> do
+			-- zero initialized
 			replicateM_ (sizeOf t) $ out (SSM.LoadConstant 0)
 			s <- lift $ get
 			lift . modify $ addToLocations n (1 + (stackPtr s), Global)
@@ -129,7 +132,6 @@ instance Translate [IRGlob] where
 instance Translate [IRFunc [BasicBlock]] where
 	translate fs = mapM_ translate fs
 
--- TODO: arguments/returning/etc
 instance Translate (IRFunc [BasicBlock]) where
 	translate f@(Func l _ body _) = do
 		lift . modify $ assignCurrentFunction f
@@ -207,22 +209,35 @@ instance Translate IRExpr where
 	translate (Unop uop e) = do
 		translate e
 		translate uop
-	translate (Mem e) = do
-		translate e
-		out (SSM.LoadViaAddress 0)
+	translate (Mem e) = error "COMPILER BUG: Mem not implemented"
 	translate (Call label args) = do
+		-- TODO: handle stackPtr
 		mapM translate args
 		out (SSM.BranchToSubroutine label)
 		out (SSM.AdjustStack (negate $ length args))
 		-- TODO: not always load the RR, maybe it doesnt do any harm
 		out (SSM.LoadRegister SSM.RR)
-	translate (Builtin (MakePair e1 e2)) = do
+	translate (Builtin (IR.MakePair e1 e2)) = do
+		-- Pairs have a flat layout
 		translate e1
 		translate e2
+	translate (Builtin (IR.First e)) = do
+		-- Construct the pair, discard the second part
+		translate e
+		let Just (Pair t1 t2) = typeOf e
+		out (SSM.AdjustStack (negate $ sizeOf t2))
+	translate (Builtin (IR.Second e)) = do
+		-- Construct the pair, copy the second part to current place in stack
+		translate e
+		let Just t@(Pair _ t2) = typeOf e
+		out (SSM.StoreMultipleIntoStack (1 + negate (sizeOf t)) (sizeOf t2))
+	translate (Builtin (IR.Print e)) = do
+		-- Print more for other types?
+		translate e
+		out (SSM.Trap 0)
 	-- Should never occur
 	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
 
--- TODO: compare operators
 instance Translate IRBOps where
 	translate (AST.Multiplication _)	= out SSM.Multiply
 	translate (AST.Division _)		= out SSM.Divide
@@ -241,16 +256,6 @@ instance Translate IRBOps where
 instance Translate IRUOps where
 	translate (AST.Not _)			= out SSM.Not
 	translate (AST.Negative _)		= out SSM.Negation
-
-
--- Basics for a ssm program
-printFunc :: WriterT Output (State TranslationState) ()
-printFunc = do
-	functionStart "print"
-	out (SSM.LoadLocal lastArgument)
-	out (SSM.Trap 0)
-	out (SSM.StoreRegister SSM.MP)
-	out (SSM.Return)
 
 -- Tie it together
 total :: Program [BasicBlock] -> WriterT Output (State TranslationState) ()

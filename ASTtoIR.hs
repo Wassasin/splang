@@ -11,6 +11,7 @@ import Data.Map as Map hiding (foldl, map)
 import TypeInference (P3, P3Meta, inferredType)
 import Templating (template)
 
+import Builtins
 import qualified Typing (MonoType(..))
 import qualified AST
 import qualified IR
@@ -126,10 +127,19 @@ instance Translate (P3 AST.Expr) IR.IRExpr where
 	translate (AST.Kint n _) = return $ IR.Const IR.Int n
 	translate (AST.Kbool True _) = return $ IR.Const IR.Bool (-1)
 	translate (AST.Kbool False _) = return $ IR.Const IR.Bool 0
-	translate (AST.FunCall ident l _) = do
-		flabel <- getFunctionLabel ident
+	translate (AST.FunCall ident@(AST.Identifier str n _) l _) = do
 		l <- Trav.mapM translate l
-		return $ IR.Call flabel l
+		if isBuiltin (fromJust n)
+			then case toEnum (fromJust n) :: Builtins of
+				Print	-> return $ IR.Builtin (IR.Print (head l))
+				IsEmpty	-> error "COMPILER BUG: IsEmpty not yet implemented"
+				Head	-> error "COMPILER BUG: Head not yet implemented"
+				Tail	-> error "COMPILER BUG: Tail not yet implemented"
+				Fst	-> return $ IR.Builtin (IR.First (head l))
+				Snd	-> return $ IR.Builtin (IR.Second (head l))
+			else do
+				flabel <- getFunctionLabel ident
+				return $ IR.Call flabel l
 	translate (AST.Pair e1 e2 _) = do
 		e1 <- translate e1
 		e2 <- translate e2

@@ -10,6 +10,7 @@ import Meta
 import Errors
 import qualified Source
 import Typing
+import Builtins
 
 -- b can be used for typing, not sure whether it will be useful
 -- a will always be (AST.Identifier a)
@@ -18,20 +19,6 @@ type Context a b = [(a, b)]
 -- Three levels of scoping (for warnings/errors)
 data Scope = Global | Argument | Local
 	deriving (Show, Eq, Read)
-
--- Builtin functions
-data Builtins
-	= Print
-	| IsEmpty
-	| Head
-	| Tail
-	| Fst
-	| Snd
-	deriving (Show, Eq, Read, Enum, Bounded)
-
-isBuiltin :: Int -> Bool
-isBuiltin n = n >= (fromEnum (minBound :: Builtins))
-	&& n <= (fromEnum (maxBound :: Builtins))
 
 -- Something in our context is either a builtin or a user defined thing
 data GeneralIdentifier a = Builtin Builtins | User (AST.Identifier a)

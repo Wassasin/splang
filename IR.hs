@@ -28,7 +28,7 @@ data IRGlob = Glob Temporary Type Label
 type IRBOps = AST.BinaryOperator ()
 type IRUOps = AST.UnaryOperator ()
 
--- TODO: Constants for all types
+-- TODO: Add types in all expressions (so that we can easily make temporaries of the right type)
 data IRExpr
 	= Const Type Value		-- A constant
 	| Temp Type Temporary		-- Temporary (infi many)
@@ -41,10 +41,12 @@ data IRExpr
 	| Eseq IRStmt IRExpr		-- ???
 	deriving (Eq, Ord, Show)
 
+-- TODO: List manipulations, or maybe even malloc things
 data IRBuiltin
 	= MakePair IRExpr IRExpr
 	| First IRExpr
 	| Second IRExpr
+	| Print IRExpr
 	deriving (Eq, Ord, Show)
 
 data IRStmt
@@ -73,16 +75,34 @@ isaJump x = isJump x || isCJump x || isRet x
 isaLabel :: IRStmt -> Bool
 isaLabel x = isLabel x
 
+-- Call expressions might return nothing
+-- TODO: everything should have a type, we need this for eg returning tuples etc
+typeOf :: IRExpr -> Maybe Type
+typeOf (Const t _)	= Just t
+typeOf (Temp t _)	= Just t
+typeOf (Data t _)	= Just t
+typeOf _		= Nothing
+
 -- TODO: Make a more sophisticated algorithm
-sideEffectSensitive :: IRExpr -> Bool
-sideEffectSensitive (Const _ _) = False
-sideEffectSensitive (Temp _ _) = False
-sideEffectSensitive (Data _ _) = True
-sideEffectSensitive (Binop e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
-sideEffectSensitive (Unop _ e1) = sideEffectSensitive e1
-sideEffectSensitive (Mem e1) = sideEffectSensitive e1
-sideEffectSensitive (Call _ _) = True
-sideEffectSensitive (Eseq _ _) = True
+class SideEffectSensitive a where
+	sideEffectSensitive :: a -> Bool
+
+instance SideEffectSensitive IRExpr where
+	sideEffectSensitive (Const _ _) = False
+	sideEffectSensitive (Temp _ _) = False
+	sideEffectSensitive (Data _ _) = True
+	sideEffectSensitive (Binop e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
+	sideEffectSensitive (Unop _ e1) = sideEffectSensitive e1
+	sideEffectSensitive (Mem e1) = sideEffectSensitive e1
+	sideEffectSensitive (Builtin b) = sideEffectSensitive b
+	sideEffectSensitive (Call _ _) = True
+	sideEffectSensitive (Eseq _ _) = True
+
+instance SideEffectSensitive IRBuiltin where
+	sideEffectSensitive (MakePair e1 e2) = sideEffectSensitive e1 || sideEffectSensitive e2
+	sideEffectSensitive (First e) = sideEffectSensitive e
+	sideEffectSensitive (Second e) = sideEffectSensitive e
+	sideEffectSensitive (Print e) = True
 
 -- TODO: also take s into account
 commute :: IRStmt -> IRExpr -> Bool
@@ -140,10 +160,24 @@ instance Canonicalize IRExpr where
 		(s, e') <- canonicalize e
 		return (s, Mem e')
 	canonicalize (Call f l) = do
-		(s, l') <- canonicalize (l)
+		(s, l') <- canonicalize l
 		return (s, Call f l')
+	canonicalize (Builtin b) = do
+		(s, b') <- canonicalize b
+		return (s, Builtin b)
 	-- Const, Name, Temp, Data
 	canonicalize x = return (Nop, x)
+
+instance Canonicalize IRBuiltin where
+	canonicalize (MakePair e1 e2) = do
+		(s, [e1, e2]) <- canonicalize [e1, e2]
+		return (s, MakePair e1 e2)
+	canonicalize (First e) = do
+		(s, e) <- canonicalize e
+		return (s, First e)
+	canonicalize (Second e) = do
+		(s, e) <- canonicalize e
+		return (s, Second e)
 
 instance Canonicalize [IRExpr] where
 	canonicalize [] = return (Nop, [])
