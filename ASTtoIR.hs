@@ -2,6 +2,7 @@
 
 module ASTtoIR where
 
+import Data.Monoid
 import Data.Maybe
 import Data.Traversable as Trav
 import Control.Monad.State
@@ -45,25 +46,29 @@ getFunctionLabel (AST.Identifier str _ _) = return str
 class Translate a b | a -> b where
 	translate :: a -> State TranslationState b
 
-instance Translate (P3 AST.Program) [IR.IRFunc IR.IRStmt] where
-	translate (AST.Program decls _) = Trav.mapM translate decls
+instance Translate (P3 AST.Program) (IR.Program IR.IRStmt) where
+	translate (AST.Program decls _) = do
+		l <- Trav.mapM translate decls
+		return . mconcat $ l
 
--- TODO: What to do with (global) variables???
--- TODO: Do something with function arguments
-instance Translate (P3 AST.Decl) (IR.IRFunc IR.IRStmt) where
+returnFunction x = return ([x], [])
+returnFunctionAndGlob x y = return ([x], [y])
+
+instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 	translate (AST.VarDecl _ (AST.Identifier str mn _) e m) = do
 		t <- translate (fromJust $ inferredType m)
 		e <- translate e
 		let n = fromJust mn
 		let d = IR.Data t n
+		let fname = ("init_globalvar_"++str)
 		modify (addTemporary n d)
-		return $ IR.Func ("init_globalvar_"++str) [] (IR.Expression e) Nothing
+		returnFunctionAndGlob (IR.Func fname [] (IR.Seq (IR.Move d e) (IR.Ret Nothing)) Nothing) (IR.Glob n t fname)
 	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts _) = do
 		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Data IR.Int n))
 		decls <- Trav.mapM translateLocalVarDecl decls
 		stmts <- Trav.mapM translate stmts
 		stmts <- return . foldl IR.Seq IR.Nop $ decls ++ stmts ++ [IR.Ret Nothing] -- FIXME: ugly hack to ensure functions always return
-		return $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts Nothing
+		returnFunction $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts Nothing
 
 translateLocalVarDecl :: P3 AST.Decl -> State TranslationState IR.IRStmt
 translateLocalVarDecl (AST.FunDecl{}) = error "COMPILER BUG: function declarations cannot occur in function body."
@@ -152,5 +157,5 @@ instance Translate (Typing.MonoType a) IR.Type where
 	translate (Typing.Bool _)	= return $ IR.Bool
 	translate (Typing.Void _)	= error "COMPILER BUG: Can not translate a Void type to a concrete datatype"
 
-translateProgram :: (P3 AST.Program) -> [IR.IRFunc IR.IRStmt]
+translateProgram :: (P3 AST.Program) -> (IR.Program IR.IRStmt)
 translateProgram program = evalState (translate $ template $ program) emptyState

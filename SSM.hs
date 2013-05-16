@@ -5,7 +5,7 @@ module SSM where
 import Data.DeriveTH
 
 type Label = String
-data Register = PC | SP | MP | RR
+data Register = PC | SP | MP | RR | R5 | R6 | R7 | R8
 	deriving (Show)
 
 data Instruction

@@ -21,7 +21,7 @@ type Output = SSM.Program
 -- Can be absolute or relative addresses
 type Address = Int
 
-data TemporaryKind
+data DataKind
 	= Global
 	| Argument
 	| Local
@@ -31,7 +31,7 @@ data TemporaryKind
 -- temporaryLocations gives information about the temps
 -- stackPtr is the stack pointer relative to the MP
 data TranslationState = TranslationState
-	{ temporaryLocations :: Map Temporary (Address, TemporaryKind)
+	{ temporaryLocations :: Map Temporary (Address, DataKind)
 	, stackPtr :: Address }
 
 emptyState = TranslationState
@@ -50,7 +50,7 @@ prevArgument = pred
 
 -- Stores information about arguments in the state
 assignCurrentFunction :: IRFunc [BasicBlock] -> TranslationState -> TranslationState
-assignCurrentFunction f@(Func _ args _ _) o = o
+assignCurrentFunction (Func _ args _ _) o = o
 	{ temporaryLocations = inserts $ temporaryLocations o
 	, stackPtr = 0 }
 	where
@@ -72,12 +72,12 @@ out x = tell [x]
 -- Returns relative position to MP for arguments,
 -- absolute position form 0 for globals
 -- If it couldn't be found, we asume it is a new temporary, and add it
-getDataLocation :: Temporary -> State TranslationState (Maybe (Address, TemporaryKind))
+getDataLocation :: Temporary -> State TranslationState (Maybe (Address, DataKind))
 getDataLocation t = Map.lookup t <$> temporaryLocations <$> get
 
 -- Pushes an temporary on the stack
-loadData :: (Address, TemporaryKind) -> WriterT Output (State TranslationState) ()
-loadData (location, Global)	= out (SSM.LoadViaAddress location) >> modify increaseStackPtr
+loadData :: (Address, DataKind) -> WriterT Output (State TranslationState) ()
+loadData (location, Global)	= out (SSM.LoadRegister SSM.R5) >> out (SSM.LoadViaAddress location) >> modify increaseStackPtr
 loadData (location, Argument)	= out (SSM.LoadLocal location) >> modify increaseStackPtr
 loadData (location, Local)	= out (SSM.LoadLocal location) >> modify increaseStackPtr
 
@@ -92,6 +92,29 @@ functionStart l = do
 -- We use the Writer monad to automatically apply ++ everywhere, and the State monad for information about stack/temporaries
 class Translate a where
 	translate :: a -> WriterT Output (State TranslationState) ()
+
+instance Translate (Program [BasicBlock]) where
+	translate (fs, gs) = do
+		out (SSM.LoadRegisterFromRegister SSM.R5 SSM.SP)
+		translate gs
+		out (SSM.BranchToSubroutine "main")
+		out (SSM.BranchAlways "end")
+		printFunc
+		translate fs
+		out (SSM.Label "end")
+		out SSM.Halt
+
+instance Translate [IRGlob] where
+	translate gs = do
+		-- Push globals on stack
+		forM_ gs (\(Glob n t _) -> do
+			out (SSM.LoadConstant 0)
+			lift $ modify increaseStackPtr
+			s <- lift $ get
+			let tlocs2 = insert n ((stackPtr s), Global) (temporaryLocations s)
+			lift $ put s { temporaryLocations = tlocs2 })
+		-- Initialise them
+		forM_ gs (\(Glob _ _ label) -> out (SSM.BranchToSubroutine label))
 
 instance Translate [IRFunc [BasicBlock]] where
 	translate fs = mapM_ translate fs
@@ -111,15 +134,14 @@ instance Translate BasicBlock where
 
 instance Translate IRStmt where
 	translate (Move (Data _ t) e2) = do
-		c <- lift $ get
 		thing <- lift $ getDataLocation t
 		case thing of
 			Nothing -> do
 				translate e2 -- It simply lives on the stack
-				c2 <- lift $ get
 				lift . modify $ saveOnStack t
 			Just (y, Global) -> do
 				translate e2
+				out (SSM.LoadRegister SSM.R5)
 				out (SSM.StoreViaAddress y)
 				lift $ modify decreaseStackPtr
 			Just (y, _) -> do
@@ -212,23 +234,9 @@ printFunc = do
 	out (SSM.StoreRegister SSM.MP)
 	out (SSM.Return)
 
-header :: WriterT Output (State TranslationState) ()
-header = do
-	out (SSM.BranchToSubroutine "main")
-	out (SSM.BranchAlways "end")
-	printFunc
-
-footer :: WriterT Output (State TranslationState) ()
-footer = do
-	out (SSM.Label "end")
-	out SSM.Halt
-
 -- Tie it together
-total :: Translate a => a -> WriterT Output (State TranslationState) ()
-total p = do
-	header
-	translate p
-	footer
+total :: Program [BasicBlock] -> WriterT Output (State TranslationState) ()
+total p = translate p
 
-irToSSM :: Translate a => a -> SSM.Program
+irToSSM :: Program [BasicBlock] -> SSM.Program
 irToSSM = flip evalState emptyState . execWriterT . total

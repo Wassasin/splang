@@ -22,6 +22,9 @@ data Type		= Bool | Int | Pair Type Type | ListPtr Type | ListAbstractEmpty
 data IRFunc a = Func Label [(Type, Temporary)] a (Maybe Type)
 	deriving (Functor, Eq, Ord, Show)
 
+-- Label is the initialisation function
+data IRGlob = Glob Temporary Type Label
+
 type IRBOps = AST.BinaryOperator ()
 type IRUOps = AST.UnaryOperator ()
 
@@ -49,7 +52,7 @@ data IRStmt
 	deriving (Eq, Ord, Show)
 
 type BasicBlock = [IRStmt]
-type Program a = [IRFunc a]
+type Program a = ([IRFunc a], [IRGlob])
 
 -- Derive the isConstructor functions :)
 $( derive makeIs ''IRExpr)
@@ -213,15 +216,6 @@ linearizeFunc (Func a b body c) = do
 	return $ Func a b body c
 
 linearize :: IR.Program IRStmt -> IR.Program [BasicBlock]
-linearize = startWith 0 . startWithT [] . mapM linearizeFunc
+linearize (fs, gs) = (startWith 0 . startWithT [] . mapM linearizeFunc $ fs, gs)
 
 -- TODO: Analyse traces and remove redundant labels
-
--- For testing/debugging
-printBBs :: [BasicBlock] -> IO ()
-printBBs = putStr . unlines . fmap (foldr (\x y -> x ++ " ;; " ++ y) "") . fmap (fmap show)
-
-c = Const Int 5
-j = Jump "bla"
-l = Label "poo"
-m = Move c c
