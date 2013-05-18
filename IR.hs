@@ -10,6 +10,7 @@ import Data.Traversable
 -- cabal install derive
 import Data.DeriveTH
 
+import Utils
 import qualified AST
 
 type Label		= String
@@ -33,8 +34,8 @@ data IRExpr
 	= Const Type Value		-- A constant
 	| Temp Type Temporary		-- Temporary (infi many)
 	| Data Type Temporary		-- Persistent temporary, ie: globals, varargs, locals, but not subexpressions
-	| Binop IRExpr IRBOps IRExpr	-- Binary Operation
-	| Unop IRUOps IRExpr		-- Unary Operation
+	| Binop Type IRExpr IRBOps IRExpr	-- Binary Operation
+	| Unop Type IRUOps IRExpr		-- Unary Operation
 	| Mem IRExpr			-- Expression which gives an address
 	| Call Label [IRExpr]		-- Call to address (first expr) with arguments (list of exprs)
 	| Builtin IRBuiltin
@@ -81,6 +82,8 @@ typeOf :: IRExpr -> Maybe Type
 typeOf (Const t _)	= Just t
 typeOf (Temp t _)	= Just t
 typeOf (Data t _)	= Just t
+typeOf (Binop t _ _ _)	= Just t
+typeOf (Unop t _ _)	= Just t
 typeOf _		= Nothing
 
 -- TODO: Make a more sophisticated algorithm
@@ -91,8 +94,8 @@ instance SideEffectSensitive IRExpr where
 	sideEffectSensitive (Const _ _) = False
 	sideEffectSensitive (Temp _ _) = False
 	sideEffectSensitive (Data _ _) = True
-	sideEffectSensitive (Binop e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
-	sideEffectSensitive (Unop _ e1) = sideEffectSensitive e1
+	sideEffectSensitive (Binop _ e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
+	sideEffectSensitive (Unop _ _ e1) = sideEffectSensitive e1
 	sideEffectSensitive (Mem e1) = sideEffectSensitive e1
 	sideEffectSensitive (Builtin b) = sideEffectSensitive b
 	sideEffectSensitive (Call _ _) = True
@@ -153,18 +156,13 @@ instance Canonicalize IRExpr where
 		s' <- uncurry Seq <$> canonicalize s
 		(s2, e') <- canonicalize e
 		return ((Seq s' s2), e')
-	canonicalize (Binop e1 b e2) = do
+	canonicalize (Binop t e1 b e2) = do
 		(s, [e1', e2']) <- canonicalize [e1, e2]
-		return (s, Binop e1' b e2')
-	canonicalize (Mem e) = do
-		(s, e') <- canonicalize e
-		return (s, Mem e')
-	canonicalize (Call f l) = do
-		(s, l') <- canonicalize l
-		return (s, Call f l')
-	canonicalize (Builtin b) = do
-		(s, b') <- canonicalize b
-		return (s, Builtin b)
+		return (s, Binop t e1' b e2')
+	canonicalize (Unop t uop e) = fmap (Unop t uop) <$> canonicalize e
+	canonicalize (Mem e) = fmap Mem <$> canonicalize e
+	canonicalize (Call f l) = fmap (Call f) <$> canonicalize l
+	canonicalize (Builtin b) = fmap Builtin <$> canonicalize b
 	-- Const, Name, Temp, Data
 	canonicalize x = return (Nop, x)
 
@@ -172,7 +170,7 @@ instance Canonicalize IRBuiltin where
 	canonicalize (MakePair e1 e2) = do
 		(s, [e1, e2]) <- canonicalize [e1, e2]
 		return (s, MakePair e1 e2)
-	canonicalize (First e)	= fmap First <$> canonicalize e		-- NOTE: fmap on second argument of the tuple
+	canonicalize (First e)	= fmap First <$> canonicalize e
 	canonicalize (Second e)	= fmap Second <$> canonicalize e
 	canonicalize (Print e)	= fmap Print <$> canonicalize e
 
@@ -186,7 +184,7 @@ instance Canonicalize [IRExpr] where
 				then do
 					return (Seq s s1, e:es)
 				else do
-					t <- getFreshTemporary Bool -- TODO does not always return Bool
+					t <- getFreshTemporary (guardJust "COMPILER BUG (IR): trying to store a void-value" (typeOf e))
 					let (s', e') = (Seq (Move t e) s1, t)
 					return (Seq s s', e':es)
 

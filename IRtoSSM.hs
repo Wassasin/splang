@@ -2,12 +2,11 @@
 
 module IRtoSSM where
 
-import Data.Maybe (fromJust)
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldl, map)
-
+import Utils
 
 -- We currently need this, because IR binops are AST binops
 import qualified AST
@@ -202,12 +201,12 @@ instance Translate IRExpr where
 			Nothing -> error "COMPILER BUG: using a non-existing value"
 			Just x -> loadData x (sizeOf ty)
 	translate (Temp _ _) = return () -- It lives on the stack?
-	translate (Binop e1 bop e2) = do
+	translate (Binop _ e1 bop e2) = do
 		translate e1
 		translate e2
 		translate bop
 		lift $ modify decreaseStackPtr
-	translate (Unop uop e) = do
+	translate (Unop _ uop e) = do
 		translate e
 		translate uop
 	translate (Mem e) = error "COMPILER BUG: Mem not implemented"
@@ -229,19 +228,19 @@ instance Translate IRExpr where
 	translate (Builtin (IR.First e)) = do
 		-- Construct the pair, discard the second part
 		translate e
-		let Just (Pair t1 t2) = typeOf e
+		let (Pair t1 t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.AdjustStack (negate $ sizeOf t2))
 	translate (Builtin (IR.Second e)) = do
 		-- Construct the pair, copy the second part to current place in stack
 		translate e
-		let Just t@(Pair _ t2) = typeOf e
+		let t@(Pair _ t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.StoreMultipleIntoStack (1 + negate (sizeOf t)) (sizeOf t2))
 	translate (Builtin (IR.Print e)) = do
 		-- Print more for other types?
 		translate e
 		out (SSM.Trap 0)
 	-- Should never occur
-	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
+	translate (Eseq _ _) = error "COMPILER BUG (IR->SSM): Eseq present in IR"
 
 instance Translate IRBOps where
 	translate (AST.Multiplication _)	= out SSM.Multiply
