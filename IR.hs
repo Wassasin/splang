@@ -10,6 +10,7 @@ import Data.Traversable
 -- cabal install derive
 import Data.DeriveTH
 
+import Utils
 import qualified AST
 
 type Label		= String
@@ -28,17 +29,15 @@ data IRGlob = Glob Temporary Type Label
 type IRBOps = AST.BinaryOperator ()
 type IRUOps = AST.UnaryOperator ()
 
--- TODO: Add types in all expressions (so that we can easily make temporaries of the right type)
+-- Types will be used for example to store intermediate results
 data IRExpr
-	= Const Type Value		-- A constant
-	| Temp Type Temporary		-- Temporary (infi many)
-	| Data Type Temporary		-- Persistent temporary, ie: globals, varargs, locals, but not subexpressions
-	| Binop IRExpr IRBOps IRExpr	-- Binary Operation
-	| Unop IRUOps IRExpr		-- Unary Operation
-	| Mem IRExpr			-- Expression which gives an address
-	| Call Label [IRExpr]		-- Call to address (first expr) with arguments (list of exprs)
-	| Builtin IRBuiltin
-	| Eseq IRStmt IRExpr		-- ???
+	= Const Type Value			-- A constant
+	| Temp Type Temporary			-- Temporary (infi many)
+	| Data Type Temporary			-- Persistent temporary, ie: globals, varargs, locals, but not subexpressions
+	| Binop Type IRExpr IRBOps IRExpr	-- Binary Operation
+	| Unop Type IRUOps IRExpr		-- Unary Operation
+	| Call (Maybe Type) Label [IRExpr]	-- Call to address (first expr) with arguments (list of exprs)
+	| Builtin (Maybe Type) IRBuiltin	-- Builtin function
 	deriving (Eq, Ord, Show)
 
 -- TODO: List manipulations, or maybe even malloc things
@@ -46,6 +45,10 @@ data IRBuiltin
 	= MakePair IRExpr IRExpr
 	| First IRExpr
 	| Second IRExpr
+	| Cons IRExpr IRExpr
+	| IsEmpty IRExpr
+	| Tail IRExpr
+	| Head IRExpr
 	| Print IRExpr
 	deriving (Eq, Ord, Show)
 
@@ -81,7 +84,10 @@ typeOf :: IRExpr -> Maybe Type
 typeOf (Const t _)	= Just t
 typeOf (Temp t _)	= Just t
 typeOf (Data t _)	= Just t
-typeOf _		= Nothing
+typeOf (Binop t _ _ _)	= Just t
+typeOf (Unop t _ _)	= Just t
+typeOf (Call t _ _)	= t
+typeOf (Builtin t _)	= t
 
 -- TODO: Make a more sophisticated algorithm
 class SideEffectSensitive a where
@@ -91,12 +97,10 @@ instance SideEffectSensitive IRExpr where
 	sideEffectSensitive (Const _ _) = False
 	sideEffectSensitive (Temp _ _) = False
 	sideEffectSensitive (Data _ _) = True
-	sideEffectSensitive (Binop e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
-	sideEffectSensitive (Unop _ e1) = sideEffectSensitive e1
-	sideEffectSensitive (Mem e1) = sideEffectSensitive e1
-	sideEffectSensitive (Builtin b) = sideEffectSensitive b
-	sideEffectSensitive (Call _ _) = True
-	sideEffectSensitive (Eseq _ _) = True
+	sideEffectSensitive (Binop _ e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
+	sideEffectSensitive (Unop _ _ e1) = sideEffectSensitive e1
+	sideEffectSensitive (Builtin _ b) = sideEffectSensitive b
+	sideEffectSensitive (Call _ _ _) = True
 
 instance SideEffectSensitive IRBuiltin where
 	sideEffectSensitive (MakePair e1 e2) = sideEffectSensitive e1 || sideEffectSensitive e2
@@ -149,22 +153,12 @@ instance Canonicalize IRStmt where
 	canonicalize x = return (Nop, x)
 
 instance Canonicalize IRExpr where
-	canonicalize (Eseq s e) = do
-		s' <- uncurry Seq <$> canonicalize s
-		(s2, e') <- canonicalize e
-		return ((Seq s' s2), e')
-	canonicalize (Binop e1 b e2) = do
+	canonicalize (Binop t e1 b e2) = do
 		(s, [e1', e2']) <- canonicalize [e1, e2]
-		return (s, Binop e1' b e2')
-	canonicalize (Mem e) = do
-		(s, e') <- canonicalize e
-		return (s, Mem e')
-	canonicalize (Call f l) = do
-		(s, l') <- canonicalize l
-		return (s, Call f l')
-	canonicalize (Builtin b) = do
-		(s, b') <- canonicalize b
-		return (s, Builtin b)
+		return (s, Binop t e1' b e2')
+	canonicalize (Unop t uop e) = fmap (Unop t uop) <$> canonicalize e
+	canonicalize (Call t f l) = fmap (Call t f) <$> canonicalize l
+	canonicalize (Builtin t b) = fmap (Builtin t) <$> canonicalize b
 	-- Const, Name, Temp, Data
 	canonicalize x = return (Nop, x)
 
@@ -172,12 +166,15 @@ instance Canonicalize IRBuiltin where
 	canonicalize (MakePair e1 e2) = do
 		(s, [e1, e2]) <- canonicalize [e1, e2]
 		return (s, MakePair e1 e2)
-	canonicalize (First e) = do
-		(s, e) <- canonicalize e
-		return (s, First e)
-	canonicalize (Second e) = do
-		(s, e) <- canonicalize e
-		return (s, Second e)
+	canonicalize (First e)	= fmap First <$> canonicalize e
+	canonicalize (Second e)	= fmap Second <$> canonicalize e
+	canonicalize (Print e)	= fmap Print <$> canonicalize e
+	canonicalize (Cons e1 e2) = do
+		(s, [e1, e2]) <- canonicalize [e1, e2]
+		return (s, Cons e1 e2)
+	canonicalize (IsEmpty e)= fmap IsEmpty <$> canonicalize e
+	canonicalize (Tail e)	= fmap Tail <$> canonicalize e
+	canonicalize (Head e)	= fmap Head <$> canonicalize e
 
 instance Canonicalize [IRExpr] where
 	canonicalize [] = return (Nop, [])
@@ -189,7 +186,7 @@ instance Canonicalize [IRExpr] where
 				then do
 					return (Seq s s1, e:es)
 				else do
-					t <- getFreshTemporary Bool -- TODO does not always return Bool
+					t <- getFreshTemporary (guardJust "COMPILER BUG (IR): trying to store a void-value" (typeOf e))
 					let (s', e') = (Seq (Move t e) s1, t)
 					return (Seq s s', e':es)
 
@@ -246,7 +243,6 @@ startWithT :: Monad m => s -> StateT s m a -> m a
 startWithT = flip evalStateT
 
 -- Combining all the above, state shouldnt start at 0, because there may already be temporaries
--- TODO: if partitionBBS uses State monad, keep the state
 linearizeStmt :: IRStmt -> StateT PartitionState (State CanonicalizeState) [BasicBlock]
 linearizeStmt s = do
 	(s1, s2) <- lift (canonicalize s)

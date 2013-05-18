@@ -1,5 +1,10 @@
+Int f(Int n){
+	return n + 1;
+}
+
 Void main(){
-	Int x = 5;
-	Int y = 10;
-	print(x+y);
+	Int x = f(5);
+	Int y = f(x);
+	x+y;
+	//print(x+y);
 }

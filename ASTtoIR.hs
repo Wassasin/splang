@@ -3,13 +3,13 @@
 module ASTtoIR where
 
 import Data.Monoid
-import Data.Maybe
 import Data.Traversable as Trav
 import Control.Monad.State
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldl, map)
 import TypeInference (P3, P3Meta, inferredType)
 import Templating (template)
+import Utils (guardJust)
 
 import Builtins
 import qualified Typing (MonoType(..))
@@ -57,9 +57,9 @@ returnFunctionAndGlob x y = return ([x], [y])
 
 instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 	translate (AST.VarDecl _ (AST.Identifier str mn _) e m) = do
-		t <- translate (fromJust $ inferredType m)
+		t <- translate (guardJust "COMPILER BUG (AST->IR): variable has no type" $ inferredType m)
 		e <- translate e
-		let n = fromJust mn
+		let n = guardJust "COMPILER BUG (AST->IR): variable has no ID" mn
 		let d = IR.Data t n
 		let fname = ("init_globalvar_"++str)
 		modify (addTemporary n d)
@@ -74,9 +74,9 @@ instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 translateLocalVarDecl :: P3 AST.Decl -> State TranslationState IR.IRStmt
 translateLocalVarDecl (AST.FunDecl{}) = error "COMPILER BUG: function declarations cannot occur in function body."
 translateLocalVarDecl (AST.VarDecl _ (AST.Identifier str mn _) e m) = do
-	t <- translate (fromJust $ inferredType m)
+	t <- translate (guardJust "COMPILER BUG (AST->IR): local variable has no type" $ inferredType m)
 	e <- translate e
-	let identid = (fromJust mn)
+	let identid = guardJust "COMPILER BUG (AST->IR): local variable has no ID" mn
 	let d = IR.Data t identid
 	modify (addTemporary identid d)
 	return $ IR.Move d e
@@ -104,7 +104,7 @@ instance Translate (P3 AST.Stmt) IR.IRStmt where
 		return $ foldl IR.Seq IR.Nop ss
 	translate (AST.Assignment (AST.Identifier _ n _) e _) = do
 		e <- translate e
-		t <- fromJust <$> Map.lookup (fromJust n) <$> identifierTemporaries <$> get
+		t <- guardJust "COMPILER BUG (AST->IR): unable to lookup temp" <$> Map.lookup (guardJust "COMPILER BUG (AST->IR): assignment variable has no ID" n) <$> identifierTemporaries <$> get
 		return $ IR.Move t e
 	translate (AST.Return me _) = do
 		e <- Trav.mapM translate me
@@ -114,40 +114,56 @@ instance Translate (P3 AST.Stmt) IR.IRStmt where
 -- TODO: pair
 -- TODO: get right type of ListPtr
 instance Translate (P3 AST.Expr) IR.IRExpr where
-	translate (AST.Var (AST.Identifier _ n _) _) = fromJust <$> Map.lookup (fromJust n) <$> identifierTemporaries <$> get
-	translate (AST.Binop e1 bop e2 _) = do
+	translate (AST.Var (AST.Identifier _ n _) _) = guardJust "COMPILER BUG (AST->IR): unable to lookup temp" <$> Map.lookup (guardJust "COMPILER BUG (AST->IR): variable has no ID" n) <$> identifierTemporaries <$> get
+	translate (AST.Binop e1 (AST.Cons _) e2 m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): cons has no type" $ inferredType m)
+		e1 <- translate e1
+		e2 <- translate e2
+		return $ IR.Builtin (Just t) (IR.Cons e1 e2)
+	translate (AST.Binop e1 bop e2 m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): binop has no type" $ inferredType m)
 		e1 <- translate e1
 		bop <- translate bop
 		e2 <- translate e2
-		return $ IR.Binop e1 bop e2
-	translate (AST.Unop uop e _) = do
+		return $ IR.Binop t e1 bop e2
+	translate (AST.Unop uop e m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): unop has no type" $ inferredType m)
 		uop <- translate uop
 		e <- translate e
-		return $ IR.Unop uop e
+		return $ IR.Unop t uop e
 	translate (AST.Kint n _) = return $ IR.Const IR.Int n
 	translate (AST.Kbool True _) = return $ IR.Const IR.Bool (-1)
 	translate (AST.Kbool False _) = return $ IR.Const IR.Bool 0
-	translate (AST.FunCall ident@(AST.Identifier str n _) l _) = do
+	translate (AST.FunCall ident@(AST.Identifier str n _) l m) = do
+		let t2 = guardJust "COMPILER BUG (AST->IR): call has no type" $ inferredType m
+		t <- case t2 of
+			Typing.Void _	-> return Nothing
+			t2		-> Just <$> translate t2
 		l <- Trav.mapM translate l
-		if isBuiltin (fromJust n)
-			then case toEnum (fromJust n) :: Builtins of
-				Print	-> return $ IR.Builtin (IR.Print (head l))
-				IsEmpty	-> error "COMPILER BUG: IsEmpty not yet implemented"
-				Head	-> error "COMPILER BUG: Head not yet implemented"
-				Tail	-> error "COMPILER BUG: Tail not yet implemented"
-				Fst	-> return $ IR.Builtin (IR.First (head l))
-				Snd	-> return $ IR.Builtin (IR.Second (head l))
+		let m = guardJust "COMPILER BUG (AST->IR): Unresolved function identifier" n
+		if isBuiltin m
+			then case toEnum m :: Builtins of
+				Print	-> return $ IR.Builtin t (IR.Print (head l))
+				IsEmpty	-> return $ IR.Builtin t (IR.IsEmpty (head l))
+				Head	-> return $ IR.Builtin t (IR.Head (head l))
+				Tail	-> return $ IR.Builtin t (IR.Tail (head l))
+				Fst	-> return $ IR.Builtin t (IR.First (head l))
+				Snd	-> return $ IR.Builtin t (IR.Second (head l))
 			else do
 				flabel <- getFunctionLabel ident
-				return $ IR.Call flabel l
-	translate (AST.Pair e1 e2 _) = do
+				return $ IR.Call t flabel l
+	translate (AST.Pair e1 e2 m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): pair has no type" $ inferredType m)
 		e1 <- translate e1
 		e2 <- translate e2
-		return $ IR.Builtin (IR.MakePair e1 e2)
-	translate (AST.Nil _) = return $ IR.Const (IR.ListPtr IR.Int) 0
+		return $ IR.Builtin (Just t) (IR.MakePair e1 e2)
+	translate (AST.Nil m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): pair has no type" $ inferredType m)
+		return $ IR.Const t 0
 
 
 instance Translate (P3 AST.BinaryOperator) IR.IRBOps where
+	translate (AST.Cons _) = error "COMPILER BUG: Cannot translate a bar cons operator"
 	translate x = return $ fmap (const ()) x
 
 instance Translate (P3 AST.UnaryOperator) IR.IRUOps where

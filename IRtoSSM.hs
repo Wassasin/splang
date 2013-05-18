@@ -2,12 +2,11 @@
 
 module IRtoSSM where
 
-import Data.Maybe (fromJust)
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldl, map)
-
+import Utils
 
 -- We currently need this, because IR binops are AST binops
 import qualified AST
@@ -178,6 +177,7 @@ instance Translate IRStmt where
 		translate s1
 		translate s2
 	translate (Ret (Just e)) = do
+		-- TODO: return tuples as well
 		translate e
 		out (SSM.StoreRegister SSM.RR)
 		-- This cleans up the stack
@@ -201,42 +201,66 @@ instance Translate IRExpr where
 			Nothing -> error "COMPILER BUG: using a non-existing value"
 			Just x -> loadData x (sizeOf ty)
 	translate (Temp _ _) = return () -- It lives on the stack?
-	translate (Binop e1 bop e2) = do
+	translate (Binop _ e1 bop e2) = do
 		translate e1
 		translate e2
 		translate bop
 		lift $ modify decreaseStackPtr
-	translate (Unop uop e) = do
+	translate (Unop _ uop e) = do
 		translate e
 		translate uop
-	translate (Mem e) = error "COMPILER BUG: Mem not implemented"
-	translate (Call label args) = do
-		-- TODO: handle stackPtr
+	translate (Call _ label args) = do
+		s1 <- lift $ stackPtr <$> get
 		mapM translate args
 		out (SSM.BranchToSubroutine label)
-		out (SSM.AdjustStack (negate $ length args))
-		-- TODO: not always load the RR, maybe it doesnt do any harm
+		s2 <- lift $ stackPtr <$> get
+		let difference = s2 - s1
+		out (SSM.AdjustStack (negate difference))
+		lift $ modify (decreaseStackPtrBy difference)
+		-- TODO: not always load the RR, maybe it doesnt do any harm (because it is well typed, we will never use the void)
 		out (SSM.LoadRegister SSM.RR)
-	translate (Builtin (IR.MakePair e1 e2)) = do
+		lift $ modify increaseStackPtr
+	translate (Builtin _ (IR.MakePair e1 e2)) = do
 		-- Pairs have a flat layout
 		translate e1
 		translate e2
-	translate (Builtin (IR.First e)) = do
+	translate (Builtin _ (IR.First e)) = do
 		-- Construct the pair, discard the second part
 		translate e
-		let Just (Pair t1 t2) = typeOf e
+		let (Pair t1 t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.AdjustStack (negate $ sizeOf t2))
-	translate (Builtin (IR.Second e)) = do
+	translate (Builtin _ (IR.Second e)) = do
 		-- Construct the pair, copy the second part to current place in stack
 		translate e
-		let Just t@(Pair _ t2) = typeOf e
-		out (SSM.StoreMultipleIntoStack (1 + negate (sizeOf t)) (sizeOf t2))
-	translate (Builtin (IR.Print e)) = do
+		let t@(Pair _ t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
+		out (SSM.StoreMultipleIntoStack (1 - (sizeOf t)) (sizeOf t2))
+	translate (Builtin _ (IR.Print e)) = do
 		-- Print more for other types?
 		translate e
 		out (SSM.Trap 0)
-	-- Should never occur
-	translate (Eseq _ _) = error "COMPILER BUG: Eseq present in IR"
+	translate (Builtin _ (IR.Cons e1 e2)) = do
+		-- First store the pointer to the next value, then the data, this is nice, because StoreMultipleHeap gives an address
+		let fJust = guardJust "COMPILER BUG (IR->SSM): value in cons has no type"
+		translate e2
+		translate e1
+		out (SSM.StoreMultipleHeap (sizeOf (fJust $ typeOf e2) + sizeOf (fJust $ typeOf e1)))
+	translate (Builtin _ (IR.IsEmpty e)) = do
+		translate e
+		out (SSM.LoadConstant 0)
+		out SSM.Equal
+	translate (Builtin (Just t) (IR.Tail e)) = do
+		-- TODO: stackPtr
+		let ListPtr et = t
+		translate e
+		out (SSM.LoadMultipleHeap (sizeOf t + sizeOf et) 0)
+		out (SSM.AdjustStack (negate (sizeOf et)))
+	translate (Builtin (Just et) (IR.Head e)) = do
+		-- TODO: stackPtr
+		let t = ListPtr et
+		let size = (sizeOf t + sizeOf et)
+		translate e
+		out (SSM.LoadMultipleHeap size 0)
+		out (SSM.StoreMultipleIntoStack (1 - size) (sizeOf et))
 
 instance Translate IRBOps where
 	translate (AST.Multiplication _)	= out SSM.Multiply

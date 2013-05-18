@@ -11,6 +11,7 @@ import SemanticAnalysis (P2, P2Meta(..))
 import TypeInference (P3, P3Meta(..), Substitution)
 import Meta (getMeta)
 import Builtins (isBuiltin)
+import Utils
 
 import qualified AST
 import qualified ASTWalker
@@ -51,10 +52,6 @@ iterateIdentID = do
 	let newid = nextUniqueID state
 	put $ state { nextUniqueID = newid + 1 }
 	return newid
-
-guardJust :: String -> Maybe a -> a
-guardJust str Nothing = error str
-guardJust _ (Just x) = x
 
 template :: AST.Program P3Meta -> AST.Program P3Meta
 template p@(AST.Program decls m) = flip evalState (newState p) $ do
