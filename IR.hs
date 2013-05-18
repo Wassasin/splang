@@ -29,17 +29,17 @@ data IRGlob = Glob Temporary Type Label
 type IRBOps = AST.BinaryOperator ()
 type IRUOps = AST.UnaryOperator ()
 
--- TODO: Add types in all expressions (so that we can easily make temporaries of the right type)
+-- Types will be used for example to store intermediate results
 data IRExpr
-	= Const Type Value		-- A constant
-	| Temp Type Temporary		-- Temporary (infi many)
-	| Data Type Temporary		-- Persistent temporary, ie: globals, varargs, locals, but not subexpressions
+	= Const Type Value			-- A constant
+	| Temp Type Temporary			-- Temporary (infi many)
+	| Data Type Temporary			-- Persistent temporary, ie: globals, varargs, locals, but not subexpressions
 	| Binop Type IRExpr IRBOps IRExpr	-- Binary Operation
 	| Unop Type IRUOps IRExpr		-- Unary Operation
-	| Mem IRExpr			-- Expression which gives an address
-	| Call Label [IRExpr]		-- Call to address (first expr) with arguments (list of exprs)
-	| Builtin IRBuiltin
-	| Eseq IRStmt IRExpr		-- ???
+	| Mem Type IRExpr			-- ??? Expression which gives an address
+	| Call (Maybe Type) Label [IRExpr]	-- Call to address (first expr) with arguments (list of exprs)
+	| Builtin (Maybe Type) IRBuiltin	-- Builtin function
+	| Eseq IRStmt IRExpr			-- ???
 	deriving (Eq, Ord, Show)
 
 -- TODO: List manipulations, or maybe even malloc things
@@ -84,7 +84,10 @@ typeOf (Temp t _)	= Just t
 typeOf (Data t _)	= Just t
 typeOf (Binop t _ _ _)	= Just t
 typeOf (Unop t _ _)	= Just t
-typeOf _		= Nothing
+typeOf (Mem t _)	= Just t
+typeOf (Call t _ _)	= t
+typeOf (Builtin t _)	= t
+typeOf (Eseq _ e)	= typeOf e
 
 -- TODO: Make a more sophisticated algorithm
 class SideEffectSensitive a where
@@ -96,9 +99,9 @@ instance SideEffectSensitive IRExpr where
 	sideEffectSensitive (Data _ _) = True
 	sideEffectSensitive (Binop _ e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
 	sideEffectSensitive (Unop _ _ e1) = sideEffectSensitive e1
-	sideEffectSensitive (Mem e1) = sideEffectSensitive e1
-	sideEffectSensitive (Builtin b) = sideEffectSensitive b
-	sideEffectSensitive (Call _ _) = True
+	sideEffectSensitive (Mem _ e1) = sideEffectSensitive e1
+	sideEffectSensitive (Builtin _ b) = sideEffectSensitive b
+	sideEffectSensitive (Call _ _ _) = True
 	sideEffectSensitive (Eseq _ _) = True
 
 instance SideEffectSensitive IRBuiltin where
@@ -160,9 +163,9 @@ instance Canonicalize IRExpr where
 		(s, [e1', e2']) <- canonicalize [e1, e2]
 		return (s, Binop t e1' b e2')
 	canonicalize (Unop t uop e) = fmap (Unop t uop) <$> canonicalize e
-	canonicalize (Mem e) = fmap Mem <$> canonicalize e
-	canonicalize (Call f l) = fmap (Call f) <$> canonicalize l
-	canonicalize (Builtin b) = fmap Builtin <$> canonicalize b
+	canonicalize (Mem t e) = fmap (Mem t) <$> canonicalize e
+	canonicalize (Call t f l) = fmap (Call t f) <$> canonicalize l
+	canonicalize (Builtin t b) = fmap (Builtin t) <$> canonicalize b
 	-- Const, Name, Temp, Data
 	canonicalize x = return (Nop, x)
 
@@ -241,7 +244,6 @@ startWithT :: Monad m => s -> StateT s m a -> m a
 startWithT = flip evalStateT
 
 -- Combining all the above, state shouldnt start at 0, because there may already be temporaries
--- TODO: if partitionBBS uses State monad, keep the state
 linearizeStmt :: IRStmt -> StateT PartitionState (State CanonicalizeState) [BasicBlock]
 linearizeStmt s = do
 	(s1, s2) <- lift (canonicalize s)

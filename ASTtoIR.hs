@@ -129,24 +129,29 @@ instance Translate (P3 AST.Expr) IR.IRExpr where
 	translate (AST.Kint n _) = return $ IR.Const IR.Int n
 	translate (AST.Kbool True _) = return $ IR.Const IR.Bool (-1)
 	translate (AST.Kbool False _) = return $ IR.Const IR.Bool 0
-	translate (AST.FunCall ident@(AST.Identifier str n _) l _) = do
+	translate (AST.FunCall ident@(AST.Identifier str n _) l m) = do
+		let t2 = guardJust "COMPILER BUG (AST->IR): call has no type" $ inferredType m
+		t <- case t2 of
+			Typing.Void _	-> return Nothing
+			t2		-> Just <$> translate t2
 		l <- Trav.mapM translate l
 		let m = guardJust "COMPILER BUG (AST->IR): Unresolved function identifier" n
 		if isBuiltin m
 			then case toEnum m :: Builtins of
-				Print	-> return $ IR.Builtin (IR.Print (head l))
+				Print	-> return $ IR.Builtin t (IR.Print (head l))
 				IsEmpty	-> error "COMPILER BUG: IsEmpty not yet implemented"
 				Head	-> error "COMPILER BUG: Head not yet implemented"
 				Tail	-> error "COMPILER BUG: Tail not yet implemented"
-				Fst	-> return $ IR.Builtin (IR.First (head l))
-				Snd	-> return $ IR.Builtin (IR.Second (head l))
+				Fst	-> return $ IR.Builtin t (IR.First (head l))
+				Snd	-> return $ IR.Builtin t (IR.Second (head l))
 			else do
 				flabel <- getFunctionLabel ident
-				return $ IR.Call flabel l
-	translate (AST.Pair e1 e2 _) = do
+				return $ IR.Call t flabel l
+	translate (AST.Pair e1 e2 m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): pair has no type" $ inferredType m)
 		e1 <- translate e1
 		e2 <- translate e2
-		return $ IR.Builtin (IR.MakePair e1 e2)
+		return $ IR.Builtin (Just t) (IR.MakePair e1 e2)
 	translate (AST.Nil _) = return $ IR.Const (IR.ListPtr IR.Int) 0
 
 

@@ -209,8 +209,8 @@ instance Translate IRExpr where
 	translate (Unop _ uop e) = do
 		translate e
 		translate uop
-	translate (Mem e) = error "COMPILER BUG: Mem not implemented"
-	translate (Call label args) = do
+	translate (Mem _ e) = error "COMPILER BUG: Mem not implemented"
+	translate (Call _ label args) = do
 		s1 <- lift $ stackPtr <$> get
 		mapM translate args
 		out (SSM.BranchToSubroutine label)
@@ -221,21 +221,21 @@ instance Translate IRExpr where
 		-- TODO: not always load the RR, maybe it doesnt do any harm (because it is well typed, we will never use the void)
 		out (SSM.LoadRegister SSM.RR)
 		lift $ modify increaseStackPtr
-	translate (Builtin (IR.MakePair e1 e2)) = do
+	translate (Builtin _ (IR.MakePair e1 e2)) = do
 		-- Pairs have a flat layout
 		translate e1
 		translate e2
-	translate (Builtin (IR.First e)) = do
+	translate (Builtin _ (IR.First e)) = do
 		-- Construct the pair, discard the second part
 		translate e
 		let (Pair t1 t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.AdjustStack (negate $ sizeOf t2))
-	translate (Builtin (IR.Second e)) = do
+	translate (Builtin _ (IR.Second e)) = do
 		-- Construct the pair, copy the second part to current place in stack
 		translate e
 		let t@(Pair _ t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.StoreMultipleIntoStack (1 + negate (sizeOf t)) (sizeOf t2))
-	translate (Builtin (IR.Print e)) = do
+	translate (Builtin _ (IR.Print e)) = do
 		-- Print more for other types?
 		translate e
 		out (SSM.Trap 0)
