@@ -36,10 +36,8 @@ data IRExpr
 	| Data Type Temporary			-- Persistent temporary, ie: globals, varargs, locals, but not subexpressions
 	| Binop Type IRExpr IRBOps IRExpr	-- Binary Operation
 	| Unop Type IRUOps IRExpr		-- Unary Operation
-	| Mem Type IRExpr			-- ??? Expression which gives an address
 	| Call (Maybe Type) Label [IRExpr]	-- Call to address (first expr) with arguments (list of exprs)
 	| Builtin (Maybe Type) IRBuiltin	-- Builtin function
-	| Eseq IRStmt IRExpr			-- ???
 	deriving (Eq, Ord, Show)
 
 -- TODO: List manipulations, or maybe even malloc things
@@ -88,10 +86,8 @@ typeOf (Temp t _)	= Just t
 typeOf (Data t _)	= Just t
 typeOf (Binop t _ _ _)	= Just t
 typeOf (Unop t _ _)	= Just t
-typeOf (Mem t _)	= Just t
 typeOf (Call t _ _)	= t
 typeOf (Builtin t _)	= t
-typeOf (Eseq _ e)	= typeOf e
 
 -- TODO: Make a more sophisticated algorithm
 class SideEffectSensitive a where
@@ -103,10 +99,8 @@ instance SideEffectSensitive IRExpr where
 	sideEffectSensitive (Data _ _) = True
 	sideEffectSensitive (Binop _ e1 _ e2) = sideEffectSensitive e1 || sideEffectSensitive e2
 	sideEffectSensitive (Unop _ _ e1) = sideEffectSensitive e1
-	sideEffectSensitive (Mem _ e1) = sideEffectSensitive e1
 	sideEffectSensitive (Builtin _ b) = sideEffectSensitive b
 	sideEffectSensitive (Call _ _ _) = True
-	sideEffectSensitive (Eseq _ _) = True
 
 instance SideEffectSensitive IRBuiltin where
 	sideEffectSensitive (MakePair e1 e2) = sideEffectSensitive e1 || sideEffectSensitive e2
@@ -159,15 +153,10 @@ instance Canonicalize IRStmt where
 	canonicalize x = return (Nop, x)
 
 instance Canonicalize IRExpr where
-	canonicalize (Eseq s e) = do
-		s' <- uncurry Seq <$> canonicalize s
-		(s2, e') <- canonicalize e
-		return ((Seq s' s2), e')
 	canonicalize (Binop t e1 b e2) = do
 		(s, [e1', e2']) <- canonicalize [e1, e2]
 		return (s, Binop t e1' b e2')
 	canonicalize (Unop t uop e) = fmap (Unop t uop) <$> canonicalize e
-	canonicalize (Mem t e) = fmap (Mem t) <$> canonicalize e
 	canonicalize (Call t f l) = fmap (Call t f) <$> canonicalize l
 	canonicalize (Builtin t b) = fmap (Builtin t) <$> canonicalize b
 	-- Const, Name, Temp, Data

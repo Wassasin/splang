@@ -209,7 +209,6 @@ instance Translate IRExpr where
 	translate (Unop _ uop e) = do
 		translate e
 		translate uop
-	translate (Mem _ e) = error "COMPILER BUG: Mem not implemented"
 	translate (Call _ label args) = do
 		s1 <- lift $ stackPtr <$> get
 		mapM translate args
@@ -262,7 +261,6 @@ instance Translate IRExpr where
 		translate e
 		out (SSM.LoadMultipleHeap size 0)
 		out (SSM.StoreMultipleIntoStack (1 - size) (sizeOf et))
-	translate (Eseq _ _) = error "COMPILER BUG (IR->SSM): Eseq present in IR"
 
 instance Translate IRBOps where
 	translate (AST.Multiplication _)	= out SSM.Multiply
