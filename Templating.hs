@@ -10,6 +10,7 @@ import Typing (MonoType(..))
 import SemanticAnalysis (P2, P2Meta(..))
 import TypeInference (P3, P3Meta(..), Substitution)
 import Meta (getMeta)
+import Builtins (isBuiltin)
 
 import qualified AST
 import qualified ASTWalker
@@ -93,20 +94,24 @@ class ASTWalker.ASTWalker a => Templateable a where
 	rewrite s x = ASTWalker.walk (return, return, return, return, fe s, return) x
 		where
 			fe :: Substitution P2Meta -> AST.Expr P3Meta -> TemplateMonad (AST.Expr P3Meta)
-			fe s (AST.FunCall (AST.Identifier istr (Just iid) im) exprs m) = do
-				let exprst = map (s . (guardJust "exprst") . inferredType . getMeta) exprs
-				let rt = s $ guardJust "COMPILER BUG: rt is not set" $ inferredType m 
-				let t = Typing.Func exprst rt $ getMeta $ guardJust "COMPILER BUG: t is not set" $ inferredType m
-				let key = (iid, t)
-				state <- get
-				newid <- case (nameMap state) key of
-					Just newid -> return newid
-					Nothing -> do
-						appendToQueue key -- queue function
-						newid <- iterateIdentID -- generate uniqueID and iterate
-						modify $ \state -> state { nameMap = append key newid $ nameMap state } -- add mapping of (id, type) to newid
-						return newid
-				return $ AST.FunCall (AST.Identifier (mangle (istr, iid, t)) (Just newid) im) exprs m
+			fe s decl@(AST.FunCall (AST.Identifier istr (Just iid) im) exprs m) =
+				if isBuiltin iid
+				then
+					return decl
+				else do
+					let exprst = map (s . (guardJust "exprst") . inferredType . getMeta) exprs
+					let rt = s $ guardJust "COMPILER BUG: rt is not set" $ inferredType m 
+					let t = Typing.Func exprst rt $ getMeta $ guardJust "COMPILER BUG: t is not set" $ inferredType m
+					let key = (iid, t)
+					state <- get
+					newid <- case (nameMap state) key of
+						Just newid -> return newid
+						Nothing -> do
+							appendToQueue key -- queue function
+							newid <- iterateIdentID -- generate uniqueID and iterate
+							modify $ \state -> state { nameMap = append key newid $ nameMap state } -- add mapping of (id, type) to newid
+							return newid
+					return $ AST.FunCall (AST.Identifier (mangle (istr, iid, t)) (Just newid) im) exprs m
 			fe _ e = do
 				return e
 	
