@@ -95,19 +95,20 @@ main = do
 	let ir2 = CodeGen.canonicalizeIR ir
 	let ssm = CodeGen.toSSM ir2
 
-	--Console.highLightLn ("IR:")
-	--forM ir (\(IR.Func l args body t) -> do
-	--	putStrLn $ l ++ show args ++ show t
-	--	print body
-	--	putStrLn "")
+	when (showIR opts) $ do
+		Console.highLightLn ("IR:")
+		forM_ (fst ir) (\(IR.Func l args body t) -> do
+			putStrLn $ l ++ show args ++ show t
+			print body
+			putStrLn "")
 
-	--Console.highLightLn ("Canonical IR:")
-	--forM ir2 (\(IR.Func l args body t) -> do
-	--	putStrLn $ l ++ show args ++ show t
-	--	IR.printBBs body
-	--	putStrLn "")
+		Console.highLightLn ("Canonical IR:")
+		forM_ (fst ir2) (\(IR.Func l args body t) -> do
+			putStrLn $ l ++ show args ++ show t
+			forM_ body (\bb -> forM_ bb (\s -> putStrLn $ show s ++ ";") >> putStrLn "------")
+			putStrLn "")
 
-	--Console.highLightLn ("SSM:")
+	when (showStages opts) $ Console.highLightLn ("SSM:")
 	putStrLn . SSM.showProgram $ ssm
 
 	when (showStages opts) $ Console.highLightLn ("*** Done ")

@@ -21,6 +21,7 @@ data Options = Options
 	, showParsingResult :: Bool
 	, showScopingResult :: Bool
 	, showTypingResult :: Bool
+	, showIR :: Bool
 	, showStages :: Bool
 	, lexOnly :: Bool
 	, parseOnly :: Bool
@@ -38,6 +39,7 @@ defaultOptions = Options
 	, showParsingResult = False
 	, showScopingResult = False
 	, showTypingResult = False
+	, showIR = False
 	, showStages = False
 	, lexOnly = False
 	, parseOnly = False
@@ -65,6 +67,7 @@ options =
 	, Option [] ["show-parsing"]	(NoArg (\o -> o { showParsingResult = True }))		"prettyprints the AST after parsing"
 	, Option [] ["show-scoping"]	(NoArg (\o -> o { showScopingResult = True }))		"prettyprints the AST after scoping"
 	, Option [] ["show-typing"]	(NoArg (\o -> o { showTypingResult = True }))		"prettyprints the AST after typing"
+	, Option [] ["show-ir"]		(NoArg (\o -> o { showIR = True }))			"prints the IR (both plain and canonical)"
 	, Option [] ["show-stages"]	(NoArg (\o -> o { showStages = True }))			"show stages during compilation"
 	, Option [] ["lex-only"]	(NoArg (\o -> o { lexOnly = True }))			"stops after the lexing pass"
 	, Option [] ["parse-only"]	(NoArg (\o -> o { parseOnly = True }))			"stops after the parsing pass"
