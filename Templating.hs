@@ -79,8 +79,12 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 			let s = case TypeInference.mgu t $ guardJust "mgu" $ inferredType $ fm of
 				TypeInference.Success s -> s
 				_ -> error "Can not infer"
-			rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, fid, t)) (Just newid) fim) fargs fdecls fstmts fm
-
+			decl <- rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, fid, t)) (Just newid) fim) fargs fdecls fstmts fm
+			return $ rewriteTypes s decl
+		
+		rewriteTypes :: Functor a => Substitution P2Meta -> a P3Meta -> a P3Meta
+		rewriteTypes s x = fmap (\m -> m { inferredType = Just $ s $ guardJust "COMPILER BUG: t is not set" $ inferredType m }) x
+		
 		createFunDeclMap :: [P3 AST.Decl] -> FunctionDeclMap
 		createFunDeclMap [] = \_ -> error "COMPILER BUG: Referenced to non-existant function"
 		createFunDeclMap (AST.VarDecl _ _ _ _ : decls) = createFunDeclMap decls
@@ -96,7 +100,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 				then
 					return decl
 				else do
-					let exprst = map (s . (guardJust "exprst") . inferredType . getMeta) exprs
+					let exprst = map (s . (guardJust "COMPILER BUG: exprst is not set") . inferredType . getMeta) exprs
 					let rt = s $ guardJust "COMPILER BUG: rt is not set" $ inferredType m 
 					let t = Typing.Func exprst rt $ getMeta $ guardJust "COMPILER BUG: t is not set" $ inferredType m
 					let key = (iid, t)
