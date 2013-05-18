@@ -115,6 +115,11 @@ instance Translate (P3 AST.Stmt) IR.IRStmt where
 -- TODO: get right type of ListPtr
 instance Translate (P3 AST.Expr) IR.IRExpr where
 	translate (AST.Var (AST.Identifier _ n _) _) = guardJust "COMPILER BUG (AST->IR): unable to lookup temp" <$> Map.lookup (guardJust "COMPILER BUG (AST->IR): variable has no ID" n) <$> identifierTemporaries <$> get
+	translate (AST.Binop e1 (AST.Cons _) e2 m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): cons has no type" $ inferredType m)
+		e1 <- translate e1
+		e2 <- translate e2
+		return $ IR.Builtin (Just t) (IR.Cons e1 e2)
 	translate (AST.Binop e1 bop e2 m) = do
 		t <- translate (guardJust "COMPILER BUG (AST->IR): binop has no type" $ inferredType m)
 		e1 <- translate e1
@@ -139,9 +144,9 @@ instance Translate (P3 AST.Expr) IR.IRExpr where
 		if isBuiltin m
 			then case toEnum m :: Builtins of
 				Print	-> return $ IR.Builtin t (IR.Print (head l))
-				IsEmpty	-> error "COMPILER BUG: IsEmpty not yet implemented"
-				Head	-> error "COMPILER BUG: Head not yet implemented"
-				Tail	-> error "COMPILER BUG: Tail not yet implemented"
+				IsEmpty	-> return $ IR.Builtin t (IR.IsEmpty (head l))
+				Head	-> return $ IR.Builtin t (IR.Head (head l))
+				Tail	-> return $ IR.Builtin t (IR.Tail (head l))
 				Fst	-> return $ IR.Builtin t (IR.First (head l))
 				Snd	-> return $ IR.Builtin t (IR.Second (head l))
 			else do
@@ -152,10 +157,13 @@ instance Translate (P3 AST.Expr) IR.IRExpr where
 		e1 <- translate e1
 		e2 <- translate e2
 		return $ IR.Builtin (Just t) (IR.MakePair e1 e2)
-	translate (AST.Nil _) = return $ IR.Const (IR.ListPtr IR.Int) 0
+	translate (AST.Nil m) = do
+		t <- translate (guardJust "COMPILER BUG (AST->IR): pair has no type" $ inferredType m)
+		return $ IR.Const t 0
 
 
 instance Translate (P3 AST.BinaryOperator) IR.IRBOps where
+	translate (AST.Cons _) = error "COMPILER BUG: Cannot translate a bar cons operator"
 	translate x = return $ fmap (const ()) x
 
 instance Translate (P3 AST.UnaryOperator) IR.IRUOps where

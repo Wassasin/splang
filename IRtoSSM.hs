@@ -234,12 +234,34 @@ instance Translate IRExpr where
 		-- Construct the pair, copy the second part to current place in stack
 		translate e
 		let t@(Pair _ t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
-		out (SSM.StoreMultipleIntoStack (1 + negate (sizeOf t)) (sizeOf t2))
+		out (SSM.StoreMultipleIntoStack (1 - (sizeOf t)) (sizeOf t2))
 	translate (Builtin _ (IR.Print e)) = do
 		-- Print more for other types?
 		translate e
 		out (SSM.Trap 0)
-	-- Should never occur
+	translate (Builtin _ (IR.Cons e1 e2)) = do
+		-- First store the pointer to the next value, then the data, this is nice, because StoreMultipleHeap gives an address
+		let fJust = guardJust "COMPILER BUG (IR->SSM): value in cons has no type"
+		translate e2
+		translate e1
+		out (SSM.StoreMultipleHeap (sizeOf (fJust $ typeOf e2) + sizeOf (fJust $ typeOf e1)))
+	translate (Builtin _ (IR.IsEmpty e)) = do
+		translate e
+		out (SSM.LoadConstant 0)
+		out SSM.Equal
+	translate (Builtin (Just t) (IR.Tail e)) = do
+		-- TODO: stackPtr
+		let ListPtr et = t
+		translate e
+		out (SSM.LoadMultipleHeap (sizeOf t + sizeOf et) 0)
+		out (SSM.AdjustStack (negate (sizeOf et)))
+	translate (Builtin (Just et) (IR.Head e)) = do
+		-- TODO: stackPtr
+		let t = ListPtr et
+		let size = (sizeOf t + sizeOf et)
+		translate e
+		out (SSM.LoadMultipleHeap size 0)
+		out (SSM.StoreMultipleIntoStack (1 - size) (sizeOf et))
 	translate (Eseq _ _) = error "COMPILER BUG (IR->SSM): Eseq present in IR"
 
 instance Translate IRBOps where

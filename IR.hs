@@ -47,6 +47,10 @@ data IRBuiltin
 	= MakePair IRExpr IRExpr
 	| First IRExpr
 	| Second IRExpr
+	| Cons IRExpr IRExpr
+	| IsEmpty IRExpr
+	| Tail IRExpr
+	| Head IRExpr
 	| Print IRExpr
 	deriving (Eq, Ord, Show)
 
@@ -176,6 +180,12 @@ instance Canonicalize IRBuiltin where
 	canonicalize (First e)	= fmap First <$> canonicalize e
 	canonicalize (Second e)	= fmap Second <$> canonicalize e
 	canonicalize (Print e)	= fmap Print <$> canonicalize e
+	canonicalize (Cons e1 e2) = do
+		(s, [e1, e2]) <- canonicalize [e1, e2]
+		return (s, Cons e1 e2)
+	canonicalize (IsEmpty e)= fmap IsEmpty <$> canonicalize e
+	canonicalize (Tail e)	= fmap Tail <$> canonicalize e
+	canonicalize (Head e)	= fmap Head <$> canonicalize e
 
 instance Canonicalize [IRExpr] where
 	canonicalize [] = return (Nop, [])
