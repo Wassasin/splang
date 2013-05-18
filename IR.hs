@@ -172,12 +172,9 @@ instance Canonicalize IRBuiltin where
 	canonicalize (MakePair e1 e2) = do
 		(s, [e1, e2]) <- canonicalize [e1, e2]
 		return (s, MakePair e1 e2)
-	canonicalize (First e) = do
-		(s, e) <- canonicalize e
-		return (s, First e)
-	canonicalize (Second e) = do
-		(s, e) <- canonicalize e
-		return (s, Second e)
+	canonicalize (First e)	= fmap First <$> canonicalize e		-- NOTE: fmap on second argument of the tuple
+	canonicalize (Second e)	= fmap Second <$> canonicalize e
+	canonicalize (Print e)	= fmap Print <$> canonicalize e
 
 instance Canonicalize [IRExpr] where
 	canonicalize [] = return (Nop, [])

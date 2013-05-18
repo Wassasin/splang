@@ -178,6 +178,7 @@ instance Translate IRStmt where
 		translate s1
 		translate s2
 	translate (Ret (Just e)) = do
+		-- TODO: return tuples as well
 		translate e
 		out (SSM.StoreRegister SSM.RR)
 		-- This cleans up the stack
@@ -211,12 +212,16 @@ instance Translate IRExpr where
 		translate uop
 	translate (Mem e) = error "COMPILER BUG: Mem not implemented"
 	translate (Call label args) = do
-		-- TODO: handle stackPtr
+		s1 <- lift $ stackPtr <$> get
 		mapM translate args
 		out (SSM.BranchToSubroutine label)
-		out (SSM.AdjustStack (negate $ length args))
-		-- TODO: not always load the RR, maybe it doesnt do any harm
+		s2 <- lift $ stackPtr <$> get
+		let difference = s2 - s1
+		out (SSM.AdjustStack (negate difference))
+		lift $ modify (decreaseStackPtrBy difference)
+		-- TODO: not always load the RR, maybe it doesnt do any harm (because it is well typed, we will never use the void)
 		out (SSM.LoadRegister SSM.RR)
+		lift $ modify increaseStackPtr
 	translate (Builtin (IR.MakePair e1 e2)) = do
 		-- Pairs have a flat layout
 		translate e1
