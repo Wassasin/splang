@@ -269,18 +269,18 @@ validateType a b = vt a b []
 		find [] _ = Nothing
 		find ((xk, xv):xs) y = if(xk == y) then Just xv else find xs y
 
+updateInferredType :: Functor a => Substitution P2Meta -> a P3Meta -> a P3Meta
+updateInferredType s = fmap (\m -> m { inferredType = case inferredType m of
+	Nothing -> Nothing
+	Just t -> Just $ s t})
+
 infer :: P2 AST.Program -> InferResult P2Meta (P3 AST.Program, [(AST.IdentID, PolyType P2Meta)])
 infer p = flip bo 2 $ do -- FT 0 & 1 are reserved for keywords
 	c <- constructInitialContext p
 	(p2, s, c) <- inferProgram c p
 	validateProgramContext c p
 	c2 <- extractContext (getMeta p) c
-	return (fmap (f s) p2, c2)
-	where
-		f :: Substitution P2Meta -> P3Meta -> P3Meta
-		f s m = P3 {source = source m, inferredType = case inferredType m of
-			Nothing -> Nothing
-			Just t -> Just $ s t}
+	return (updateInferredType s p2, c2)
 
 inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (P3 AST.Program, Substitution P2Meta, InferContext P2Meta)
 inferProgram c (AST.Program decls m) = do
@@ -306,7 +306,7 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 	-- make for each argument a free type
 	(argtup, args) <- unzip <$> (sequence $ map (\(t, AST.Identifier str n m) -> do
 		a <- genFreshConcrete m
-		return ((fromJust n, a), (fpromote t, AST.Identifier str n a))) args)
+		return ((fromJust n, a), (fpromote t, AST.Identifier str n (tpromote m a)))) args)
 	-- set types for arguments in context
 	ci <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return ce) argtup
 	-- define vardecls
@@ -330,7 +330,7 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 		v <- return $ createPoly bs (s v) m
 		ce <- setContext ident v ce
 		validateDeclContext ce decl
-	return (AST.FunDecl (fpromote t) (fpromote i) (map (\(xarg, yarg) -> (xarg, fmap (\a -> tpromote m (s a)) yarg)) args) decls stmts (tpromote m (s v)), s)
+	return (AST.FunDecl (fpromote t) (fpromote i) (map (\(xarg, yarg) -> (xarg, updateInferredType s yarg)) args) (map (updateInferredType s) decls) (map (updateInferredType s) stmts) (tpromote m (s v)), s)
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
