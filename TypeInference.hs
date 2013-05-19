@@ -330,7 +330,7 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 		v <- return $ createPoly bs (s v) m
 		ce <- setContext ident v ce
 		validateDeclContext ce decl 
-	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (tpromote m v), s)
+	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (tpromote m (s v)), s)
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
@@ -415,7 +415,7 @@ inferExpr c (AST.Var i m) t = do
 	u <- c ident
 	u <- genBind m u
 	s <- genMgu m t u
-	return (AST.Var (fpromote i) $ tpromote m u, s)
+	return (AST.Var (fpromote i) $ tpromote m (s u), s)
 inferExpr c (AST.Binop e1 op e2 m) t = do
 	(xf, yf, uf) <- matchBinOp op
 	let (x, y, u) = (xf $ getMeta e1, yf $ getMeta e2, uf m)
@@ -423,21 +423,21 @@ inferExpr c (AST.Binop e1 op e2 m) t = do
 	c <- apply s c
 	(e2, s) <- inferExpr c e2 (s y) ?> s
 	s <- genMgu m (s t) (s u) .> s
-	return (AST.Binop e1 (fpromote op) e2 $ tpromote m u, s)
+	return (AST.Binop e1 (fpromote op) e2 $ tpromote m (s u), s)
 inferExpr c (AST.Unop op e m) t = do
 	(xf, uf) <- matchUnOp op
 	let (x, u) = (xf $ getMeta e, uf m)
 	(e, s) <- inferExpr c e x
 	s <- genMgu m (s t) (s u) .> s
-	return (AST.Unop (fpromote op) e $ tpromote m u, s)
+	return (AST.Unop (fpromote op) e $ tpromote m (s u), s)
 inferExpr _ (AST.Kint x m) t = do
 	u <- return $ Int m
 	s <- genMgu m u t
-	return (AST.Kint x $ tpromote m u, s)
+	return (AST.Kint x $ tpromote m (s u), s)
 inferExpr _ (AST.Kbool x m) t = do
 	u <- return $ Bool m
 	s <- genMgu m u t
-	return (AST.Kbool x $ tpromote m u, s)
+	return (AST.Kbool x $ tpromote m (s u), s)
 inferExpr c (AST.FunCall i es m) t = do
 	ident <- fetchIdentID i
 	u <- c ident
@@ -455,7 +455,7 @@ inferExpr c (AST.FunCall i es m) t = do
 		when(usingVoid (s a)) $ addInferError (VoidUsage m (s a))
 		return (es++[e], s)) $ zip es as
 	s <- genMgu m (s t) (s r) .> s
-	return (AST.FunCall (fpromote i) es $ tpromote m r, s)
+	return (AST.FunCall (fpromote i) es $ tpromote m (s r), s)
 inferExpr c (AST.Pair e1 e2 m) t = do
 	a1 <- genFreshConcrete $ getMeta e1
 	(e1, s) <- inferExpr c e1 a1
@@ -464,9 +464,9 @@ inferExpr c (AST.Pair e1 e2 m) t = do
 	(e2, s) <- inferExpr c e2 a2 ?> s
 	u <- return $ Pair a1 a2 m
 	s <- genMgu m (s t) (s u) .> s
-	return (AST.Pair e1 e2 $ tpromote m u, s)
+	return (AST.Pair e1 e2 $ tpromote m (s u), s)
 inferExpr _ (AST.Nil m) t = do
 	a <- genFreshConcrete m
 	u <- return $ List a m
 	s <- genMgu m t u
-	return (AST.Nil $ tpromote m u, s)
+	return (AST.Nil $ tpromote m (s u), s)
