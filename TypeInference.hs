@@ -286,7 +286,7 @@ inferProgram :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta (P3 
 inferProgram c (AST.Program decls m) = do
 	(decls, s, c) <- foldl (>>=) (return ([], id, c)) $ map (\d -> \(ds, s, c) -> do
 		c <- apply s c
-		(d, s) <- inferDecl c d
+		(d, s) <- inferDecl c d ?> s
 		return (ds++[d], s, c)) decls
 	c <- apply s c
 	return (AST.Program decls (promote m), s, c)
@@ -330,7 +330,7 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 		v <- return $ createPoly bs (s v) m
 		ce <- setContext ident v ce
 		validateDeclContext ce decl
-	return (AST.FunDecl (fpromote t) (fpromote i) (map (\(xarg, yarg) -> (xarg, updateInferredType s yarg)) args) (map (updateInferredType s) decls) (map (updateInferredType s) stmts) (tpromote m (s v)), s)
+	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (tpromote m (s v)), s)
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
