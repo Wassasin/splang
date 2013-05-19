@@ -1,0 +1,19 @@
+// retT :: (Int, Int)(Int)
+(Int, Int) retT(Int n){
+        return (n, n + 1);
+}
+ 
+// passT :: Int((Int, Int))
+Int passT((Int, Int) x){
+        return fst(x) + snd(x);
+}
+ 
+// globT :: (Int, Int)
+(Int, Int) globT = (4, 6);
+ 
+// main :: Void()
+Void main(){
+        // locT :: (Int, Int)
+        (Int, Int) locT = retT(10);
+        print(passT(locT));
+}
