@@ -87,8 +87,8 @@ addToLocations :: Temporary -> (Address, DataKind) -> TranslationState -> Transl
 addToLocations t x o = o { temporaryLocations = insert t x $ temporaryLocations o }
 
 -- Pushes a persistent value on the stack
-saveOnStack :: Temporary -> TranslationState -> TranslationState
-saveOnStack t o = o { temporaryLocations = insert t (stackPtr o, Local) $ temporaryLocations o }
+saveOnStack :: Temporary -> Size -> TranslationState -> TranslationState
+saveOnStack t n o = o { temporaryLocations = insert t (stackPtr o - n + 1, Local) $ temporaryLocations o }
 
 -- Emit a single instruction
 out :: SSM.Instruction -> WriterT Output (State TranslationState) ()
@@ -170,7 +170,7 @@ instance Translate IRStmt where
 			Nothing -> do
 				-- TODO: use sizeOf here
 				translate e2
-				lift . modify $ saveOnStack n
+				lift . modify $ saveOnStack n (sizeOf ty)
 			-- Global variable
 			Just (y, Global) -> do
 				translate e2
