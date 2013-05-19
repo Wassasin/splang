@@ -73,14 +73,13 @@ assignCurrentFunction (Func _ args _ ty) o = o
 	, returnLocation = retLoc
 	, returnSize = retSize }
 	where
-		-- TODO: figure out real size of an argument
-		nArgs = length args
-		locs = map (,Argument) [lastArgument - nArgs + 1 ..]
+		argSizes = scanl (flip $ (+) . sizeOf) 0 $ map fst args
+		locs = map (\s -> (lastArgument - s + 1, Argument)) $ tail argSizes
 		ts = zip (map snd args) locs
 		fs = map (uncurry insert) ts
 		inserts = foldl (.) id fs
 
-		argSize = foldr ((+) . sizeOf) 0 $ map fst args
+		argSize = last argSizes
 		retSize = sizeOfm ty
 		retLoc = lastArgument - argSize - retSize + 1
 
