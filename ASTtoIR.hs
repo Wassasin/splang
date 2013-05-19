@@ -64,12 +64,16 @@ instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 		let fname = ("init_globalvar_"++str)
 		modify (addTemporary n d)
 		returnFunctionAndGlob (IR.Func fname [] (IR.Seq (IR.Move d e) (IR.Ret Nothing)) Nothing) (IR.Glob n t fname)
-	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts _) = do
+	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts m) = do
+		let Typing.Func _ rt _ = guardJust "COMPILER BUG (AST->IR): variable has no type" $ inferredType m
+		rt <- case rt of
+			Typing.Void _ -> return Nothing
+			t -> Just <$> translate t
 		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Data IR.Int n))
 		decls <- Trav.mapM translateLocalVarDecl decls
 		stmts <- Trav.mapM translate stmts
 		stmts <- return . foldl IR.Seq IR.Nop $ decls ++ stmts ++ [IR.Ret Nothing] -- FIXME: ugly hack to ensure functions always return
-		returnFunction $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts Nothing
+		returnFunction $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts rt
 
 translateLocalVarDecl :: P3 AST.Decl -> State TranslationState IR.IRStmt
 translateLocalVarDecl (AST.FunDecl{}) = error "COMPILER BUG: function declarations cannot occur in function body."
