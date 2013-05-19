@@ -74,14 +74,14 @@ assignCurrentFunction (Func _ args _ ty) o = o
 	, returnSize = retSize }
 	where
 		argSizes = scanl (flip $ (+) . sizeOf) 0 $ map fst args
-		locs = map (\s -> (lastArgument - s + 1, Argument)) $ tail argSizes
+		argsSize = last argSizes
+		locs = map (\s -> (lastArgument - argsSize + 1 + s, Argument)) argSizes
 		ts = zip (map snd args) locs
 		fs = map (uncurry insert) ts
 		inserts = foldl (.) id fs
 
-		argSize = last argSizes
 		retSize = sizeOfm ty
-		retLoc = lastArgument - argSize - retSize + 1
+		retLoc = lastArgument - argsSize - retSize + 1
 
 addToLocations :: Temporary -> (Address, DataKind) -> TranslationState -> TranslationState
 addToLocations t x o = o { temporaryLocations = insert t x $ temporaryLocations o }
