@@ -123,6 +123,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 			fi i@(AST.Identifier _ (Just id) _) = do
 				tell [id]
 				return i
+			fi i@(AST.Identifier _ Nothing _) = return i
 
 -- gen concrete code
 instance Templateable AST.Program
