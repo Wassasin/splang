@@ -129,7 +129,7 @@ instance Translate (Program [BasicBlock]) where
 		-- Initialise globals
 		translate gs
 		-- GO!
-		out (SSM.BranchToSubroutine "main")
+		out (SSM.BranchToSubroutine "main_v")
 		out (SSM.BranchAlways "end")
 		translate fs
 		out (SSM.Label "end")

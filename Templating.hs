@@ -79,7 +79,7 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 			let s = case TypeInference.mgu t $ guardJust "mgu" $ inferredType $ fm of
 				TypeInference.Success s -> s
 				_ -> error "Can not infer"
-			decl <- rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, fid, t)) (Just newid) fim) fargs fdecls fstmts fm
+			decl <- rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, t)) (Just newid) fim) fargs fdecls fstmts fm
 			return $ rewriteTypes s decl
 		
 		rewriteTypes :: Functor a => Substitution P2Meta -> a P3Meta -> a P3Meta
@@ -112,7 +112,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 							newid <- iterateIdentID -- generate uniqueID and iterate
 							modify $ \state -> state { nameMap = append key newid $ nameMap state } -- add mapping of (id, type) to newid
 							return newid
-					return $ AST.FunCall (AST.Identifier (mangle (istr, iid, t)) (Just newid) im) exprs m
+					return $ AST.FunCall (AST.Identifier (mangle (istr, t)) (Just newid) im) exprs m
 			fe _ e = do
 				return e
 	
@@ -132,11 +132,11 @@ instance Templateable AST.Decl
 class Mangle a where
 	mangle :: a -> String
 	
-instance Mangle (String, AST.IdentID, MonoType a) where
-	mangle (str, i, t) = str ++ show i ++ "_" ++ mangle t
+instance Mangle (String, MonoType a) where
+	mangle (str, t) = str ++ "_" ++ mangle t
 
 instance Mangle (MonoType a) where
-	mangle (Typing.Func args r _)	= (mangle r) ++ "_" ++ (concat $ map mangle args)
+	mangle (Typing.Func args r _)	= (mangle r) ++ if null args then "" else "_" ++ (concat $ map mangle args)
 	mangle (Typing.Pair x y _)	= "p" ++ (mangle x) ++ (mangle y)
 	mangle (Typing.List (Typing.Free _ _) _)	= "lf"
 	mangle (Typing.List x _)	= "l" ++ mangle x
