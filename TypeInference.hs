@@ -306,7 +306,7 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 	-- make for each argument a free type
 	(argtup, args) <- unzip <$> (sequence $ map (\(t, AST.Identifier str n m) -> do
 		a <- genFreshConcrete m
-		return ((fromJust n, a), (fpromote t, AST.Identifier str n (tpromote m a)))) args)
+		return ((fromJust n, a), (fpromote t, AST.Identifier str n a))) args)
 	-- set types for arguments in context
 	ci <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return ce) argtup
 	-- define vardecls
@@ -329,8 +329,8 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 		let bs = ftvm (s v) \\ fce
 		v <- return $ createPoly bs (s v) m
 		ce <- setContext ident v ce
-		validateDeclContext ce decl 
-	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (tpromote m (s v)), s)
+		validateDeclContext ce decl
+	return (AST.FunDecl (fpromote t) (fpromote i) (map (\(xarg, yarg) -> (xarg, fmap (\a -> tpromote m (s a)) yarg)) args) decls stmts (tpromote m (s v)), s)
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts
