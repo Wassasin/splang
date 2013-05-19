@@ -168,7 +168,6 @@ instance Translate IRStmt where
 		case thing of
 			-- New local variable
 			Nothing -> do
-				-- TODO: use sizeOf here
 				translate e2
 				lift . modify $ saveOnStack n (sizeOf ty)
 			-- Global variable
@@ -251,7 +250,7 @@ instance Translate IRExpr where
 		let t@(Pair _ t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.StoreMultipleIntoStack (1 - (sizeOf t)) (sizeOf t2))
 	translate (Builtin _ (IR.Print e)) = do
-		-- Print more for other types?
+		-- TODO: Print more for other types?
 		translate e
 		out (SSM.Trap 0)
 	translate (Builtin _ (IR.Cons e1 e2)) = do
@@ -259,24 +258,25 @@ instance Translate IRExpr where
 		let fJust = guardJust "COMPILER BUG (IR->SSM): value in cons has no type"
 		translate e2
 		translate e1
-		out (SSM.StoreMultipleHeap (sizeOf (fJust $ typeOf e2) + sizeOf (fJust $ typeOf e1)))
+		out (SSM.StoreMultipleHeap ((sizeOfm $ typeOf e2) + (sizeOfm $ typeOf e1)))
+		lift $ modify (decreaseStackPtrBy (sizeOfm $ typeOf e1)) -- NOTE: the address will be overwritten, and has the same size
 	translate (Builtin _ (IR.IsEmpty e)) = do
 		translate e
 		out (SSM.LoadConstant 0)
 		out SSM.Equal
 	translate (Builtin (Just t) (IR.Tail e)) = do
-		-- TODO: stackPtr
 		let ListPtr et = t
 		translate e
-		out (SSM.LoadMultipleHeap (sizeOf t + sizeOf et) 0)
+		out (SSM.LoadMultipleHeap 0 (sizeOf t + sizeOf et))
 		out (SSM.AdjustStack (negate (sizeOf et)))
+		lift $ modify (increaseStackPtrBy (sizeOf t - 1))
 	translate (Builtin (Just et) (IR.Head e)) = do
-		-- TODO: stackPtr
 		let t = ListPtr et
 		let size = (sizeOf t + sizeOf et)
 		translate e
-		out (SSM.LoadMultipleHeap size 0)
+		out (SSM.LoadMultipleHeap 0 size)
 		out (SSM.StoreMultipleIntoStack (1 - size) (sizeOf et))
+		lift $ modify (increaseStackPtrBy (sizeOf et - 1))
 
 instance Translate IRBOps where
 	translate (AST.Multiplication _)	= out SSM.Multiply

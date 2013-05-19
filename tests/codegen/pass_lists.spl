@@ -1,5 +1,6 @@
 // Test Lists
 
 Void main(){
-	1:2:3:[];
+	[Int] x = 1:2:3:[];
+	print(head(x));
 }
