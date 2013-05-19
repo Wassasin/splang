@@ -69,11 +69,14 @@ instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 		rt <- case rt of
 			Typing.Void _ -> return Nothing
 			t -> Just <$> translate t
-		Trav.forM args (\(_, AST.Identifier _ (Just n) _) -> modify $ addTemporary n (IR.Data IR.Int n))
+		args <- Trav.forM args (\(_, AST.Identifier _ (Just n) m2) -> do
+			t <- translate (guardJust "COMPILER BUG (AST->IR): argument has no type" $ inferredType m2)
+			modify $ addTemporary n (IR.Data t n)
+			return (t, n))
 		decls <- Trav.mapM translateLocalVarDecl decls
 		stmts <- Trav.mapM translate stmts
 		stmts <- return . foldl IR.Seq IR.Nop $ decls ++ stmts ++ [IR.Ret Nothing] -- FIXME: ugly hack to ensure functions always return
-		returnFunction $ IR.Func str (map (\(_, AST.Identifier _ (Just n) _) -> (IR.Int, n)) args) stmts rt
+		returnFunction $ IR.Func str args stmts rt
 
 translateLocalVarDecl :: P3 AST.Decl -> State TranslationState IR.IRStmt
 translateLocalVarDecl (AST.FunDecl{}) = error "COMPILER BUG: function declarations cannot occur in function body."
