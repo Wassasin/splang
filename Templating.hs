@@ -36,7 +36,7 @@ whileM f m = do
 	else return []
 
 append :: FunctionKey -> AST.IdentID -> FunctionNameMap -> FunctionNameMap
-append kx v f = \ky -> if(kx == ky) then Just v else (f kx)
+append kx v f = \ky -> if(kx == ky) then Just v else (f ky)
 
 newState :: AST.Program m -> TemplateState
 newState p = TemplateState {nameMap = \_ -> Nothing, queue = [], nextUniqueID = maxIdentID p + 1}
