@@ -184,7 +184,7 @@ instance Translate IRStmt where
 	translate (Move (Temp ty n) e2) = do
 		-- Temporary (not persistent)
 		translate e2
-		lift . modify . increaseStackPtrBy $ sizeOf ty
+		lift . modify $ saveOnStack n (sizeOf ty)
 	translate (Expression e) = translate e
 	translate (Jump label) = out (SSM.BranchAlways label)
 	translate (CJump e tl fl) = do
@@ -214,7 +214,13 @@ instance Translate IRExpr where
 		case thing of
 			Nothing -> error "COMPILER BUG: using a non-existing value"
 			Just x -> loadData x (sizeOf ty)
-	translate (Temp _ _) = return () -- It lives on the stack?
+	translate (Temp ty n) = do
+		sp <- lift $ stackPtr <$> get
+		Just (loc, _) <- lift $ getDataLocation n
+		let diff = loc - sp
+		if diff == 0
+			then return ()
+			else out (SSM.LoadMultipleFromStack diff (sizeOf ty))
 	translate (Binop _ e1 bop e2) = do
 		translate e1
 		translate e2
