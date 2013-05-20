@@ -48,3 +48,27 @@ do
 done
 echo "See run_tests.log for the details"
 
+ssmmachine="../ssm-nogui/build/ssm-nogui.jar"
+echo "Codegen tests"
+for f in ./tests/codegen/*.spl
+do
+	echo "*** Codegen $f" >> run_tests.log
+	./build/splang $f > code.ssm
+
+	if [ $? -ne 0 ]; then
+		echo -e "\033[31m$f failed to generate code\033[0m"
+	else
+		echo -e "\033[32m$f succeeded generating code\033[0m"
+		if [ -e $f.output ]; then
+			cat $f.output > output_check.txt
+			java -jar $ssmmachine code.ssm > output_ssm.txt
+			diff output_check.txt output_ssm.txt
+			if [ $? -ne 0 ]; then
+				echo -e "\033[31m -> see diff above\033[0m"
+			else
+				echo -e "\033[32m -> no diff :)\033[0m"
+			fi
+		fi
+	fi
+done
+echo "See run_tests.log for the details"

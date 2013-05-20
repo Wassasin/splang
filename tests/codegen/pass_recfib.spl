@@ -12,11 +12,3 @@ Void main(){
 	print(fib(5));
 	print(fib(10));
 }
-
-/*
-Output:
-3
-5
-8
-89
-*/
