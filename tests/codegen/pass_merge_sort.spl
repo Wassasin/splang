@@ -1,0 +1,102 @@
+//Jascha  Neutelings (s0610054)
+Int length([t] list)
+{
+	if (isEmpty(list))
+		return 0;
+	else
+		return 1 + length(tail(list));
+}
+
+[t] append([t] list, t value)
+{
+	if (isEmpty(list))
+		return value : [];
+	else
+		return head(list) : append(tail(list), value);
+}
+
+([t],[t]) split_aux([t] list, Int n)
+{
+	([t],[t]) tl = split(tail(list), n - 1);
+	return (head(list) : fst(tl), snd(tl));
+}
+
+([t],[t]) split([t] list, Int n)
+{
+	if (isEmpty(list) || n == 0)
+		return ([], list);
+	else
+		return split_aux(list, n);
+}
+
+[Int] merge_sort_aux([Int] m)
+{
+	Int middle = length(m) / 2;
+	([Int],[Int]) parts = split(m, middle);
+	[Int] left = fst(parts);
+	[Int] right = snd(parts);
+
+	// recursively call merge_sort() to further split each sublist
+	// until sublist size is 1
+	left = merge_sort(left);
+	right = merge_sort(right);
+	// merge the sublists returned from prior calls to merge_sort()
+	// and return the resulting merged sublist
+	return merge(left, right);
+}
+
+[Int] merge_sort([Int] m)
+{
+	// if list size is 1, consider it sorted and return it
+	if (isEmpty(m) || isEmpty(tail(m)))
+		return m;
+	// else list size is > 1, so split the list into two sublists
+	return merge_sort_aux(m);
+}
+
+[Int] merge([Int] left, [Int] right)
+{
+	[Int] result = [];
+	while ((!isEmpty(left)) || (!isEmpty(right)))
+	{
+		if ((!isEmpty(left)) && (!isEmpty(right)))
+		{
+			if (head(left) <= head(right))
+			{
+				result = append(result, head(left));
+				left = tail(left);
+			}
+			else
+			{
+				result = append(result, head(right));
+				right = tail(right);
+			}
+		}
+		else if (!isEmpty(left))
+		{
+			result = append(result, head(left));
+			left = tail(left);
+		}
+		else if (!isEmpty(right))
+		{
+			result = append(result, head(right));
+			right = tail(right);
+		}
+	}
+	return result;
+}
+
+Void print_all([a] xs)
+{
+	while(!isEmpty(xs))
+	{
+		print(head(xs));
+		xs = tail(xs);
+	}
+}
+
+Void main()
+{
+	[Int] list = 8 : 10 : 3 : 7 : 9 : 6 : 4 : 1 : 2 : 5 : [];
+	print_all(merge_sort(list));
+}
