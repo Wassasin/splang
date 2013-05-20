@@ -42,13 +42,15 @@ sizeOfm Nothing = 0
 -- stackPtr is the stack pointer relative to the MP
 -- return location is relative to the frame ptr
 data TranslationState = TranslationState
-	{ temporaryLocations :: Map Temporary (Address, DataKind)
+	{ globalLocations :: Map Temporary (Address, DataKind)
+	, temporaryLocations :: Map Temporary (Address, DataKind)
 	, stackPtr :: Address
 	, returnLocation :: Address
 	, returnSize :: Size }
 
 emptyState = TranslationState
-	{ temporaryLocations = empty
+	{ globalLocations = empty
+	, temporaryLocations = empty
 	, stackPtr = 0
 	, returnLocation = 0
 	, returnSize = 0 }
@@ -68,7 +70,7 @@ prevArgument = pred
 -- Stores information about arguments in the state
 assignCurrentFunction :: IRFunc [BasicBlock] -> TranslationState -> TranslationState
 assignCurrentFunction (Func _ args _ ty) o = o
-	{ temporaryLocations = inserts $ temporaryLocations o
+	{ temporaryLocations = inserts $ globalLocations o
 	, stackPtr = 0
 	, returnLocation = retLoc
 	, returnSize = retSize }
@@ -83,8 +85,8 @@ assignCurrentFunction (Func _ args _ ty) o = o
 		retSize = sizeOfm ty
 		retLoc = lastArgument - argsSize - retSize + 1
 
-addToLocations :: Temporary -> (Address, DataKind) -> TranslationState -> TranslationState
-addToLocations t x o = o { temporaryLocations = insert t x $ temporaryLocations o }
+addToGlobals :: Temporary -> (Address, DataKind) -> TranslationState -> TranslationState
+addToGlobals t x o = o { globalLocations = insert t x $ globalLocations o }
 
 -- Pushes a persistent value on the stack
 saveOnStack :: Temporary -> Size -> TranslationState -> TranslationState
@@ -142,7 +144,7 @@ instance Translate [IRGlob] where
 			-- zero initialized
 			replicateM_ (sizeOf t) $ out (SSM.LoadConstant 0)
 			s <- lift $ get
-			lift . modify $ addToLocations n (1 + (stackPtr s), Global)
+			lift . modify $ addToGlobals n (1 + (stackPtr s), Global)
 			lift . modify $ increaseStackPtrBy (sizeOf t))
 		-- Initialise them
 		forM_ gs (\(Glob _ _ label) -> out (SSM.BranchToSubroutine label))
