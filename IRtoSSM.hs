@@ -266,7 +266,7 @@ instance Translate IRExpr where
 	translate (Builtin _ (IR.Print e)) = do
 		-- TODO: Print more for other types?
 		translate e
-		out (SSM.Trap 0)
+		replicateM_ (sizeOfm (typeOf e)) $ out (SSM.Trap 0)
 	translate (Builtin _ (IR.Cons e1 e2)) = do
 		-- First store the pointer to the next value, then the data, this is nice, because StoreMultipleHeap gives an address
 		let fJust = guardJust "COMPILER BUG (IR->SSM): value in cons has no type"
