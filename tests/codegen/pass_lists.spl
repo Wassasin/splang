@@ -1,6 +1,55 @@
 // Test Lists
 
+[a] reverse([a] list){
+	[a] accu = [];
+	while(!isEmpty(list)){
+		accu = head(list) : accu;
+		list = tail(list);
+	}
+	return accu;
+}
+
+[(a, b)] zip([a] x, [b] y){
+	[(a, b)] acc = [];
+	while(!isEmpty(x) && !isEmpty(y)){
+		acc = (head(x), head(y)) : acc;
+		x = tail(x);
+		y = tail(y);
+	}
+	return acc;
+}
+
+Int length([a] x){
+	Int n = 0;
+	while(!isEmpty(x)){
+		n = n + 1;
+		x = tail(x);
+	}
+	return n;
+}
+
 Void main(){
 	[Int] x = 1:2:3:[];
-	print(head(x));
+	[Int] z = reverse(x);
+	[(Int, Int)] y = zip(x, z);
+
+	print(length(x));
+	print(length(z));
+	print(length(y));
+
+	while(!isEmpty(x)){
+		print(head(x));
+		x = tail(x);
+	}
+
+	while(!isEmpty(z)){
+		print(head(z));
+		z = tail(z);
+	}
+
+	while(!isEmpty(y)){
+		print(fst(head(y)));
+		print(snd(head(y)));
+		y = tail(y);
+	}
 }

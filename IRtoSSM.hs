@@ -251,11 +251,14 @@ instance Translate IRExpr where
 		translate e
 		let (Pair t1 t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.AdjustStack (negate $ sizeOf t2))
+		lift $ modify (decreaseStackPtrBy (sizeOf t2))
 	translate (Builtin _ (IR.Second e)) = do
 		-- Construct the pair, copy the second part to current place in stack
 		translate e
-		let t@(Pair _ t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
+		let t@(Pair t1 t2) = guardJust "COMPILER BUG (IR->SSM): applying fst to a non-tuple in codegen" $ typeOf e
 		out (SSM.StoreMultipleIntoStack (1 - (sizeOf t)) (sizeOf t2))
+		out (SSM.AdjustStack (sizeOf t2 - 1))
+		lift $ modify (decreaseStackPtrBy (sizeOf t1))
 	translate (Builtin _ (IR.Print e)) = do
 		-- TODO: Print more for other types?
 		translate e
@@ -287,6 +290,7 @@ instance Translate IRExpr where
 		translate e
 		out (SSM.LoadMultipleHeap 0 size)
 		out (SSM.StoreMultipleIntoStack (1 - size) (sizeOf et))
+		out (SSM.AdjustStack (sizeOf et - 1))
 		lift $ modify (increaseStackPtrBy (sizeOf et - 1))
 
 instance Translate IRBOps where
