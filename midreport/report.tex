@@ -61,6 +61,7 @@ Our compiler uses several compilation phases. A summary is given in table~\ref{t
  & Scoping & Checks usage of identifiers, gives errors on redeclarations and undeclared identifiers. This phase rewrites the AST to contain unique identifiers. \\
  & Typing & Checks and infers types of the program. Rewrites the AST to contain types in each expression. \\
 \hline Code gen
+ & Templating & Rewrites functions to accommodate polymorphism. \\
  & AST to IR & Converts to the AST to our IR. \\
  & Canonicalize IR & Converts the IR into a IR consisting of basic blocks. \\
  & Generate SSM & Translates the canonical IR into SSM instructions.
