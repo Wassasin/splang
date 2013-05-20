@@ -1,0 +1,12 @@
+Int length([a] xs)
+{
+	if(isEmpty(xs))
+		return 0;
+	else
+		return 1+length(tail(xs));
+}
+
+Void main()
+{
+	print(length(main:main:[]));
+}
