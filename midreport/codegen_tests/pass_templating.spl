@@ -1,0 +1,11 @@
+Void f(a x)
+{
+	print(x);
+}
+
+Void main()
+{
+	f(42);
+	f(True);
+	f(((1, 2), (3, 4)));
+}

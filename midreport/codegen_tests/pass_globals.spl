@@ -1,0 +1,9 @@
+// Test: globals
+
+Int x = 1;
+Int y = 5;
+Int z = x + y;
+
+Void main(){
+	print(x+y+z);
+}

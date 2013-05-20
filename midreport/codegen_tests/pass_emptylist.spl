@@ -1,0 +1,15 @@
+[a] empty = [];
+
+Int length([a] xs)
+{
+	if(isEmpty(xs))
+		return 0;
+	else
+		return length(tail(xs)) + 1;
+}
+
+Void main()
+{
+	print(length(empty));
+	return;
+}

@@ -1,0 +1,11 @@
+Int g(Int x){
+	return x*x;
+}
+
+Int f(Int x, Int y, Int z){
+	return g(x) + g(y) + g(z);
+}
+
+Void main(){
+	print(f(1, 2, 3));
+}
