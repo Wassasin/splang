@@ -5,5 +5,5 @@ Int y = 5;
 Int z = x + y;
 
 Void main(){
-	x+y+z;
+	print(x+y+z);
 }

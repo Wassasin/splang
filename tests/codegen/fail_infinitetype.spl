@@ -1,0 +1,15 @@
+Void f((a, Bool) tup, Int i)
+{
+	print(i);
+
+	if(i == 0)
+		return;
+	
+	f((tup, True), i-1);
+}
+
+Void main()
+{
+	f((0, False), 5);
+	return;
+}

@@ -5,6 +5,5 @@ Int f(Int n){
 Void main(){
 	Int x = f(5);
 	Int y = f(x);
-	x+y;
-	//print(x+y);
+	print(x+y);
 }
