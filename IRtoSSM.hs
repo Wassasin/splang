@@ -264,12 +264,16 @@ instance Translate IRExpr where
 		translate e
 		out (SSM.LoadConstant 0)
 		out SSM.Equal
-	translate (Builtin (Just t) (IR.Tail e)) = do
-		let ListPtr et = t
-		translate e
-		out (SSM.LoadMultipleHeap 0 (sizeOf t + sizeOf et))
-		out (SSM.AdjustStack (negate (sizeOf et)))
-		lift $ modify (increaseStackPtrBy (sizeOf t - 1))
+	translate (Builtin (Just t) (IR.Tail e)) = case t of
+			ListAbstractEmpty -> do
+				translate e
+				out (SSM.LoadMultipleHeap 0 (sizeOf t))
+				lift $ modify (increaseStackPtrBy (sizeOf t - 1))
+			ListPtr et -> do
+				translate e
+				out (SSM.LoadMultipleHeap 0 (sizeOf t + sizeOf et))
+				out (SSM.AdjustStack (negate (sizeOf et)))
+				lift $ modify (increaseStackPtrBy (sizeOf t - 1))
 	translate (Builtin (Just et) (IR.Head e)) = do
 		let t = ListPtr et
 		let size = (sizeOf t + sizeOf et)
