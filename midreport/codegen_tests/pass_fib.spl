@@ -1,0 +1,32 @@
+// Tests integer arithmetic, 
+
+// Classical/naive recursive implementation
+Int recFib(Int n){
+	if(n == 0) return 1;
+	if(n == 1) return 1;
+	return recFib(n-2) + recFib(n-1);
+}
+
+// Fast implementation
+Int loopFib(Int n){
+	(Int, Int) x = (1, 0);
+	while(n > 0){
+		x = (fst(x) + snd(x), fst(x));
+		n = n-1;
+	}
+	return fst(x);
+}
+
+// Print first 20 fibs, with both implementations
+Void main(){
+	Int i = 0;
+	while(i < 20){
+		print(recFib(i));
+		i = i + 1;
+	}
+	i = 0;
+	while(i < 20){
+		print(loopFib(i));
+		i = i + 1;
+	}
+}

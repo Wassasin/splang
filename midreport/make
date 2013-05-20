@@ -1,14 +1,34 @@
 #!/bin/bash
 
-# rm -f all_output.log
+rm -f examplePrograms.log
+rm -f tests.log
+rm -f codegen_tests.log
 
-# echo "Compiling examplePrograms"
-# for f in ./{examplePrograms,tests}/*.spl
-# do
-# 	../build/splang --show-input --show-stages --show-typing "$@" $f >> all_output.log
-# 	echo -e "\n" >> all_output.log
-# 	../build/splang --show-input --show-stages --show-typing "$@" $f | perl -pe 's/\e\[?.*?[\@-~]//g' > $f.txt
-# done
+echo -e "\033[32mCompiling examplePrograms\033[0m"
+for f in ./examplePrograms/*.spl
+do
+	echo $f
+	../build/splang --show-input --show-stages --show-typing --type-only "$@" $f | tee -a examplePrograms.log | perl -pe 's/\e\[?.*?[\@-~]//g' > $f.txt
+	echo -e "\n" >> examplePrograms.log
+done
 
+echo -e "\033[32mCompiling tests\033[0m"
+for f in ./tests/*.spl
+do
+	echo $f
+	../build/splang --show-input --show-stages --show-typing --type-only "$@" $f | tee -a tests.log | perl -pe 's/\e\[?.*?[\@-~]//g' > $f.txt
+	echo -e "\n" >> tests.log
+done
+
+echo -e "\033[32mGenerating code\033[0m"
+for f in ./codegen_tests/*.spl
+do
+	echo $f
+	echo -e "Code gen for $f" >> codegen_tests.log
+	../build/splang $f | tee -a codegen_tests.log > $f.ssm
+	echo -e "\n" >> codegen_tests.log
+done
+
+echo -e "\033[32mDoing latex\033[0m"
 pdflatex "report.tex" || exit 1
 pdflatex "report.tex"

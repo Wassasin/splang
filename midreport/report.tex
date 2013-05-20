@@ -357,7 +357,7 @@ Tuples will be flattened, and used as usual objects on the stack. So for example
 Lists will be pushed on the heap as a linked list. So the value we have on the stack is a pointer to the first element of the list.
 
 \section{Tests}
-All tests are performed with the \texttt{--show-input --show-stages} flags, and all colors are stripped. The output is a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration). For every \texttt{.spl} file, there is a \texttt{.spl.txt} file with gray output. The coloured output is also attached in a different pdf file.
+All tests of the first phases are performed with the \texttt{--show-input --show-stages --type-only} flags, and all colors are stripped. These tests show the error-messages on wrong input, and a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration).
 
 \subsection{Parsing}
 \begin{itemize}
@@ -378,12 +378,14 @@ All tests are performed with the \texttt{--show-input --show-stages} flags, and 
 	\item[fail\_empty\_list] Shows our compilers output on the \emph{Empty list} example discussed above. Note that the type \texttt{t} is used in different ways (both \texttt{Int} and \texttt{Bool}).
 	\item[pass\_polymorphism] Shows polymorphism and also scoping of type variables.
 \end{itemize}
+
 \subsection{Code generation}
+To test code generation we run the generated code in the SSM interpreter. We use a gui-less version which can be downloaded from \url{https://github.com/mklinik/ssm-nogui}. The result is then checked against the expected output, the following examples all pass this test. For the full test-case we refer to our repository at \url{https://github.com/Wassasin/splang}, in particular one can have a look at the script \texttt{run\_tests}.
+
 \begin{itemize}
-	\item[pass\_recfib] Tests recursion and simple integer arithmetic.
+	\item[pass\_fib] Implement two versions of the fibonacci sequence. One with recursion, one with a single loop. So this tests simple arithmetic, and also simple tuples. We see that the recursive version is slow for inputs larger than 10, whereas the looped version is not.
 	\item[pass\_order] Tests the order of evaluation
-	\item[pass\_loop] Tests while loops.
-	\todo{Add tests with tuples and lists}
+	\item[pass\_lists] A more interesting test, involvind lists of tuples. This tests some polymorphic operations on lists, as length, reverse and zip.
 \end{itemize}
 
 \section{Reflection}
