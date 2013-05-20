@@ -106,6 +106,10 @@ instance SideEffectSensitive IRBuiltin where
 	sideEffectSensitive (MakePair e1 e2) = sideEffectSensitive e1 || sideEffectSensitive e2
 	sideEffectSensitive (First e) = sideEffectSensitive e
 	sideEffectSensitive (Second e) = sideEffectSensitive e
+	sideEffectSensitive (Cons e1 e2) = sideEffectSensitive e1 || sideEffectSensitive e2
+	sideEffectSensitive (IsEmpty e) = sideEffectSensitive e
+	sideEffectSensitive (Tail e) = sideEffectSensitive e
+	sideEffectSensitive (Head e) = sideEffectSensitive e
 	sideEffectSensitive (Print e) = True
 
 -- TODO: also take s into account

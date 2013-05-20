@@ -191,6 +191,7 @@ instance Translate IRStmt where
 		translate e
 		out (SSM.BranchOnTrue tl)
 		out (SSM.BranchAlways fl)
+		lift $ modify decreaseStackPtr
 	translate (Seq s1 s2) = do
 		translate s1
 		translate s2
