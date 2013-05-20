@@ -441,7 +441,7 @@ To test code generation we run the generated code in the SSM interpreter. We use
 \end{itemize}
 
 \section{Reflection}
-In the first phase Wouter made the lexer, and Joshua made a first implementation of the parser in \emph{Parsec}, however we decided to write our own parsing library. This was mainly done by Wouter. In the second phase Joshua mainly worked on the scoping and type annotations, Wouter mainly on the type inference. All design choices were discussed together to ensure a working whole. And also in some cases one found a bug in the others code. So eventually all code understood by both of us.
+In the first phase Wouter made the lexer, and Joshua made a first implementation of the parser in \emph{Parsec}, however we decided to write our own parsing library. This was mainly done by Wouter. In the second phase Joshua mainly worked on the scoping and type annotations, Wouter mainly on the type inference. In the third phase Wouter mainly worked on templating, while Joshua mainly worked on the transformation of the AST to the IR, and the transformation of the IR to SSM. All design choices were discussed together to ensure a working whole. And also in some cases one found a bug in the others code. So eventually all code understood by both of us.
 
 For a very precise description of who did what, one can have a look at our repository:
 
