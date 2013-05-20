@@ -344,17 +344,24 @@ However such programs will never terminate, so they are not very useful in pract
 % 5explain here are calling conventions, stack management, stack layout, heap
 % layout, and heap management.
 
-\subsection{Calling convention and stack management}
-When calling a function, the caller makes sure pushes the arguments on the stack, in normal order (first arguments first). The callee is allowed to change these in its calculation, and will return via the return register (RR). It's then the callers job to clean up the pushed arguments.
-
-For the call the \texttt{bsr} and \texttt{ret} instructions are used. So on top of the arguments there will be a return address. The callee then also pushes the mark pointer (MP) on the stack and updates the MP to the current stack pointer (SP). On return the callee resets the original MP.
-
-\todo{Discuss global variables}
+In this section we talk about the compilation schemes for the SSM target. SSM stands for simple stack machine. So most instructions only use the stack. There is also a heap, and only some registers. All data is in terms of \emph{word}s. A word is the smallest addressable unit. Integers and bools are stored as one word, as all instructions assume this (there is also no mechanism for bigger integers, since there is no carry/overflow flag).
+When we talk about the \emph{size} of an object, we mean the number of words it takes to store it.
 
 \subsection{Tuples and lists}
-Tuples will be flattened, and used as usual objects on the stack. So for example a functions that takes a tuple of two elements will in fact simply take two arguments. This is possible because we always know the exact type which is being used, and hence the exact size of such a tuple. \todo{Discuss how to return tuples}
+Tuples will be ``flattened'', and used as usual objects on the stack. This is possible because we always know the exact concrete type which is being used, and hence the exact size (i.e.: number of words) of such a tuple. So for example for the tuple \texttt{(1, (2, 3))} the values 1, 2 and 3 will be pushed on the stack (in this order), the operations \texttt{fst} and \texttt{snd} are now very simple. The first one simply adjusts the stack pointer (this discards the second part), and the latter copies the last part on the first part, leaving only the second part.
 
-Lists will be pushed on the heap as a linked list. So the value we have on the stack is a pointer to the first element of the list.
+Lists are heap-based objects, since its size is unknown at compile time (unlike the tuples). Lists are implemented as linked lists. Internal nodes consist of a pointer to the next node and the value (which can be an object bigger than one word). This makes the size of one node 1 plus the size of the value contained by the node. The list itself is then a pointer to the first node (or 0, if the list is empty).
+
+The heap is not garbage collected. So lists are leaked. Tuples are naturally garbage collected, as they are stack-based objects.
+
+\subsection{Calling convention and stack management}
+When calling a function, the caller allocates space on the stack for the return value (if any) and then pushes the arguments on the stack, in normal order (first arguments first). Then the funcation is called. The callee is allowed to change these arguments in its calculation and copies the result to the allocated space. It's then the callers job to clean up the pushed arguments, this leaves only the return value (if any) on top of the stack.
+
+Note that this scheme makes it possible to return values which are bigger than one word (which is not possible using the return register), this was needed to return tuples.
+
+For the actual call the \texttt{bsr} and \texttt{ret} instructions are used. So on top of the arguments there will be a return address. The callee then also pushes the mark pointer (MP) on the stack and updates the MP to the current stack pointer (SP). The callee uses the MP to clean up any local variables, by setting SP to MP. On return the callee resets the original MP.
+
+Global variables are stored at the beginning of the stack (before \texttt{main} is entered). In order to know where the stack begins, we store the initial atck pointer to register 5. All global variables are initialised with 0. This means that lists are initialized with an empty list, integers with 0, and tuples are constructed with all zeros (see the next subsection about tuples). After this initialisation, the real initialisation begins (in order of declaration), then \texttt{main} is called. After executing the program, these values are not cleaned up.
 
 \section{Tests}
 All tests of the first phases are performed with the \texttt{--show-input --show-stages --type-only} flags, and all colors are stripped. These tests show the error-messages on wrong input, and a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration).
