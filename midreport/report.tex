@@ -36,7 +36,7 @@
 
 \section{Overview}
 \subsection{Getting started}
-Get the source from \url{https://github.com/Wassasin/splang}. In order to compile it you'll need to install the following haskell packages:
+Get the source from \url{https://github.com/Wassasin/splang}. In order to compile it you'll need to install the following Haskell packages:
 \begin{lstlisting}
 $ cabal update
 $ cabal install ansi-terminal
@@ -71,12 +71,12 @@ Our compiler uses several compilation phases. A summary is given in table~\ref{t
 
 
 \section{Implementation}
-For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining datastructures. Another nice things is the \emph{\texttt{do}-syntax} of Haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperative language. Another nice feature is of course nested pattern-matching, which turned out to be really usefull in code generation.
+For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining datastructures. Another nice things is the \emph{\texttt{do}-syntax} of Haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperative language. Another nice feature is of course nested pattern-matching, which turned out to be really useful in code generation.
 
 We depend on the libraries mentioned above (other than the library which comes with Haskell). We use \emph{ansi-terminal} for coloured output in the terminal (colour scheme is based on the {\sc Clang} compiler), \emph{edit-distance} for suggestions when the programmer typed a undeclared identifier and \emph{derive} to derive functions/typeclasses for some datastructures.
 
 \section{Parser}
-We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and sourecode information. It is implemented in a monadic way.
+We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and sourcecode information. It is implemented in a monadic way.
 
 \subsection{Grammar}
 In order to parse the language we had to change the grammar a bit. First of all we added priorities to the different operators, so that the multiplication binds stronger than addition.
@@ -133,7 +133,7 @@ Note that type variables and identifiers for variables and functions live in two
 
 \section{Typing}
 
-Our compiler mainly does typechecking, but some type inference is also needed. Type inference is hard to define in a imperative language, as the variables one is infering, might be used differently later on (and mutual recursion is hard). This led to a system which does both type inference and type checking.
+Our compiler mainly does typechecking, but some type inference is also needed. Type inference is hard to define in a imperative language, as the variables one is inferring, might be used differently later on (and mutual recursion is hard). This led to a system which does both type inference and type checking.
 
 We first determine the annotated types of every global variable and function. Then in all expressions and function bodies those annotations are used to infer the actual type at every place in the expression or function body, and with this information the annotated type is checked. We also make sure that \texttt{return} statements really return what they should, and if there is no \texttt{return} statement, the function should return \texttt{Void}.
 
@@ -334,7 +334,7 @@ Void main(){
 }
 \end{lstlisting}
 
-However such programs will never terminate, so they are not very useful in practice. In order to guarantee that the \splang compiler terminates, we will only instantiate untill a certain depth is reached. We regard this as a small drawback, but the advantage of this is that we know the exact concrete types when generating code, and we can easily decide to call a specific version of the function.
+However such programs will never terminate, so they are not very useful in practice. In order to guarantee that the \splang compiler terminates, we will only instantiate until a certain depth is reached. We regard this as a small drawback, but the advantage of this is that we know the exact concrete types when generating code, and we can easily decide to call a specific version of the function.
 
 \section{SSM}
 % what should this chapter contain:
@@ -355,13 +355,13 @@ Lists are heap-based objects, since its size is unknown at compile time (unlike 
 The heap is not garbage collected. So lists are leaked. Tuples are naturally garbage collected, as they are stack-based objects.
 
 \subsection{Calling convention and stack management}
-When calling a function, the caller allocates space on the stack for the return value (if any) and then pushes the arguments on the stack, in normal order (first arguments first). Then the funcation is called. The callee is allowed to change these arguments in its calculation and copies the result to the allocated space. It's then the callers job to clean up the pushed arguments, this leaves only the return value (if any) on top of the stack.
+When calling a function, the caller allocates space on the stack for the return value (if any) and then pushes the arguments on the stack, in normal order (first arguments first). Then the function is called. The callee is allowed to change these arguments in its calculation and copies the result to the allocated space. It's then the callers job to clean up the pushed arguments, this leaves only the return value (if any) on top of the stack.
 
 Note that this scheme makes it possible to return values which are bigger than one word (which is not possible using the return register), this was needed to return tuples.
 
 For the actual call the \texttt{bsr} and \texttt{ret} instructions are used. So on top of the arguments there will be a return address. The callee then also pushes the mark pointer (MP) on the stack and updates the MP to the current stack pointer (SP). The callee uses the MP to clean up any local variables, by setting SP to MP. On return the callee resets the original MP.
 
-Global variables are stored at the beginning of the stack (before \texttt{main} is entered). In order to know where the stack begins, we store the initial atck pointer to register 5. All global variables are initialised with 0. This means that lists are initialized with an empty list, integers with 0, and tuples are constructed with all zeros (see the next subsection about tuples). After this initialisation, the real initialisation begins (in order of declaration), then \texttt{main} is called. After executing the program, these values are not cleaned up.
+Global variables are stored at the beginning of the stack (before \texttt{main} is entered). In order to know where the stack begins, we store the initial stack pointer to register 5. All global variables are initialized with 0. This means that lists are initialized with an empty list, integers with 0, and tuples are constructed with all zeros (see the next subsection about tuples). After this initialization, the real initialization begins (in order of declaration), then \texttt{main} is called. After executing the program, these values are not cleaned up.
 
 \subsection{Printing}
 The \texttt{print} function will do a shallow print. For lists this means it only print the pointer to the first element. For tuples this means it will print all the values in the tuple, but in reverse order (due to technical reasons and efficiency). We think printing lists and tuples incorrectly is not really an issue for now, since printing on the SSM is very limited anyways (it is for example impossible to print brackets). Integers are printed as they should, bools are printed as: -1 meaning true, 0 meaning false.
@@ -393,9 +393,9 @@ All tests of the first phases are performed with the \texttt{--show-input --show
 To test code generation we run the generated code in the SSM interpreter. We use a gui-less version which can be downloaded from \url{https://github.com/mklinik/ssm-nogui}. The result is then checked against the expected output, the following examples all pass this test. For the full test-case we refer to our repository at \url{https://github.com/Wassasin/splang}, in particular one can have a look at the script \texttt{run\_tests}.
 
 \begin{itemize}
-	\item[pass\_fib] Implement two versions of the fibonacci sequence. One with recursion, one with a single loop. So this tests simple arithmetic, and also simple tuples. We see that the recursive version is slow for inputs larger than 10, whereas the looped version is not.
+	\item[pass\_fib] Implement two versions of the Fibonacci sequence. One with recursion, one with a single loop. So this tests simple arithmetic, and also simple tuples. We see that the recursive version is slow for inputs larger than 10, whereas the looped version is not.
 	\item[pass\_order] Tests the order of evaluation
-	\item[pass\_lists] A more interesting test, involvind lists of tuples. This tests some polymorphic operations on lists, as length, reverse and zip.
+	\item[pass\_lists] A more interesting test, involving lists of tuples. This tests some polymorphic operations on lists, as length, reverse and zip.
 	\item[pass\_merge\_sort] As above, the merge sort function.
 \end{itemize}
 
