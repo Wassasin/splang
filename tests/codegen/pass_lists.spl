@@ -10,13 +10,8 @@
 }
 
 [(a, b)] zip([a] x, [b] y){
-	[(a, b)] acc = [];
-	while(!isEmpty(x) && !isEmpty(y)){
-		acc = (head(x), head(y)) : acc;
-		x = tail(x);
-		y = tail(y);
-	}
-	return acc;
+	if(isEmpty(x) || isEmpty(y)) return [];
+	return (head(x), head(y)) : zip(tail(x), tail(y));
 }
 
 Int length([a] x){
