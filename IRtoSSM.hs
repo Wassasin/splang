@@ -222,7 +222,9 @@ instance Translate IRExpr where
 		let diff = loc - sp
 		if diff == 0
 			then return ()
-			else out (SSM.LoadMultipleFromStack diff (sizeOf ty))
+			else do
+				out (SSM.LoadMultipleFromStack diff (sizeOf ty))
+				lift $ modify (increaseStackPtrBy (sizeOf ty))
 	translate (Binop _ e1 bop e2) = do
 		translate e1
 		translate e2
