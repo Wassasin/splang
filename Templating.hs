@@ -18,7 +18,7 @@ import qualified ASTWalker
 import qualified Typing
 import qualified TypeInference
 
-type FunctionKey = (AST.IdentID, P2 Typing.MonoType)
+type FunctionKey = (AST.IdentID, P2 Typing.MonoType, Int)
 type FunctionNameMap = FunctionKey -> Maybe AST.IdentID
 type FunctionDeclMap = AST.IdentID -> P3 AST.Decl
 
@@ -56,7 +56,7 @@ iterateIdentID = do
 template :: AST.Program P3Meta -> AST.Program P3Meta
 template p@(AST.Program decls m) = flip evalState (newState p) $ do
 	let fm = getMeta $ guardJust "COMPILER BUG: fm is not set" $ inferredType m
-	appendToQueue $ (findMain decls, Func [] (Void fm) fm)
+	appendToQueue $ (findMain decls, Func [] (Void fm) fm, 0)
 	varDecls <- templateVarDecls decls
 	funDecls <- templateFunDecls $ createFunDeclMap decls
 	return $ AST.Program (varDecls ++ funDecls) m
@@ -67,19 +67,19 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		findMain (AST.FunDecl _ (AST.Identifier str (Just id) _) _ _ _ _ : decls) = if str == "main" then id else findMain decls
 	
 		templateVarDecls :: [P3 AST.Decl] -> TemplateMonad [P3 AST.Decl]
-		templateVarDecls decls = Trav.mapM (rewrite id) $ filter AST.isVarDecl decls -- rewrite all global vardecls for concrete types
+		templateVarDecls decls = Trav.mapM (rewrite id 0) $ filter AST.isVarDecl decls -- rewrite all global vardecls for concrete types
 
 		templateFunDecls :: FunctionDeclMap -> TemplateMonad [P3 AST.Decl]
 		templateFunDecls declmap = whileM (not . null . queue) $ do
 			state <- get
-			let key@(id, t):keys = queue state -- is always non-empty due to whileM-condition
+			let key@(id, t, depth):keys = queue state -- is always non-empty due to whileM-condition
 			modify (\state -> state { queue = tail $ queue $ state }) -- remove top from queue
 			let Just newid = (nameMap state) key
 			let AST.FunDecl ftd (AST.Identifier fstr (Just fid) fim) fargs fdecls fstmts fm = declmap id
 			let s = case TypeInference.mgu t $ guardJust "mgu" $ inferredType $ fm of
 				TypeInference.Success s -> s
 				_ -> error "Can not infer"
-			decl <- rewrite s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, t)) (Just newid) fim) fargs fdecls fstmts fm
+			decl <- rewrite s (depth + 1) $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, t)) (Just newid) fim) fargs fdecls fstmts fm
 			return $ rewriteTypes s decl
 		
 		rewriteTypes :: Functor a => Substitution P2Meta -> a P3Meta -> a P3Meta
@@ -91,8 +91,10 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		createFunDeclMap (decl@(AST.FunDecl _ (AST.Identifier _ (Just id) _) _ _ _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
 
 class ASTWalker.ASTWalker a => Templateable a where
-	rewrite :: Substitution P2Meta -> a P3Meta -> TemplateMonad (a P3Meta)
-	rewrite s x = ASTWalker.walk (return, return, return, return, fe s, return) x
+	rewrite :: Substitution P2Meta -> Int -> a P3Meta -> TemplateMonad (a P3Meta)
+	rewrite s depth x = if depth > 1000
+		then error "Maximum depth of Templating reached"
+		else ASTWalker.walk (return, return, return, return, fe s, return) x
 		where
 			fe :: Substitution P2Meta -> AST.Expr P3Meta -> TemplateMonad (AST.Expr P3Meta)
 			fe s decl@(AST.FunCall (AST.Identifier istr (Just iid) im) exprs m) =
@@ -103,7 +105,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 					let exprst = map (s . (guardJust "COMPILER BUG: exprst is not set") . inferredType . getMeta) exprs
 					let rt = s $ guardJust "COMPILER BUG: rt is not set" $ inferredType m 
 					let t = Typing.Func exprst rt $ getMeta $ guardJust "COMPILER BUG: t is not set" $ inferredType m
-					let key = (iid, t)
+					let key = (iid, t, depth)
 					state <- get
 					newid <- case (nameMap state) key of
 						Just newid -> return newid
