@@ -322,7 +322,48 @@ If one calls multiple statements in one statements, generally those functions wi
 
 All functions take arguments by value. There are no mechanism to update a datastructure (i.e. tuple or list). So one always has to construct such an object fully.
 
-Polymorphic functions will be instantiated for each use. This is very alike the templating system in C++. We decided to do this because we also want to target LLVM bitcode, which is strongly typed (without polymorphism). Of course we can easily write a program which requires infinitely many types, for example:
+\subsection{Polymorphism}
+
+Polymorphic functions will be instantiated for each use. Starting from the \texttt{main} function, and all global variable declarations, all function calls are rewritten to point to a specific version for a specific type of the called function. These functions along with the type for which these functions are called are added to a queue. Every declaration in this queue is then rewritten in a similar way. This is like the templating system in C++. We decided on a templating system because we also want to target LLVM bitcode, which is strongly typed (without polymorphism). This also means that we do not require boxing for complex types such as tuples.
+
+Rewritten functions use a mangled name describing the type for which the function is called. In the following case, for example:
+
+\begin{lstlisting}
+Void f(a x){
+	print(x);
+}
+
+Void main(){
+	f(42);
+	f(True);
+	f(((1, 2), (3, 4)));
+}
+\end{lstlisting}
+
+Because \texttt{f} is called for three seperate types, the function is instantiated three times:
+
+\begin{lstlisting}
+// main_v :: Void()
+Void main_v(){
+	f_v_i(42);
+	f_v_b(True);
+	f_v_ppiipii(((1, 2), (3, 4)));
+}
+// f_v_i :: Void(Int)
+Void f_v_i(a x){
+	print(x);
+}
+// f_v_b :: Void(Bool)
+Void f_v_b(a x){
+	print(x);
+}
+// f_v_ppiipii :: Void(((Int, Int), (Int, Int)))
+Void f_v_ppiipii(a x){
+	print(x);
+}
+\end{lstlisting}
+
+Of course we can easily write a program which requires infinitely many types, for example:
 
 \begin{lstlisting}
 Void f(t x){
@@ -334,7 +375,7 @@ Void main(){
 }
 \end{lstlisting}
 
-However such programs will never terminate, so they are not very useful in practice. In order to guarantee that the \splang compiler terminates, we will only instantiate until a certain depth is reached. We regard this as a small drawback, but the advantage of this is that we know the exact concrete types when generating code, and we can easily decide to call a specific version of the function.
+However such programs will never terminate, so they are not very useful in practice. In order to guarantee that the \splang compiler terminates, we will only instantiate until a certain depth is reached. We regard this as a small drawback, but the advantage of this is that we know the exact concrete types when generating code.
 
 \section{SSM}
 % what should this chapter contain:
