@@ -20,9 +20,9 @@ import SemanticAnalysis
 import Errors
 
 import qualified CodeGen
-import qualified IR
-import qualified SSM
-import qualified LLVM
+import qualified IR (printIR, printCanonicalizedIR)
+import qualified SSM (showProgram)
+import qualified LLVM (showProgram)
 
 valid :: IndexSpan -> Bool
 valid (IndexSpan n m) = n >= 0 && m >= n
@@ -92,31 +92,23 @@ main = do
 	let b = b0 && b1 && b2
 	unless (b || forceCodegen opts) $ exit b
 
-	let ir = CodeGen.toIR pResult3
-	let ir2 = CodeGen.canonicalizeIR ir
-
+	ir <- return $ CodeGen.toIR pResult3
 	when (showIR opts) $ do
 		Console.highLightLn ("IR:")
-		forM_ (fst ir) (\(IR.Func l args body t) -> do
-			putStrLn $ l ++ show args ++ show t
-			print body
-			putStrLn "")
+		IR.printIR ir
 
+	ir <- return $ CodeGen.canonicalizeIR ir
+	when (showIR opts) $ do
 		Console.highLightLn ("Canonical IR:")
-		forM_ (fst ir2) (\(IR.Func l args body t) -> do
-			putStrLn $ l ++ show args ++ show t
-			forM_ body (\bb -> forM_ bb (\s -> putStrLn $ show s ++ ";") >> putStrLn "------")
-			putStrLn "")
+		IR.printCanonicalizedIR ir
 
 	when (target opts == Options.SSM) $ do
-		let ssm = CodeGen.toSSM ir2
 		when (showStages opts) $ Console.highLightLn ("SSM:")
-		putStrLn . SSM.showProgram $ ssm
+		putStrLn . SSM.showProgram $ CodeGen.toSSM ir
 
 	when (target opts == Options.LLVM) $ do
-		let llvm = CodeGen.toLLVM ir2
 		when (showStages opts) $ Console.highLightLn ("LLVM:")
-		putStrLn . LLVM.showProgram $ llvm
+		putStrLn . LLVM.showProgram $ CodeGen.toLLVM ir
 
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 	exit b

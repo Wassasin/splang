@@ -261,3 +261,16 @@ linearize :: IR.Program IRStmt -> IR.Program [BasicBlock]
 linearize (fs, gs) = (startWith 0 . startWithT [] . mapM linearizeFunc $ fs, gs)
 
 -- TODO: Analyse traces and remove redundant labels
+
+-- Output stuff
+printIR :: Program IRStmt -> IO ()
+printIR = mapM_ (\(Func l args body t) -> do
+	putStrLn $ l ++ show args ++ show t
+	print body
+	putStrLn "") . fst
+
+printCanonicalizedIR :: Program [BasicBlock] -> IO ()
+printCanonicalizedIR = mapM_ (\(Func l args body t) -> do
+	putStrLn $ l ++ show args ++ show t
+	forM_ body (\bb -> forM_ bb (\s -> putStrLn $ show s ++ ";") >> putStrLn "------")
+	putStrLn "") . fst
