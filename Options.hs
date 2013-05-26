@@ -1,4 +1,4 @@
-module Options (Warnings(..), Options(..), mkOptions) where
+module Options (Warnings(..), Options(..), Target(..), mkOptions) where
 
 import Control.Monad.Instances()
 import System.Console.GetOpt
@@ -13,6 +13,9 @@ allWarnings :: Warnings
 allWarnings = Warnings
 	{ shadowing = True
 	}
+
+data Target = SSM | LLVM
+	deriving (Show, Eq)
 
 data Options = Options
 	{ astPrinter :: Printer (IO ())
@@ -29,6 +32,7 @@ data Options = Options
 	, typeOnly :: Bool
 	, forceCodegen :: Bool
 	, enabledWarnings :: Warnings
+	, target :: Target
 	}
 
 defaultOptions :: Options
@@ -47,6 +51,7 @@ defaultOptions = Options
 	, typeOnly = False
 	, forceCodegen = False
 	, enabledWarnings = allWarnings
+	, target = SSM
 	}
 
 warningsOptions :: String -> Warnings -> Warnings
@@ -54,8 +59,16 @@ warningsOptions "no-shadow" w = w { shadowing = False }
 warningsOptions _ w = w
 
 -- Apply changes on Warnings to Options
-lift :: (Warnings -> Warnings) -> (Options -> Options)
-lift f o = o { enabledWarnings = f (enabledWarnings o) }
+liftW :: (Warnings -> Warnings) -> (Options -> Options)
+liftW f o = o { enabledWarnings = f (enabledWarnings o) }
+
+targetOptions :: String -> Target -> Target
+targetOptions "ssm" _ = SSM
+targetOptions "llvm" _ = LLVM
+targetOptions _ _ = error "Unrecognized target specification"
+
+liftT :: (Target -> Target) -> (Options -> Options)
+liftT f o = o { target = f (target o) }
 
 options :: [OptDescr (Options -> Options)]
 options =
@@ -74,7 +87,8 @@ options =
 	, Option [] ["scope-only"]	(NoArg (\o -> o { scopeOnly = True }))			"stops after the scoping pass"
 	, Option [] ["type-only"]	(NoArg (\o -> o { typeOnly = True }))			"stops after the typing pass"
 	, Option [] ["force-codegen"]	(NoArg (\o -> o { forceCodegen = True }))		"will generate code, even when there are (non-fatal) errors in analysis"
-	, Option "W" []			(ReqArg (fmap lift warningsOptions) "warning")		"Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
+	, Option "W" []			(ReqArg (fmap liftW warningsOptions) "warning")		"Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
+	, Option [] ["target"]		(ReqArg (fmap liftT targetOptions) "target")		"Specifies target (eg: -target llvm), default is ssm"
 	]
 
 mkOptions :: [String] -> IO (Options, [String])

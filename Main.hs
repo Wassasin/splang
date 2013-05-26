@@ -22,6 +22,7 @@ import Errors
 import qualified CodeGen
 import qualified IR
 import qualified SSM
+import qualified LLVM
 
 valid :: IndexSpan -> Bool
 valid (IndexSpan n m) = n >= 0 && m >= n
@@ -93,7 +94,6 @@ main = do
 
 	let ir = CodeGen.toIR pResult3
 	let ir2 = CodeGen.canonicalizeIR ir
-	let ssm = CodeGen.toSSM ir2
 
 	when (showIR opts) $ do
 		Console.highLightLn ("IR:")
@@ -108,8 +108,15 @@ main = do
 			forM_ body (\bb -> forM_ bb (\s -> putStrLn $ show s ++ ";") >> putStrLn "------")
 			putStrLn "")
 
-	when (showStages opts) $ Console.highLightLn ("SSM:")
-	putStrLn . SSM.showProgram $ ssm
+	when (target opts == Options.SSM) $ do
+		let ssm = CodeGen.toSSM ir2
+		when (showStages opts) $ Console.highLightLn ("SSM:")
+		putStrLn . SSM.showProgram $ ssm
+
+	when (target opts == Options.LLVM) $ do
+		let llvm = CodeGen.toLLVM ir2
+		when (showStages opts) $ Console.highLightLn ("LLVM:")
+		putStrLn . LLVM.showProgram $ llvm
 
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 	exit b

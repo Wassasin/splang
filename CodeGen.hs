@@ -3,8 +3,10 @@ module CodeGen where
 import qualified AST
 import qualified IR
 import qualified SSM
+import qualified LLVM
 import ASTtoIR
 import IRtoSSM
+import IRtoLLVM
 import TypeInference (P3)
 
 -- Basic Steps
@@ -17,6 +19,12 @@ canonicalizeIR = IR.linearize
 toSSM :: IR.Program [IR.BasicBlock] -> SSM.Program
 toSSM = irToSSM
 
+toLLVM :: IR.Program [IR.BasicBlock] -> LLVM.Program
+toLLVM = irToLLVM
+
 -- Full steps
 generateSSM :: P3 AST.Program -> SSM.Program
-generateSSM = irToSSM . canonicalizeIR . toIR
+generateSSM = toSSM . canonicalizeIR . toIR
+
+generateLLVM :: P3 AST.Program -> LLVM.Program
+generateLLVM = toLLVM . canonicalizeIR . toIR
