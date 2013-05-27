@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, DataKinds, EmptyDataDecls, KindSignatures, ScopedTypeVariables, DeriveDataTypeable #-}
+{-# LANGUAGE GADTs, DeriveDataTypeable #-}
 
 module LLVM where --(Type(..), Binop(..), Temporary(..), Value(Const, Binop, Load, Store), Instruction(..), Function(..), mkTemp, Program, showProgram) where
 
@@ -38,12 +38,18 @@ i1 = IntegralType 1
 
 -- Binary operators only work on integral (and vector) types
 -- Logical operators are bitwise. Left out: shifts, xor, ...?
-data Binop = Add | Sub | Mul | Div | Rem | And | Or
+data Binop = Add | Sub | Mul | SDiv | SRem | And | Or
 	deriving (Eq, Typeable, Data)
 
 instance Show Binop where
 	show = map toLower . showConstr . toConstr
 
+-- Sorry for being lazy here... Only signed types
+data Comparisons = Eq | Ne | Sgt | Sge | Slt | Sle
+	deriving (Eq, Typeable, Data)
+
+instance Show Comparisons where
+	show = map toLower . showConstr . toConstr
 
 -- Variables
 newtype Temporary = T Int
@@ -52,45 +58,41 @@ instance Show Temporary where
 
 
 -- Expressions
--- Note: we cannot directly make Temporary type-correct, use mkTemp for that
-data Value (t :: Type) where
-	Temporary	:: Temporary -> Type -> Value t			-- %t
-	Const		:: Int -> Value i32				-- i32 <n>
-	Binop		:: Binop -> Value (IntegralType n) -> Value (IntegralType n) -> Value (IntegralType n) -- <binop> <ty> <op1>, <op2>
-	Load		:: Value (Pointer t) -> Value t			--
-	Store		:: Value t -> Value (Pointer t) -> Value Void	--
+data Value
+	= Temporary Type Temporary	-- %t
+	| Const Type Int		-- <n>
+	| Binop Binop Value Value 	-- <binop> <ty> <op1>, <op2>
+	| Compare Comparisons Value Value -- icmp <cond> <ty> <op1>, <op2>
+	| Load Value			--
 
--- Use this to ensure type-correctness
-mkTemp :: Int -> Type -> Value t
-mkTemp n t = Temporary (T n) t :: Value t
-
-valueType :: Value t -> Type
-valueType (Temporary _ t)	= t
-valueType (Const _)		= i32
+valueType :: Value -> Type
+valueType (Temporary t _)	= t
+valueType (Const t _)		= t
 valueType (Binop _ e _)		= valueType e
+valueType (Compare _ _ _)	= i1
 valueType (Load e)		= case (valueType e) of Pointer t -> t
-valueType (Store _ _)		= Void
 
-showType :: Value t -> String
+showType :: Value -> String
 showType = show . valueType
 
-instance Show (Value t) where
-	show e@(Temporary n _)	= showType e ++ " " ++ show n
-	show e@(Const i)	= showType e ++ " " ++ show i
+instance Show Value where
+	show e@(Temporary _ n)	= showType e ++ " " ++ show n
+	show e@(Const _ i)	= showType e ++ " " ++ show i
 	show e@(Binop b e1 e2)	= showType e ++ " " ++ show b ++ "(" ++ show e1 ++ ", " ++ show e2 ++ ")"
+	show e@(Compare c e1 e2)= showType e ++ " icmp " ++ show c ++ "(" ++ show e1 ++ ", " ++ show e2 ++ ")"
 	show e@(Load e1)	= showType e ++ " load " ++ show e1
-	show e@(Store e1 e2)	= showType e ++ " store " ++ show e1 ++ ", " ++ show e2
 
 
 -- Instructions
 type Label = String
 data Instruction where
 	Label		:: Label -> Instruction				-- <label>:
-	Return		:: Value t -> Instruction			-- ret <type> <value>
+	Return		:: Value -> Instruction				-- ret <type> <value>
 	ReturnVoid	:: Instruction					-- ret void
-	Branch		:: Value i1 -> Label -> Label -> Instruction	-- br i1 <cond>, label <iftrue>, label <iffalse>
+	Branch		:: Value -> Label -> Label -> Instruction	-- br i1 <cond>, label <iftrue>, label <iffalse>
 	BranchAlways	:: Label -> Instruction				-- br label <dest>
-	Expression	:: Temporary -> Value t -> Instruction		-- %t = <expr>
+	Expression	:: Temporary -> Value -> Instruction		-- %t = <expr>
+	Store		:: Value -> Value -> Instruction		-- store <ty> <value>, <ty>* <pointer>
 
 instance Show Instruction where
 	show (Label l)		= l ++ ":"
@@ -99,6 +101,7 @@ instance Show Instruction where
 	show (Branch e l1 l2)	= "br " ++ show e ++ ", label " ++ l1 ++ ", label " ++ l2
 	show (BranchAlways l)	= "br label " ++ l
 	show (Expression t e)	= show t ++ " = " ++ show e
+	show (Store e1 e2)	= "store " ++ show e1 ++ ", " ++ show e2
 
 isLabel :: Instruction -> Bool
 isLabel (Label _) = True
