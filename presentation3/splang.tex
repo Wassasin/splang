@@ -1,0 +1,149 @@
+\documentclass[14pt]{beamer}
+
+\usepackage[british]{babel}
+
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{color}
+
+\usepackage{listings}
+\usepackage{prettylistings}
+\usepackage{lang-llvm}
+\usepackage{lang-spl}
+\usepackage{lang-ssm}
+
+\usepackage{xspace}
+\usepackage{url}
+
+\usepackage{array}
+
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+
+\newcommand{\splang}{\textsc{Splang}\xspace}
+\newcommand{\llvm}{\textsc{LLVM}\xspace}
+\newcommand{\demo}{\raisebox{0.2cm}{\tiny[\textsc{Demo}]}\xspace}
+
+\title{\splang}
+\author{Wouter Geraedts \and Joshua Moerman}
+\institute{Radboud Universiteit Nijmegen}
+\date{}
+
+\begin{document}
+
+\begin{frame}
+	\titlepage
+\end{frame}
+
+\begin{frame}
+	Designing IR
+	\bigskip
+
+	\begin{itemize}
+		\item For P4 we want to target \llvm.
+		\item Thus IR should be general enough.
+		\item \llvm is
+			\begin{itemize}
+				\item C-ish, but more modern
+				\item Strongly typed (but no polymorphism)
+			\end{itemize}
+	\end{itemize}
+
+	\lstinputlisting[language=llvm]{llvm-example.ll}
+\end{frame}
+
+\begin{frame}
+	Two ways to deal with polymorphism
+	
+	\begin{itemize}
+		\item Boxing
+		\item Templating
+	\end{itemize}
+\end{frame}
+
+\begin{frame}
+	Boxing
+	\bigskip
+	
+	\lstinputlisting[language=c]{boxing.c}
+	+ Runtime casts (= reinterpret bits)
+\end{frame}
+
+\begin{frame}
+	Templating
+	\bigskip
+	
+	\lstinputlisting[language=spl]{templating.spl}
+	Generates:
+	\begin{itemize}
+		\item $\mathsf{id}_{\mathtt{Int}}$
+		\item $\mathsf{id}_{\mathtt{Bool}}$
+		\item $\mathsf{id}_{[\mathtt{Int}]}$
+		\item $\mathsf{id}_{(\mathtt{Int}, \mathtt{Int})}$
+		\item ...
+	\end{itemize}
+	
+	for any type needed.
+\end{frame}
+
+\begin{frame}
+	We chose for templating.
+	\bigskip
+	
+	Disadvantages
+	\begin{itemize}
+		\item \small Not every type-checked program compiles in finite time.
+		\item \small More work implementationwise.
+	\end{itemize}
+	Advantages
+	\begin{itemize}
+		\item \small At each point the exact concrete type is known.
+		\item \small We can store tuples on the stack instead of on the heap.
+		\item \small No need for casts.
+	\end{itemize}
+\end{frame}
+
+\begin{frame}
+	Example: tuples in SSM
+	
+	\begin{columns}[T]
+		\begin{column}{0.6\textwidth}
+			\only<1>{\lstinputlisting[language=spl,firstline=1,lastline=1]{tuple.spl}}
+			\only<2>{\lstinputlisting[language=spl,firstline=2,lastline=2]{tuple.spl}}
+			\only<3>{\lstinputlisting[language=spl,firstline=3,lastline=3]{tuple.spl}}
+		
+			Becomes:
+			\only<1>{\lstinputlisting[language=ssm,firstline=1,lastline=4]{tuple.ssm}}
+			\only<2>{\lstinputlisting[language=ssm,firstline=5,lastline=6]{tuple.ssm}}
+			\only<3>{\lstinputlisting[language=ssm,firstline=7,lastline=9]{tuple.ssm}}
+		\end{column}
+		\begin{column}{0.4\textwidth}
+			\begin{tabular}{|C{4em}|l}
+				\vdots			& \\ \cline{1-1}
+				\only<1-2>{1}\only<3>{2}
+								& \only<2>{$\leftarrow$ SP} \\ \cline{1-1}
+				\only<1-2>{2}\only<3>{3}
+								& \only<3>{$\leftarrow$ SP} \\ \cline{1-1}
+				3				& \only<1>{$\leftarrow$ SP} \\ \cline{1-1}
+								& \\
+			\end{tabular}
+			
+			\vspace{1em}
+		\end{column}
+	\end{columns}	
+\end{frame}
+
+\begin{frame}
+	\begin{center}
+		Also check out:
+		\url{https://github.com/Wassasin/splang}
+	\end{center}
+\end{frame}
+
+
+\begin{frame}
+	\begin{center}
+		\Huge Questions?
+	\end{center}
+\end{frame}
+
+\end{document}

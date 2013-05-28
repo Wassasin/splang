@@ -1,0 +1,9 @@
+...
+ldc 1
+ldc 2
+ldc 3
+...
+ajs -2
+...
+ldms -3 2
+ajs 2

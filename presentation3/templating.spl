@@ -1,0 +1,1 @@
+t id(t x) { return x; }
