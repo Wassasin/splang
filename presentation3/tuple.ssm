@@ -5,5 +5,5 @@ ldc 3
 ...
 ajs -2
 ...
-ldms -3 2
+stms -3 2
 ajs 2
