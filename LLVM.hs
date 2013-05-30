@@ -55,53 +55,64 @@ instance Show Comparisons where
 newtype Temporary = T Int
 instance Show Temporary where
 	show (T n) = "%" ++ show n
-
+newtype GlobalName = G String
+instance Show GlobalName where
+	show (G s) = "@" ++ s
 
 -- Expressions
 data Value
 	= Temporary Type Temporary	-- %t
+	| Global Type GlobalName	-- @bla
 	| Const Type Int		-- <n>
-	| Binop Binop Value Value 	-- <binop> <ty> <op1>, <op2>
-	| Compare Comparisons Value Value -- icmp <cond> <ty> <op1>, <op2>
-	| Load Value			--
 
 valueType :: Value -> Type
 valueType (Temporary t _)	= t
+valueType (Global t _)		= t
 valueType (Const t _)		= t
-valueType (Binop _ e _)		= valueType e
-valueType (Compare _ _ _)	= i1
-valueType (Load e)		= case (valueType e) of Pointer t -> t
 
 showType :: Value -> String
 showType = show . valueType
 
 instance Show Value where
-	show e@(Temporary _ n)	= showType e ++ " " ++ show n
+	show e@(Temporary _ t)	= showType e ++ " " ++ show t
+	show e@(Global _ g)	= showType e ++ " " ++ show g
 	show e@(Const _ i)	= showType e ++ " " ++ show i
-	show e@(Binop b e1 e2)	= showType e ++ " " ++ show b ++ "(" ++ show e1 ++ ", " ++ show e2 ++ ")"
-	show e@(Compare c e1 e2)= showType e ++ " icmp " ++ show c ++ "(" ++ show e1 ++ ", " ++ show e2 ++ ")"
-	show e@(Load e1)	= showType e ++ " load " ++ show e1
-
 
 -- Instructions
 type Label = String
 data Instruction where
 	Label		:: Label -> Instruction				-- <label>:
+	Assign		:: Temporary -> Instruction -> Instruction	-- %t = <instr>
 	Return		:: Value -> Instruction				-- ret <type> <value>
 	ReturnVoid	:: Instruction					-- ret void
 	Branch		:: Value -> Label -> Label -> Instruction	-- br i1 <cond>, label <iftrue>, label <iffalse>
 	BranchAlways	:: Label -> Instruction				-- br label <dest>
-	Expression	:: Temporary -> Value -> Instruction		-- %t = <expr>
+	Binop		:: Binop -> Value -> Value -> Instruction	-- add <ty> <op1>, <op2>
+	Compare		:: Comparisons -> Value -> Value -> Instruction	-- icmp <cmp> i1 <op1>, <op2>
+	Alloca		:: Type -> Instruction				-- alloca <ty>
+	Load		:: Value -> Instruction				-- load <ty>* <e>
 	Store		:: Value -> Value -> Instruction		-- store <ty> <value>, <ty>* <pointer>
+	GetElementPtr	:: Value -> [Value] -> Instruction		-- getelementptr <ty>* <ptr>{, <ty> <idx>}*
+	Call		:: GlobalName -> [Value] -> Instruction		-- [tail] call <ty> <fnptrval>(<args>)
 
+(+++) x y = x ++ " " ++ y
 instance Show Instruction where
 	show (Label l)		= l ++ ":"
-	show (Return e)		= "ret " ++ show e
+	show (Assign t i)	= show t +++ "=" +++ show i
+	show (Return e)		= "ret" +++ showType e +++ show e
 	show (ReturnVoid)	= "ret void"
-	show (Branch e l1 l2)	= "br " ++ show e ++ ", label " ++ l1 ++ ", label " ++ l2
-	show (BranchAlways l)	= "br label " ++ l
-	show (Expression t e)	= show t ++ " = " ++ show e
-	show (Store e1 e2)	= "store " ++ show e1 ++ ", " ++ show e2
+	show (Branch e l1 l2)	= "br" +++ showType e +++ show e ++ ", label " ++ l1 ++ ", label " ++ l2
+	show (BranchAlways l)	= "br label" +++ l
+	show (Binop b e1 e2)	= show b +++ showType e1 +++ show e1 ++ ", " ++ show e2
+	show (Compare c e1 e2)	= "icmp" +++ show c +++ showType e1 +++ show e1 ++ ", " ++ show e2
+	show (Alloca t)		= "alloca" +++ show t
+	show (Load e)		= "load" +++ showType e +++ show e
+	show (Store e1 e2)	= "store" +++ show e1 ++ ", " ++ show e2
+	show (GetElementPtr v idxs)= "getelementptr" +++ showType v +++ show v ++ concat (map showidx idxs)
+		where showidx x = "," +++ showType x +++ show x
+	show (Call f args)	= "call" +++ "TODO" +++ show f +++ "(" ++ concat (intersperse ", " $ map showarg args) ++ ")"
+		where showarg x = showType x +++ show x
+
 
 isLabel :: Instruction -> Bool
 isLabel (Label _) = True
@@ -115,10 +126,10 @@ showIndented i = if isLabel i
 
 -- Putting it together
 type BasicBlock = [Instruction] -- ends always in an terminal (= ret/br)
-data Function = Function String [(Type, Temporary)] [BasicBlock] Type -- name args body retType
+data Function = Function GlobalName [(Type, Temporary)] [BasicBlock] Type -- name args body retType
 
 instance Show Function where
-	show (Function name args body retType) = "define " ++ show retType ++ " @" ++ name ++ "(" ++ "){\n" ++ bodyStr ++ "}"
+	show (Function name args body retType) = "define " ++ show retType ++ show name ++ "(" ++ "){\n" ++ bodyStr ++ "}"
 		where bodyStr = unlines $ fmap showIndented (concat body)
 
 type Program = [Function]

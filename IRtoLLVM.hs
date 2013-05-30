@@ -5,12 +5,24 @@ module IRtoLLVM where
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Applicative((<$>))
+import Utils
 
 import qualified AST
 import IR
 import qualified LLVM
 
-type TranslationState = ()
+data TranslationState = TranslationState
+	{ llvmTemporary :: Int }
+
+emptyState = TranslationState { llvmTemporary = 0 }
+
+generateTemporary :: State TranslationState LLVM.Temporary
+generateTemporary = do
+	state <- get
+	let temp = LLVM.T (llvmTemporary state)
+	let newState = state { llvmTemporary = (llvmTemporary state + 1) }
+	put newState
+	return temp
 
 class Translate a b | a -> b where
 	translate :: a -> State TranslationState b
@@ -28,7 +40,7 @@ instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 			return (x, y)) args
 		bbs <- mapM translate bbs
 		retType <- translate retType
-		return $ LLVM.Function l args bbs retType -- name args body retType
+		return $ LLVM.Function (LLVM.G l) args bbs retType -- name args body retType
 
 instance Translate (Maybe Type) LLVM.Type where
 	translate Nothing = return $ LLVM.Void
@@ -49,22 +61,22 @@ instance Translate Type LLVM.Type where
 	translate ListAbstractEmpty = return $ LLVM.Pointer LLVM.Void
 
 instance Translate BasicBlock LLVM.BasicBlock where
-	translate stmts = mapM translate stmts
+	translate stmts = concat <$> mapM translate stmts
 
-instance Translate IRStmt LLVM.Instruction where
+instance Translate IRStmt [LLVM.Instruction] where
 	translate (Move e1 e2)		= error "COMPILER BUG: Move not yet implemented"
 	translate (Expression e)	= do
-		e <- translate e
-		return $ LLVM.Expression (LLVM.T 0) e
-	translate (Jump l)		= return $ LLVM.BranchAlways l
+		(s, e) <- translate e
+		return $ s
+	translate (Jump l)		= return [LLVM.BranchAlways l]
 	translate (CJump e l1 l2)	= do
-		e <- translate e
-		return $ LLVM.Branch e l1 l2
+		(s, Just e) <- translate e
+		return $ s ++ [LLVM.Branch e l1 l2]
 	translate (Ret (Just e))	= do
-		e <- translate e
-		return $ LLVM.Return e
-	translate (Ret Nothing)		= return LLVM.ReturnVoid
-	translate (Label l)		= return $ LLVM.Label l
+		(s, Just e) <- translate e
+		return $ s ++ [LLVM.Return e]
+	translate (Ret Nothing)		= return [LLVM.ReturnVoid]
+	translate (Label l)		= return [LLVM.Label l]
 	translate Nop			= error "COMPILER BUG: Nop doesnt exist yet"
 
 isComparison :: AST.BinaryOperator a -> Bool
@@ -76,27 +88,39 @@ isComparison (AST.GreaterEqualThan _)	= True
 isComparison (AST.Nequals _)		= True
 isComparison _				= False
 
-instance Translate IRExpr LLVM.Value where
-	translate (Const Bool (-1))	= return $ LLVM.Const LLVM.i1 1
-	translate (Const Bool _)	= return $ LLVM.Const LLVM.i1 0
-	translate (Const Int n)		= return $ LLVM.Const LLVM.i32 n
+onlyValue v = return ([], Just v)
+return2 x y = return (x, y)
+infixl 0 $$
+($$) = ($) -- handy for multiple arguments
+instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
+	translate (Const Bool (-1))	= onlyValue $ LLVM.Const LLVM.i1 1
+	translate (Const Bool _)	= onlyValue $ LLVM.Const LLVM.i1 0
+	translate (Const Int n)		= onlyValue $ LLVM.Const LLVM.i32 n
 	translate (Temp ty n)		= do
 		ty <- translate ty
-		return $ LLVM.Temporary ty (LLVM.T n)
+		onlyValue $ LLVM.Temporary ty (LLVM.T n)
 	translate (Data ty n)		= error "COMPILER BUG: No data yet"
 	translate (Binop ty e1 (AST.Cons _) e2) = error "COMPILER BUG: No cons yet"
 	translate (Binop ty e1 b e2)	= do
-		e1 <- translate e1
-		e2 <- translate e2
+		ty <- translate ty
+		(s1, Just e1) <- translate e1
+		(s2, Just e2) <- translate e2
+		temp <- generateTemporary
+		let temp2 = LLVM.Temporary ty temp
 		if isComparison b
-			then return $ LLVM.Compare (translateComparison b) e1 e2
-			else return $ LLVM.Binop (translateBinop b) e1 e2
+			then return2 $$ s1 ++ s2 ++ [LLVM.Assign temp $ LLVM.Compare (translateComparison b) e1 e2] $$ Just temp2
+			else return2 $$ s1 ++ s2 ++ [LLVM.Assign temp $ LLVM.Binop (translateBinop b) e1 e2] $$ Just temp2
 	translate (Unop ty uop e)	= do
 		-- Note: Only unops are Not and Negate, both are "0 - x"
-		e <- translate e
-		let t = LLVM.valueType e -- Or translate ty?
-		return $ LLVM.Binop LLVM.Sub (LLVM.Const t 0) e
-	translate (Call mt l es)	= error "COMPILER BUG: No call yet"
+		ty <- translate ty
+		(s, Just e) <- translate e
+		temp <- generateTemporary
+		let temp2 = LLVM.Temporary ty temp
+		return2 $$ s ++ [LLVM.Assign temp $ LLVM.Binop LLVM.Sub (LLVM.Const ty 0) e] $$ Just temp2
+	translate (Call mt l es)	= do
+		ty <- translate mt
+		args <- mapM translate es
+		return2 $$ concat (map fst args) ++ [LLVM.Call (LLVM.G "TODO") (map (guardJust "" . snd) args)] $$ Nothing
 	translate (Builtin mt b)	= error "COMPILER BUG: No builtin yet"
 
 translateBinop (AST.Multiplication _)	= LLVM.Mul
@@ -117,4 +141,4 @@ translateComparison (AST.Nequals _)	= LLVM.Ne
 translateComparison _			= error "COMPILER BUG: Trying to convert a non-comparison as comparison"
 
 irToLLVM :: Program [BasicBlock] -> LLVM.Program
-irToLLVM = flip evalState () . translate
+irToLLVM = flip evalState emptyState . translate
