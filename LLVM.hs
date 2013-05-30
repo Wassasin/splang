@@ -93,7 +93,7 @@ data Instruction where
 	Load		:: Value -> Instruction				-- load <ty>* <e>
 	Store		:: Value -> Value -> Instruction		-- store <ty> <value>, <ty>* <pointer>
 	GetElementPtr	:: Value -> [Value] -> Instruction		-- getelementptr <ty>* <ptr>{, <ty> <idx>}*
-	Call		:: GlobalName -> [Value] -> Instruction		-- [tail] call <ty> <fnptrval>(<args>)
+	Call		:: Type -> GlobalName -> [Value] -> Instruction	-- [tail] call <ty> <fnptrval>(<args>)
 
 (+++) x y = x ++ " " ++ y
 instance Show Instruction where
@@ -107,10 +107,10 @@ instance Show Instruction where
 	show (Compare c e1 e2)	= "icmp" +++ show c +++ showType e1 +++ show e1 ++ ", " ++ show e2
 	show (Alloca t)		= "alloca" +++ show t
 	show (Load e)		= "load" +++ showType e +++ show e
-	show (Store e1 e2)	= "store" +++ show e1 ++ ", " ++ show e2
+	show (Store e1 e2)	= "store" +++ showType e1 +++ show e1 ++ ", " ++ showType e2 +++ show e2
 	show (GetElementPtr v idxs)= "getelementptr" +++ showType v +++ show v ++ concat (map showidx idxs)
 		where showidx x = "," +++ showType x +++ show x
-	show (Call f args)	= "call" +++ "TODO" +++ show f +++ "(" ++ concat (intersperse ", " $ map showarg args) ++ ")"
+	show (Call t f args)	= "call" +++ show t +++ show f +++ "(" ++ concat (intersperse ", " $ map showarg args) ++ ")"
 		where showarg x = showType x +++ show x
 
 

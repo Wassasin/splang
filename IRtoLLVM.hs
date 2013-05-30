@@ -120,7 +120,7 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 	translate (Call mt l es)	= do
 		ty <- translate mt
 		args <- mapM translate es
-		return2 $$ concat (map fst args) ++ [LLVM.Call (LLVM.G "TODO") (map (guardJust "" . snd) args)] $$ Nothing
+		return2 $$ concat (map fst args) ++ [LLVM.Call ty (LLVM.G l) (map (guardJust "" . snd) args)] $$ Nothing
 	translate (Builtin mt b)	= error "COMPILER BUG: No builtin yet"
 
 translateBinop (AST.Multiplication _)	= LLVM.Mul
