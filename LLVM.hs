@@ -74,9 +74,9 @@ showType :: Value -> String
 showType = show . valueType
 
 instance Show Value where
-	show e@(Temporary _ t)	= showType e ++ " " ++ show t
-	show e@(Global _ g)	= showType e ++ " " ++ show g
-	show e@(Const _ i)	= showType e ++ " " ++ show i
+	show e@(Temporary _ t)	= show t
+	show e@(Global _ g)	= show g
+	show e@(Const _ i)	= show i
 
 -- Instructions
 type Label = String
