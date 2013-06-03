@@ -64,7 +64,11 @@ instance Translate BasicBlock LLVM.BasicBlock where
 	translate stmts = concat <$> mapM translate stmts
 
 instance Translate IRStmt [LLVM.Instruction] where
-	translate (Move e1 e2)		= error "COMPILER BUG: Move not yet implemented"
+	translate (Move (Data ty n) e2) = error "COMPILER BUG: Move to Data not yet implemented"
+	translate (Move (Temp ty n) e2) = do
+		(s1, Just (LLVM.Temporary _ t1)) <- translate (Temp ty n)
+		(s2, Just t2) <- translate e2
+		return $ s1 ++ s2 ++ [LLVM.Decl t1 (LLVM.Return t2)]
 	translate (Expression e)	= do
 		(s, e) <- translate e
 		return $ s
