@@ -77,7 +77,7 @@ instance Translate IRStmt [LLVM.Instruction] where
 		return $ s ++ [LLVM.Return e]
 	translate (Ret Nothing)		= return [LLVM.ReturnVoid]
 	translate (Label l)		= return [LLVM.Label l]
-	translate Nop			= error "COMPILER BUG: Nop doesnt exist yet"
+	translate Nop			= return []
 
 isComparison :: AST.BinaryOperator a -> Bool
 isComparison (AST.Equals _)		= True
