@@ -145,7 +145,13 @@ instance Show Function where
 	show (Function name args body retType) = "define " ++ show retType ++ show name ++ "(" ++ "){\n" ++ bodyStr ++ "}"
 		where bodyStr = unlines $ fmap showIndented (concat body)
 
-type Program = [Function]
+data Program = Prog [(GlobalName, Type)] [(TypeName, Type)] [Function]
+
+showGlob :: (GlobalName, Type) -> String
+showGlob (name, t) = show name +++ "=" +++ "global" +++ show t +++ "undef"
+
+showTypes :: (TypeName, Type) -> String
+showTypes (name, t) = "%" ++ name +++ "=" +++ "type" +++ show t
 
 showProgram :: Program -> String
-showProgram l = unlines $ fmap show l
+showProgram (Prog globs types fs) = unlines $ (map showGlob globs) ++ (map showTypes types) ++ (fmap show fs)

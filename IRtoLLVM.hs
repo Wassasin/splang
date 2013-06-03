@@ -37,8 +37,18 @@ class Translate a b | a -> b where
 
 instance Translate (Program [BasicBlock]) LLVM.Program where
 	translate (fs, gs) = do
-		fs <- mapM translate fs
-		return fs
+		gd <- flip mapM gs $ \(Glob i gt _) -> do
+			gt <- translate gt
+			let name = LLVM.G $ "glob" ++ show i
+			modify $ saveDataPointer i $ LLVM.Global (LLVM.Pointer gt) name
+			return (name, gt)
+		let gc = flip map gs $ \(Glob _ _ l) -> LLVM.Call LLVM.Void (LLVM.G l) []
+		let mainc = LLVM.Call LLVM.Void (LLVM.G "main_v") []
+		fs <- flip mapM fs $ \f -> do
+			modify $ \s -> s { llvmTemporary = 0 } -- LLVM wants reset temporaries at beginning of FunDecl
+			translate f
+		let main = LLVM.Function (LLVM.G "main") [] [gc ++ [mainc] ++ [LLVM.ReturnVoid]] LLVM.Void
+		return $ LLVM.Prog gd [] (main:fs) -- TODO: type decls
 
 instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 	translate (Func l args bbs retType) = do
@@ -48,7 +58,7 @@ instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 			return (x, y)) args
 		bbs <- mapM translate bbs
 		retType <- translate retType
-		return $ LLVM.Function (LLVM.G l) args bbs retType -- name args body retType
+		return $ LLVM.Function (LLVM.G l) args bbs retType -- name args body retType	
 
 instance Translate (Maybe Type) LLVM.Type where
 	translate Nothing = return $ LLVM.Void
