@@ -12,6 +12,8 @@ import Data.Char
 
 -- Types we have
 -- Simplifications: only integral types (no floats), only signed integers
+type TypeName = String
+
 data Type where
 	Array :: Int -> Type -> Type		-- [<# elements> x <elementtype>]
 	FunctionType :: Type -> [Type] -> Type	-- <returntype> (<parameter list>)
@@ -19,6 +21,7 @@ data Type where
 	Void :: Type				-- void
 	Struct :: [Type] -> Type		-- type { <type list> } (non-packed)
 	Pointer :: Type -> Type
+	NamedType :: TypeName -> Type
 	deriving (Eq)
 
 instance Show Type where
@@ -28,6 +31,7 @@ instance Show Type where
 	show (Void) = "void"
 	show (Struct l) = "{" ++ concat (intersperse "," (map show l)) ++ "}"
 	show (Pointer t) = show t ++ "*"
+	show (NamedType str) = "%" ++ str
 
 i32 :: Type -- The default Integer type
 i32 = IntegralType 32
@@ -82,7 +86,7 @@ instance Show Value where
 type Label = String
 data Instruction where
 	Label		:: Label -> Instruction				-- <label>:
-	Assign		:: Temporary -> Instruction -> Instruction	-- %t = <instr>
+	Decl		:: Temporary -> Instruction -> Instruction	-- %t = <instr>
 	Return		:: Value -> Instruction				-- ret <type> <value>
 	ReturnVoid	:: Instruction					-- ret void
 	Branch		:: Value -> Label -> Label -> Instruction	-- br i1 <cond>, label <iftrue>, label <iffalse>
@@ -98,7 +102,7 @@ data Instruction where
 (+++) x y = x ++ " " ++ y
 instance Show Instruction where
 	show (Label l)		= l ++ ":"
-	show (Assign t i)	= show t +++ "=" +++ show i
+	show (Decl t i)		= show t +++ "=" +++ show i
 	show (Return e)		= "ret" +++ showType e +++ show e
 	show (ReturnVoid)	= "ret void"
 	show (Branch e l1 l2)	= "br" +++ showType e +++ show e ++ ", label " ++ l1 ++ ", label " ++ l2
