@@ -5,6 +5,7 @@ module IRtoLLVM where
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Applicative((<$>))
+import Data.Map as Map hiding (foldr, foldl, map)
 import Utils
 
 import qualified AST
@@ -12,9 +13,16 @@ import IR
 import qualified LLVM
 
 data TranslationState = TranslationState
-	{ llvmTemporary :: Int }
+	{ llvmTemporary :: Int
+	, dataPointers :: Map Temporary LLVM.Value }
 
-emptyState = TranslationState { llvmTemporary = 0 }
+emptyState = TranslationState { llvmTemporary = 0, dataPointers = empty }
+
+getDataPointer :: Temporary -> State TranslationState (Maybe LLVM.Value)
+getDataPointer t = Map.lookup t <$> dataPointers <$> get
+
+saveDataPointer :: Temporary -> LLVM.Value -> TranslationState -> TranslationState
+saveDataPointer t v o = o { dataPointers = insert t v $ dataPointers o }
 
 generateTemporary :: State TranslationState LLVM.Temporary
 generateTemporary = do
@@ -64,11 +72,8 @@ instance Translate BasicBlock LLVM.BasicBlock where
 	translate stmts = concat <$> mapM translate stmts
 
 instance Translate IRStmt [LLVM.Instruction] where
-	translate (Move (Data ty n) e2) = error "COMPILER BUG: Move to Data not yet implemented"
-	translate (Move (Temp ty n) e2) = do
-		(s1, Just (LLVM.Temporary _ t1)) <- translate (Temp ty n)
-		(s2, Just t2) <- translate e2
-		return $ s1 ++ s2 ++ [LLVM.Decl t1 (LLVM.Return t2)]
+	translate (Move (Data ty n) e) = translateIRStmtMove ty n e
+	translate (Move (Temp ty n) e) = translateIRStmtMove ty n e
 	translate (Expression e)	= do
 		(s, e) <- translate e
 		return $ s
@@ -82,6 +87,24 @@ instance Translate IRStmt [LLVM.Instruction] where
 	translate (Ret Nothing)		= return [LLVM.ReturnVoid]
 	translate (Label l)		= return [LLVM.Label l]
 	translate Nop			= return []
+
+translateIRStmtMove :: Type -> Temporary -> IRExpr -> State TranslationState [LLVM.Instruction]
+translateIRStmtMove ty n e = do
+		ty <- translate ty
+		(s, Just e) <- translate e
+		thing <- getDataPointer n
+		case thing of
+			-- New local variable
+			Nothing -> do
+				ptr <- generateTemporary
+				let ptre = LLVM.Temporary (LLVM.Pointer ty) ptr
+				modify $ saveDataPointer n ptre
+				return $ s ++ [
+					LLVM.Decl ptr $ LLVM.Alloca ty,
+					LLVM.Store e ptre]
+			-- Assignment
+			Just ptr -> do
+				return $ s ++ [LLVM.Store e ptr]
 
 isComparison :: AST.BinaryOperator a -> Bool
 isComparison (AST.Equals _)		= True
@@ -100,10 +123,8 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 	translate (Const Bool (-1))	= onlyValue $ LLVM.Const LLVM.i1 1
 	translate (Const Bool _)	= onlyValue $ LLVM.Const LLVM.i1 0
 	translate (Const Int n)		= onlyValue $ LLVM.Const LLVM.i32 n
-	translate (Temp ty n)		= do
-		ty <- translate ty
-		onlyValue $ LLVM.Temporary ty (LLVM.T n)
-	translate (Data ty n)		= error "COMPILER BUG: No data yet"
+	translate (Temp ty n)		= translateIRExprTemp ty n
+	translate (Data ty n)		= translateIRExprTemp ty n
 	translate (Binop ty e1 (AST.Cons _) e2) = error "COMPILER BUG: No cons yet"
 	translate (Binop ty e1 b e2)	= do
 		ty <- translate ty
@@ -150,6 +171,14 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		let tempe = LLVM.Temporary t temp
 		return2 $$ s ++ [LLVM.Decl temp $ LLVM.ExtractValue e [1]] $$ Just tempe
 	translate (Builtin mt b)	= error "COMPILER BUG: No builtin yet"
+	
+translateIRExprTemp :: Type -> Temporary -> State TranslationState ([LLVM.Instruction], Maybe LLVM.Value)
+translateIRExprTemp ty n = do
+	ty <- translate ty
+	Just ptr <- getDataPointer n
+	temp <- generateTemporary
+	let tempe = LLVM.Temporary ty temp
+	return2 $$ [LLVM.Decl temp $ LLVM.Load ptr] $$ Just tempe
 
 translateBinop (AST.Multiplication _)	= LLVM.Mul
 translateBinop (AST.Division _)		= LLVM.SDiv
