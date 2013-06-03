@@ -22,6 +22,7 @@ data Type where
 	Struct :: [Type] -> Type		-- type { <type list> } (non-packed)
 	Pointer :: Type -> Type
 	NamedType :: TypeName -> Type
+	EtceteraType :: Type
 	deriving (Eq)
 
 instance Show Type where
@@ -32,9 +33,13 @@ instance Show Type where
 	show (Struct l) = "{" ++ concat (intersperse "," (map show l)) ++ "}"
 	show (Pointer t) = show t ++ "*"
 	show (NamedType str) = "%" ++ str
+	show (EtceteraType) = "..."
 
 i32 :: Type -- The default Integer type
 i32 = IntegralType 32
+
+i8 :: Type
+i8 = IntegralType 8
 
 i1 :: Type -- The Bool type
 i1 = IntegralType 1
@@ -147,6 +152,11 @@ instance Show Function where
 
 data Program = Prog [(GlobalName, Type)] [(TypeName, Type)] [Function]
 
+defaultHeaders = [
+	"declare i32 @printf(i8*, ...) nounwind",
+	"@printf_arg = internal constant [4 x i8] c\"%d\\0A\\00\""
+	]
+
 showGlob :: (GlobalName, Type) -> String
 showGlob (name, t) = show name +++ "=" +++ "global" +++ show t +++ "undef"
 
@@ -154,4 +164,4 @@ showTypes :: (TypeName, Type) -> String
 showTypes (name, t) = "%" ++ name +++ "=" +++ "type" +++ show t
 
 showProgram :: Program -> String
-showProgram (Prog globs types fs) = unlines $ (map showGlob globs) ++ (map showTypes types) ++ (fmap show fs)
+showProgram (Prog globs types fs) = unlines $ defaultHeaders ++ [""] ++ (map showGlob globs) ++ (map showTypes types) ++ (fmap show fs)

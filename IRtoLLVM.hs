@@ -180,6 +180,15 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		temp <- generateTemporary
 		let tempe = LLVM.Temporary t temp
 		return2 $$ s ++ [LLVM.Decl temp $ LLVM.ExtractValue e [1]] $$ Just tempe
+	translate (Builtin t (Print e)) = do
+		t <- translate t
+		(s, Just e) <- translate e
+		temp <- generateTemporary
+		let tempe = LLVM.Temporary (LLVM.Pointer $ LLVM.i8) temp
+		return2 $$ s ++ [
+				LLVM.Decl temp $ LLVM.GetElementPtr (LLVM.Global (LLVM.Pointer $ LLVM.Array 4 $ LLVM.i8) $ LLVM.G "printf_arg") [LLVM.Const LLVM.i32 0, LLVM.Const LLVM.i32 0],
+				LLVM.Call (LLVM.Pointer $ LLVM.FunctionType LLVM.i32 [LLVM.Pointer LLVM.i8, LLVM.EtceteraType]) (LLVM.G "printf") [tempe, e]
+			] $$ Nothing
 	translate (Builtin mt b)	= error "COMPILER BUG: No builtin yet"
 	
 translateIRExprTemp :: Type -> Temporary -> State TranslationState ([LLVM.Instruction], Maybe LLVM.Value)
