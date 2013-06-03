@@ -88,7 +88,7 @@ options =
 	, Option [] ["type-only"]	(NoArg (\o -> o { typeOnly = True }))			"stops after the typing pass"
 	, Option [] ["force-codegen"]	(NoArg (\o -> o { forceCodegen = True }))		"will generate code, even when there are (non-fatal) errors in analysis"
 	, Option "W" []			(ReqArg (fmap liftW warningsOptions) "warning")		"Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
-	, Option [] ["target"]		(ReqArg (fmap liftT targetOptions) "target")		"Specifies target (eg: -target llvm), default is ssm"
+	, Option [] ["target"]		(ReqArg (fmap liftT targetOptions) "target")		"Specifies target (eg: --target llvm), default is ssm"
 	]
 
 mkOptions :: [String] -> IO (Options, [String])
