@@ -125,6 +125,30 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		ty <- translate mt
 		args <- mapM translate es
 		return2 $$ concat (map fst args) ++ [LLVM.Call ty (LLVM.G l) (map (guardJust "" . snd) args)] $$ Nothing
+	translate (Builtin t (MakePair e1 e2)) = do
+		t <- translate t
+		(s1, Just e1) <- translate e1
+		(s2, Just e2) <- translate e2
+		temp1 <- generateTemporary
+		let temp1e = LLVM.Temporary t temp1
+		temp2 <- generateTemporary
+		let temp2e = LLVM.Temporary t temp2
+		return2 $$ s1 ++ s2 ++ [
+				LLVM.Decl temp1 $ LLVM.InsertValue (LLVM.Undef t) e1 [0],
+				LLVM.Decl temp2 $ LLVM.InsertValue temp1e e2 [1]
+			] $$ Just temp2e
+	translate (Builtin t (IR.First e)) = do
+		t <- translate t
+		(s, Just e) <- translate e
+		temp <- generateTemporary
+		let tempe = LLVM.Temporary t temp
+		return2 $$ s ++ [LLVM.Decl temp $ LLVM.ExtractValue e [0]] $$ Just tempe
+	translate (Builtin t (IR.Second e)) = do
+		t <- translate t
+		(s, Just e) <- translate e
+		temp <- generateTemporary
+		let tempe = LLVM.Temporary t temp
+		return2 $$ s ++ [LLVM.Decl temp $ LLVM.ExtractValue e [1]] $$ Just tempe
 	translate (Builtin mt b)	= error "COMPILER BUG: No builtin yet"
 
 translateBinop (AST.Multiplication _)	= LLVM.Mul

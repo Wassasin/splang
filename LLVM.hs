@@ -68,11 +68,13 @@ data Value
 	= Temporary Type Temporary	-- %t
 	| Global Type GlobalName	-- @bla
 	| Const Type Int		-- <n>
+	| Undef Type			-- undef
 
 valueType :: Value -> Type
 valueType (Temporary t _)	= t
 valueType (Global t _)		= t
 valueType (Const t _)		= t
+valueType (Undef t)		= t
 
 showType :: Value -> String
 showType = show . valueType
@@ -81,6 +83,7 @@ instance Show Value where
 	show e@(Temporary _ t)	= show t
 	show e@(Global _ g)	= show g
 	show e@(Const _ i)	= show i
+	show e@(Undef _)	= "undef"
 
 -- Instructions
 type Label = String
@@ -96,7 +99,9 @@ data Instruction where
 	Alloca		:: Type -> Instruction				-- alloca <ty>
 	Load		:: Value -> Instruction				-- load <ty>* <e>
 	Store		:: Value -> Value -> Instruction		-- store <ty> <value>, <ty>* <pointer>
-	GetElementPtr	:: Value -> [Value] -> Instruction		-- getelementptr <ty>* <ptr>{, <ty> <idx>}*
+	GetElementPtr	:: Value -> [Value] -> Instruction		-- getelementptr <ty>* <ptr>{, <ty> <idx>}+
+	ExtractValue	:: Value -> [Int] -> Instruction		-- extractvalue <at> <val>{, <idx>}+
+	InsertValue	:: Value -> Value -> [Int] -> Instruction	-- insertvalue <at> <val>, <ty> <elt>{, <idx>}+
 	Call		:: Type -> GlobalName -> [Value] -> Instruction	-- [tail] call <ty> <fnptrval>(<args>)
 
 (+++) x y = x ++ " " ++ y
@@ -112,8 +117,12 @@ instance Show Instruction where
 	show (Alloca t)		= "alloca" +++ show t
 	show (Load e)		= "load" +++ showType e +++ show e
 	show (Store e1 e2)	= "store" +++ showType e1 +++ show e1 ++ ", " ++ showType e2 +++ show e2
-	show (GetElementPtr v idxs)= "getelementptr" +++ showType v +++ show v ++ concat (map showidx idxs)
+	show (GetElementPtr v idxs) = "getelementptr" +++ showType v +++ show v ++ concat (map showidx idxs)
 		where showidx x = "," +++ showType x +++ show x
+	show (ExtractValue v idxs) = "extractvalue" +++ showType v +++ show v ++ concat (map showidx idxs)
+		where showidx x = "," +++ show x
+	show (InsertValue v elt idxs) = "insertvalue" +++ showType v +++ show v ++ ", " ++ showType elt +++ show elt ++ concat (map showidx idxs)
+		where showidx x = "," +++ show x
 	show (Call t f args)	= "call" +++ show t +++ show f +++ "(" ++ concat (intersperse ", " $ map showarg args) ++ ")"
 		where showarg x = showType x +++ show x
 
