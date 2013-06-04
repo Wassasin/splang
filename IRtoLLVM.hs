@@ -158,13 +158,20 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		if isComparison b
 			then return2 $$ s1 ++ s2 ++ [LLVM.Decl temp $ LLVM.Compare (translateComparison b) e1 e2] $$ Just temp2
 			else return2 $$ s1 ++ s2 ++ [LLVM.Decl temp $ LLVM.Binop (translateBinop b) e1 e2] $$ Just temp2
-	translate (Unop ty uop e)	= do
+	translate (Unop ty (AST.Negative ()) e)	= do
 		-- Note: Only unops are Not and Negate, both are "0 - x"
 		ty <- translate ty
 		(s, Just e) <- translate e
 		temp <- generateTemporary
 		let temp2 = LLVM.Temporary ty temp
 		return2 $$ s ++ [LLVM.Decl temp $ LLVM.Binop LLVM.Sub (LLVM.Const ty 0) e] $$ Just temp2
+	translate (Unop ty (AST.Not ()) e)	= do
+		-- Note: Only unops are Not and Negate, both are "0 - x"
+		ty <- translate ty
+		(s, Just e) <- translate e
+		temp <- generateTemporary
+		let temp2 = LLVM.Temporary ty temp
+		return2 $$ s ++ [LLVM.Decl temp $ LLVM.Binop LLVM.Sub (LLVM.Const ty 1) e] $$ Just temp2
 	translate (Call (Just mt) l es)	= do
 		ty <- translate mt
 		args <- mapM translate es
