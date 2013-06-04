@@ -23,7 +23,7 @@ data Type where
 	Pointer :: Type -> Type
 	NamedType :: TypeName -> Type
 	EtceteraType :: Type
-	deriving (Eq)
+	deriving (Eq, Ord)
 
 instance Show Type where
 	show (Array n t) = "[" ++ show n ++ " x " ++ show t ++ "]"
@@ -73,6 +73,7 @@ data Value
 	= Temporary Type Temporary	-- %t
 	| Global Type GlobalName	-- @bla
 	| Const Type Int		-- <n>
+	| Null Type			-- null
 	| Undef Type			-- undef
 
 valueType :: Value -> Type
@@ -80,6 +81,7 @@ valueType (Temporary t _)	= t
 valueType (Global t _)		= t
 valueType (Const t _)		= t
 valueType (Undef t)		= t
+valueType (Null t)		= t
 
 showType :: Value -> String
 showType = show . valueType
@@ -88,6 +90,7 @@ instance Show Value where
 	show e@(Temporary _ t)	= show t
 	show e@(Global _ g)	= show g
 	show e@(Const _ i)	= show i
+	show e@(Null _)		= "null"
 	show e@(Undef _)	= "undef"
 
 -- Instructions
@@ -108,6 +111,8 @@ data Instruction where
 	ExtractValue	:: Value -> [Int] -> Instruction		-- extractvalue <at> <val>{, <idx>}+
 	InsertValue	:: Value -> Value -> [Int] -> Instruction	-- insertvalue <at> <val>, <ty> <elt>{, <idx>}+
 	Call		:: Type -> GlobalName -> [Value] -> Instruction	-- [tail] call <ty> <fnptrval>(<args>)
+	PtrToInt	:: Value -> Type -> Instruction			-- ptrtoint <ty> <value> to <ty2>
+	Bitcast		:: Value -> Type -> Instruction			-- bitcast <ty> <value> to <ty2>
 
 (+++) x y = x ++ " " ++ y
 instance Show Instruction where
@@ -130,7 +135,8 @@ instance Show Instruction where
 		where showidx x = "," +++ show x
 	show (Call t f args)	= "call" +++ show t +++ show f +++ "(" ++ concat (intersperse ", " $ map showarg args) ++ ")"
 		where showarg x = showType x +++ show x
-
+	show (PtrToInt v t)	= "ptrtoint" +++ showType v +++ show v +++ "to" +++ show t
+	show (Bitcast v t)	= "bitcast" +++ showType v +++ show v +++ "to" +++ show t
 
 isLabel :: Instruction -> Bool
 isLabel (Label _) = True
@@ -153,6 +159,7 @@ instance Show Function where
 data Program = Prog [(GlobalName, Type)] [(TypeName, Type)] [Function]
 
 defaultHeaders = [
+	"declare i8* @malloc(i32)",
 	"declare i32 @printf(i8*, ...) nounwind",
 	"@printf_arg = internal constant [4 x i8] c\"%d\\0A\\00\""
 	]

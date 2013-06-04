@@ -3,9 +3,9 @@
 module IRtoLLVM where
 
 import Control.Monad.State
-import Control.Monad.Writer
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldr, foldl, map)
+import Data.Tuple (swap)
 import Utils
 
 import qualified AST
@@ -14,15 +14,19 @@ import qualified LLVM
 
 data TranslationState = TranslationState
 	{ llvmTemporary :: Int
-	, dataPointers :: Map Temporary LLVM.Value }
+	, dataPointers :: Map Temporary LLVM.Value
+	, namedTypes :: Map LLVM.Type LLVM.TypeName }
 
-emptyState = TranslationState { llvmTemporary = 0, dataPointers = empty }
+emptyState = TranslationState { llvmTemporary = 0, dataPointers = Map.empty, namedTypes = Map.empty }
 
 getDataPointer :: Temporary -> State TranslationState (Maybe LLVM.Value)
 getDataPointer t = Map.lookup t <$> dataPointers <$> get
 
 saveDataPointer :: Temporary -> LLVM.Value -> TranslationState -> TranslationState
-saveDataPointer t v o = o { dataPointers = insert t v $ dataPointers o }
+saveDataPointer t v o = o { dataPointers = Map.insert t v $ dataPointers o }
+
+setUsingTypeName :: LLVM.Type -> LLVM.TypeName -> TranslationState -> TranslationState
+setUsingTypeName t str o = o { namedTypes = Map.insert t str $ namedTypes o }
 
 generateTemporary :: State TranslationState LLVM.Temporary
 generateTemporary = do
@@ -48,7 +52,9 @@ instance Translate (Program [BasicBlock]) LLVM.Program where
 			modify $ \s -> s { llvmTemporary = 0 } -- LLVM wants reset temporaries at beginning of FunDecl
 			translate f
 		let main = LLVM.Function (LLVM.G "main") [] [gc ++ [mainc] ++ [LLVM.ReturnVoid]] LLVM.Void
-		return $ LLVM.Prog gd [] (main:fs) -- TODO: type decls
+		s <- get
+		let td = map swap $ Map.toList $ namedTypes s
+		return $ LLVM.Prog gd td (main:fs)
 
 instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 	translate (Func l args bbs retType) = do
@@ -72,10 +78,12 @@ instance Translate Type LLVM.Type where
 		t2 <- translate t2
 		return $ LLVM.Struct [t1, t2]
 	translate (ListPtr t) = do
+		let str = "cons_" ++ mangle t
+		let namedType = LLVM.NamedType str
 		t <- translate t
-		-- This is probably incorrect
-		let node = LLVM.Struct [LLVM.Pointer node, t]
-		return $ LLVM.Pointer node
+		let node = LLVM.Struct [LLVM.Pointer namedType, t]
+		modify $ setUsingTypeName node str
+		return $ LLVM.Pointer namedType
 	translate ListAbstractEmpty = return $ LLVM.Pointer LLVM.Void
 
 instance Translate BasicBlock LLVM.BasicBlock where
@@ -133,6 +141,9 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 	translate (Const Bool (-1))	= onlyValue $ LLVM.Const LLVM.i1 1
 	translate (Const Bool _)	= onlyValue $ LLVM.Const LLVM.i1 0
 	translate (Const Int n)		= onlyValue $ LLVM.Const LLVM.i32 n
+	translate (Const t@(ListPtr _) 0)	= do
+		t <- translate t
+		onlyValue $ LLVM.Null t
 	translate (Temp ty n)		= translateIRExprTemp ty n
 	translate (Data ty n)		= translateIRExprTemp ty n
 	translate (Binop ty e1 (AST.Cons _) e2) = error "COMPILER BUG: No cons yet"
@@ -180,6 +191,20 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		temp <- generateTemporary
 		let tempe = LLVM.Temporary t temp
 		return2 $$ s ++ [LLVM.Decl temp $ LLVM.ExtractValue e [1]] $$ Just tempe
+	translate (Builtin (Just (ListPtr t)) (IR.Cons x xs)) = do
+		(s1, Just x) <- translate x
+		(s2, Just xs) <- translate xs
+		consptrt@(LLVM.Pointer const) <- translate $ ListPtr t
+		(s3, ptr) <- translateMalloc const
+		temp1 <- generateTemporary
+		let temp1e = LLVM.Temporary const temp1
+		temp2 <- generateTemporary
+		let temp2e = LLVM.Temporary const temp2
+		return2 $$ s1 ++ s2 ++ s3 ++ [
+				LLVM.Decl temp1 $ LLVM.InsertValue (LLVM.Undef const) xs [0],
+				LLVM.Decl temp2 $ LLVM.InsertValue temp1e x [1],
+				LLVM.Store temp2e ptr
+			] $$ Just ptr
 	translate (Builtin t (Print e)) = do
 		t <- translate t
 		(s, Just e) <- translate e
@@ -190,7 +215,7 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 				LLVM.Call (LLVM.Pointer $ LLVM.FunctionType LLVM.i32 [LLVM.Pointer LLVM.i8, LLVM.EtceteraType]) (LLVM.G "printf") [tempe, e]
 			] $$ Nothing
 	translate (Builtin mt b)	= error "COMPILER BUG: No builtin yet"
-	
+
 translateIRExprTemp :: Type -> Temporary -> State TranslationState ([LLVM.Instruction], Maybe LLVM.Value)
 translateIRExprTemp ty n = do
 	ty <- translate ty
@@ -198,6 +223,29 @@ translateIRExprTemp ty n = do
 	temp <- generateTemporary
 	let tempe = LLVM.Temporary ty temp
 	return2 $$ [LLVM.Decl temp $ LLVM.Load ptr] $$ Just tempe
+
+translateSizeOf :: LLVM.Type -> State TranslationState ([LLVM.Instruction], LLVM.Value)
+translateSizeOf t = do
+	temp1 <- generateTemporary
+	let temp1e = LLVM.Temporary (LLVM.Pointer t) temp1
+	temp2 <- generateTemporary
+	let temp2e = LLVM.Temporary LLVM.i32 temp2
+	return2 $$ [
+			LLVM.Decl temp1 $ LLVM.GetElementPtr (LLVM.Null $ LLVM.Pointer t) [LLVM.Const LLVM.i32 1],
+			LLVM.Decl temp2 $ LLVM.PtrToInt temp1e LLVM.i32
+		] $$ temp2e
+
+translateMalloc :: LLVM.Type -> State TranslationState ([LLVM.Instruction], LLVM.Value)
+translateMalloc t = do
+	let ptrt = LLVM.Pointer t
+	(s, sizeof) <- translateSizeOf t -- size of object we want to malloc
+	temp1 <- generateTemporary
+	let temp1e = LLVM.Temporary (LLVM.Pointer LLVM.i8) temp1
+	temp2 <- generateTemporary
+	let temp2e = LLVM.Temporary ptrt temp2
+	let malloc = LLVM.Decl temp1 $ LLVM.Call (LLVM.Pointer $ LLVM.FunctionType (LLVM.Pointer LLVM.i8) [LLVM.i32]) (LLVM.G "malloc") [sizeof]
+	let cast = LLVM.Decl temp2 $ LLVM.Bitcast temp1e ptrt
+	return2 $$ s ++ [malloc, cast] $$ temp2e
 
 translateBinop (AST.Multiplication _)	= LLVM.Mul
 translateBinop (AST.Division _)		= LLVM.SDiv
@@ -215,6 +263,13 @@ translateComparison (AST.LesserEqualThan _) = LLVM.Sle
 translateComparison (AST.GreaterEqualThan _) = LLVM.Sge
 translateComparison (AST.Nequals _)	= LLVM.Ne
 translateComparison _			= error "COMPILER BUG: Trying to convert a non-comparison as comparison"
+
+mangle :: Type -> String
+mangle Bool			= "b"
+mangle Int			= "i"
+mangle (Pair x y)		= "p" ++ mangle x ++ mangle y
+mangle (ListPtr x)		= "l" ++ mangle x
+mangle ListAbstractEmpty	= "e"
 
 irToLLVM :: Program [BasicBlock] -> LLVM.Program
 irToLLVM = flip evalState emptyState . translate
