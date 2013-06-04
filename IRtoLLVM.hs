@@ -247,6 +247,7 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		(s, Just e) <- translate e
 		temp <- generateTemporary
 		let tempe = LLVM.Temporary (LLVM.Pointer $ LLVM.i8) temp
+		generateTemporary -- LLVM wants that we waste a temporary; for the call to Print
 		return2 $$ s ++ [
 				LLVM.Decl temp $ LLVM.GetElementPtr (LLVM.Global (LLVM.Pointer $ LLVM.Array 4 $ LLVM.i8) $ LLVM.G "printf_arg") [LLVM.Const LLVM.i32 0, LLVM.Const LLVM.i32 0],
 				LLVM.Call (LLVM.Pointer $ LLVM.FunctionType LLVM.i32 [LLVM.Pointer LLVM.i8, LLVM.EtceteraType]) (LLVM.G "printf") [tempe, e]
