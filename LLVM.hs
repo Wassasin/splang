@@ -121,8 +121,8 @@ instance Show Instruction where
 	show (Decl t i)		= show t +++ "=" +++ show i
 	show (Return e)		= "ret" +++ showType e +++ show e
 	show (ReturnVoid)	= "ret void"
-	show (Branch e l1 l2)	= "br" +++ showType e +++ show e ++ ", label " ++ l1 ++ ", label " ++ l2
-	show (BranchAlways l)	= "br label" +++ l
+	show (Branch e l1 l2)	= "br" +++ showType e +++ show e ++ ", label %" ++ l1 ++ ", label %" ++ l2
+	show (BranchAlways l)	= "br label %" ++ l
 	show (Binop b e1 e2)	= show b +++ showType e1 +++ show e1 ++ ", " ++ show e2
 	show (Compare c e1 e2)	= "icmp" +++ show c +++ showType e1 +++ show e1 ++ ", " ++ show e2
 	show (Alloca t)		= "alloca" +++ show t
