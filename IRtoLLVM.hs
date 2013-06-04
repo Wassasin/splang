@@ -205,6 +205,12 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 				LLVM.Decl temp2 $ LLVM.InsertValue temp1e x [1],
 				LLVM.Store temp2e ptr
 			] $$ Just ptr
+	translate (Builtin t (IR.IsEmpty e)) = do
+		t <- translate t
+		(s, Just e) <- translate e
+		temp <- generateTemporary
+		let tempe = LLVM.Temporary LLVM.i1 temp
+		return2 $$ s ++ [LLVM.Decl temp $ LLVM.Compare LLVM.Eq e (LLVM.Null t)] $$ Just tempe
 	translate (Builtin t (Print e)) = do
 		t <- translate t
 		(s, Just e) <- translate e
