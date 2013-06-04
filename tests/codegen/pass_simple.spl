@@ -1,5 +1,7 @@
+Int x = 5;
+
 Void main(){
-	Int x = 1+2*3;
-	x = 4-5/6;
+	x = 42+32;
+	print(x);
 	return;
 }
