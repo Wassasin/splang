@@ -58,10 +58,12 @@ instance Translate (Program [BasicBlock]) LLVM.Program where
 
 instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 	translate (Func l args bbs retType) = do
-		args <- mapM (\(x, y) -> do
-			x <- translate x
-			y <- return $ LLVM.T y
-			return (x, y)) args
+		args <- mapM (\(t, n) -> do
+			t <- translate t
+			temp <- generateTemporary
+			let tempe = LLVM.Temporary t temp
+			modify $ saveDataPointer n tempe
+			return (t, temp)) args
 		bbs <- mapM translate bbs
 		retType <- translate retType
 		return $ LLVM.Function (LLVM.G l) args bbs retType -- name args body retType	
@@ -163,7 +165,13 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		temp <- generateTemporary
 		let temp2 = LLVM.Temporary ty temp
 		return2 $$ s ++ [LLVM.Decl temp $ LLVM.Binop LLVM.Sub (LLVM.Const ty 0) e] $$ Just temp2
-	translate (Call mt l es)	= do
+	translate (Call (Just mt) l es)	= do
+		ty <- translate mt
+		args <- mapM translate es
+		temp <- generateTemporary
+		let tempe = LLVM.Temporary ty temp
+		return2 $$ concat (map fst args) ++ [LLVM.Decl temp $ LLVM.Call ty (LLVM.G l) (map (guardJust "" . snd) args)] $$ Just tempe
+	translate (Call mt@Nothing l es)	= do
 		ty <- translate mt
 		args <- mapM translate es
 		return2 $$ concat (map fst args) ++ [LLVM.Call ty (LLVM.G l) (map (guardJust "" . snd) args)] $$ Nothing

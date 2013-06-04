@@ -5,6 +5,7 @@ module LLVM where --(Type(..), Binop(..), Temporary(..), Value(Const, Binop, Loa
 import Data.Data
 import Data.List
 import Data.Char
+import Utils (implode)
 
 
 -- TODO: Calls, Builtins, Structs, Globals, Moves, ...
@@ -153,8 +154,10 @@ type BasicBlock = [Instruction] -- ends always in an terminal (= ret/br)
 data Function = Function GlobalName [(Type, Temporary)] [BasicBlock] Type -- name args body retType
 
 instance Show Function where
-	show (Function name args body retType) = "define " ++ show retType ++ show name ++ "(" ++ "){\n" ++ bodyStr ++ "}"
-		where bodyStr = unlines $ fmap showIndented (concat body)
+	show (Function name args body retType) = "define " ++ show retType +++ show name ++ "(" ++ argsStr ++ ") {\n" ++ bodyStr ++ "}"
+		where
+			argsStr = implode ", " $ flip map args $ \(t, temp) -> show t +++ show temp
+			bodyStr = unlines $ fmap showIndented (concat body)
 
 data Program = Prog [(GlobalName, Type)] [(TypeName, Type)] [Function]
 
