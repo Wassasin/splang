@@ -191,10 +191,10 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		temp <- generateTemporary
 		let tempe = LLVM.Temporary t temp
 		return2 $$ s ++ [LLVM.Decl temp $ LLVM.ExtractValue e [1]] $$ Just tempe
-	translate (Builtin (Just (ListPtr t)) (IR.Cons x xs)) = do
+	translate (Builtin t (IR.Cons x xs)) = do
+		consptrt@(LLVM.Pointer const) <- translate t
 		(s1, Just x) <- translate x
 		(s2, Just xs) <- translate xs
-		consptrt@(LLVM.Pointer const) <- translate $ ListPtr t
 		(s3, ptr) <- translateMalloc const
 		temp1 <- generateTemporary
 		let temp1e = LLVM.Temporary const temp1
@@ -210,7 +210,30 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 		(s, Just e) <- translate e
 		temp <- generateTemporary
 		let tempe = LLVM.Temporary LLVM.i1 temp
-		return2 $$ s ++ [LLVM.Decl temp $ LLVM.Compare LLVM.Eq e (LLVM.Null t)] $$ Just tempe
+		return2 $$ s ++ [LLVM.Decl temp $ LLVM.Compare LLVM.Eq e (LLVM.Null $ LLVM.valueType e)] $$ Just tempe
+	translate (Builtin t (IR.Tail e)) = do
+		consptrt@(LLVM.Pointer const) <- translate t
+		(s, Just e) <- translate e
+		temp1 <- generateTemporary
+		let temp1e = LLVM.Temporary const temp1
+		temp2 <- generateTemporary
+		let temp2e = LLVM.Temporary consptrt temp2
+		return2 $$ s ++ [
+				LLVM.Decl temp1 $ LLVM.Load e,
+				LLVM.Decl temp2 $ LLVM.ExtractValue temp1e [0]
+			] $$ Just temp2e
+	translate (Builtin (Just t) (IR.Head e)) = do
+		objt <- translate t
+		consptrt@(LLVM.Pointer const) <- translate $ ListPtr t
+		(s, Just e) <- translate e
+		temp1 <- generateTemporary
+		let temp1e = LLVM.Temporary const temp1
+		temp2 <- generateTemporary
+		let temp2e = LLVM.Temporary objt temp2
+		return2 $$ s ++ [
+				LLVM.Decl temp1 $ LLVM.Load e,
+				LLVM.Decl temp2 $ LLVM.ExtractValue temp1e [1]
+			] $$ Just temp2e
 	translate (Builtin t (Print e)) = do
 		t <- translate t
 		(s, Just e) <- translate e
