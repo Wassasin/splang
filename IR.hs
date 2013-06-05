@@ -216,7 +216,8 @@ genBegin False = do
 	modify (freshLabel:)
 	return [Label freshLabel]
 
--- TODO: also keep "end" in state
+errorLabel = "_DEADLABEL" -- special label that should not exist in eventual code
+
 partitionBBs :: (Functor m, Monad m) => [IRStmt] -> StateT PartitionState m [BasicBlock]
 partitionBBs []		= return []
 partitionBBs (x:xs)	= do
@@ -233,7 +234,7 @@ partitionBBs (x:xs)	= do
 			| isaJump x 	= ([x], xs)
 			| otherwise	= span ([x], xs)
 		nextLabel = case rs of
-			[]		-> "end"
+			[]		-> errorLabel
 			(Label str:_)	-> str
 			_		-> error "COMPILER BUG: The impossible happend (impossible pattern match)"
 		end

@@ -5,6 +5,7 @@ import qualified IR
 import qualified SSM
 import qualified LLVM
 import ASTtoIR
+import IRDeadcode
 import IRtoSSM
 import IRtoLLVM
 import TypeInference (P3)
@@ -14,7 +15,7 @@ toIR :: P3 AST.Program -> IR.Program IR.IRStmt
 toIR = translateProgram
 
 canonicalizeIR :: IR.Program IR.IRStmt -> IR.Program [IR.BasicBlock]
-canonicalizeIR = IR.linearize
+canonicalizeIR = IRDeadcode.optimize . IR.linearize
 
 toSSM :: IR.Program [IR.BasicBlock] -> SSM.Program
 toSSM = irToSSM

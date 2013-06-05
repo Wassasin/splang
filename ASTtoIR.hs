@@ -75,7 +75,9 @@ instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 			return (t, n))
 		decls <- Trav.mapM translateLocalVarDecl decls
 		stmts <- Trav.mapM translate stmts
-		stmts <- return . foldl IR.Seq IR.Nop $ decls ++ stmts ++ [IR.Ret Nothing] -- FIXME: ugly hack to ensure functions always return
+		stmts <- return . foldl IR.Seq IR.Nop $ decls ++ stmts ++ case rt of
+			Just _ -> []
+			Nothing -> [IR.Ret Nothing] -- FIXME: ugly hack to ensure functions always return
 		returnFunction $ IR.Func str args stmts rt
 
 translateLocalVarDecl :: P3 AST.Decl -> State TranslationState IR.IRStmt
