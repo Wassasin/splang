@@ -49,8 +49,9 @@ instance Translate (Program [BasicBlock]) LLVM.Program where
 			return (name, gt)
 		let gc = flip map gs $ \(Glob _ _ l) -> LLVM.Call LLVM.Void (LLVM.G l) []
 		let mainc = LLVM.Call LLVM.Void (LLVM.G "main_v") []
+		sfresh <- get
 		fs <- flip mapM fs $ \f -> do
-			modify $ \s -> s { llvmTemporary = 0 } -- LLVM wants reset temporaries at beginning of FunDecl
+			modify $ \s -> s { llvmTemporary = llvmTemporary sfresh, dataPointers = dataPointers sfresh } -- LLVM wants reset temporaries and a fresh context at beginning of FunDecl
 			translate f
 		let main = LLVM.Function (LLVM.G "main") [] [gc ++ [mainc] ++ [LLVM.ReturnVoid]] LLVM.Void
 		s <- get
