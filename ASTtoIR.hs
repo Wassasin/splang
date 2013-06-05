@@ -117,9 +117,6 @@ instance Translate (P3 AST.Stmt) IR.IRStmt where
 		e <- Trav.mapM translate me
 		return $ IR.Ret e
 
--- TODO: do something when the function is polymorphic
--- TODO: pair
--- TODO: get right type of ListPtr
 instance Translate (P3 AST.Expr) IR.IRExpr where
 	translate (AST.Var (AST.Identifier _ n _) _) = guardJust "COMPILER BUG (AST->IR): unable to lookup temp" <$> Map.lookup (guardJust "COMPILER BUG (AST->IR): variable has no ID" n) <$> identifierTemporaries <$> get
 	translate (AST.Binop e1 (AST.Cons _) e2 m) = do
