@@ -6,6 +6,7 @@ import Control.Monad.State
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldr, foldl, map)
 import Data.Tuple (swap)
+import Data.List (null)
 import Utils
 
 import qualified AST
@@ -58,14 +59,20 @@ instance Translate (Program [BasicBlock]) LLVM.Program where
 
 instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 	translate (Func l args bbs retType) = do
-		args <- mapM (\(t, n) -> do
+		argstup <- mapM (\(t, n) -> do
 			t <- translate t
+			let name = LLVM.N $ "arg" ++ show n
+			let arg = LLVM.NamedTemporary t name
 			temp <- generateTemporary
-			let tempe = LLVM.Temporary t temp
+			let tempe = LLVM.Temporary (LLVM.Pointer t) temp
 			modify $ saveDataPointer n tempe
-			return (t, temp)) args
+			let alloca = LLVM.Decl temp $ LLVM.Alloca t
+			let store = LLVM.Store arg tempe
+			return ((t, name), [alloca, store])) args
+		let (args, argstmts) = unzip argstup
 		bbs <- mapM translate bbs
 		retType <- translate retType
+		bbs <- return $ if Data.List.null args then bbs else [LLVM.Label "argcopy" : (concat argstmts) ++ [LLVM.BranchAlways $ LLVM.fetchLabel $ head bbs]] ++ bbs
 		return $ LLVM.Function (LLVM.G l) args bbs retType -- name args body retType	
 
 instance Translate (Maybe Type) LLVM.Type where

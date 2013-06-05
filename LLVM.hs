@@ -65,20 +65,25 @@ instance Show Comparisons where
 newtype Temporary = T Int
 instance Show Temporary where
 	show (T n) = "%" ++ show n
+newtype NamedTemporary = N String
+instance Show NamedTemporary where
+	show (N str) = "%" ++ str
 newtype GlobalName = G String
 instance Show GlobalName where
 	show (G s) = "@" ++ s
 
 -- Expressions
 data Value
-	= Temporary Type Temporary	-- %t
-	| Global Type GlobalName	-- @bla
-	| Const Type Int		-- <n>
-	| Null Type			-- null
-	| Undef Type			-- undef
+	= Temporary Type Temporary		-- %t
+	| NamedTemporary Type NamedTemporary	-- %str
+	| Global Type GlobalName		-- @bla
+	| Const Type Int			-- <n>
+	| Null Type				-- null
+	| Undef Type				-- undef
 
 valueType :: Value -> Type
 valueType (Temporary t _)	= t
+valueType (NamedTemporary t _)	= t
 valueType (Global t _)		= t
 valueType (Const t _)		= t
 valueType (Undef t)		= t
@@ -88,11 +93,12 @@ showType :: Value -> String
 showType = show . valueType
 
 instance Show Value where
-	show e@(Temporary _ t)	= show t
-	show e@(Global _ g)	= show g
-	show e@(Const _ i)	= show i
-	show e@(Null _)		= "null"
-	show e@(Undef _)	= "undef"
+	show e@(Temporary _ t)		= show t
+	show e@(NamedTemporary _ t)	= show t
+	show e@(Global _ g)		= show g
+	show e@(Const _ i)		= show i
+	show e@(Null _)			= "null"
+	show e@(Undef _)		= "undef"
 
 -- Instructions
 type Label = String
@@ -151,13 +157,16 @@ showIndented i = if isLabel i
 
 -- Putting it together
 type BasicBlock = [Instruction] -- ends always in an terminal (= ret/br)
-data Function = Function GlobalName [(Type, Temporary)] [BasicBlock] Type -- name args body retType
+data Function = Function GlobalName [(Type, NamedTemporary)] [BasicBlock] Type -- name args body retType
 
 instance Show Function where
 	show (Function name args body retType) = "define " ++ show retType +++ show name ++ "(" ++ argsStr ++ ") {\n" ++ bodyStr ++ "}"
 		where
 			argsStr = implode ", " $ flip map args $ \(t, temp) -> show t +++ show temp
 			bodyStr = unlines $ fmap showIndented (concat body)
+
+fetchLabel :: BasicBlock -> Label
+fetchLabel (LLVM.Label str : _) = str
 
 data Program = Prog [(GlobalName, Type)] [(TypeName, Type)] [Function]
 
