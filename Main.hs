@@ -48,9 +48,6 @@ show2 :: Show a => GeneralIdentifier a -> String
 show2 (User (AST.Identifier str _ _)) = "User " ++ str
 show2 s = show s
 
-getFunDeclContext :: P2 Decl -> P1Context
-getFunDeclContext (FunDecl _ _ _ _ stmts _) = context $ getMeta $ last stmts
-
 exitFatal :: IO a
 exitFatal = do
 	Console.highLightLn "*** Stopping due to fatal error"

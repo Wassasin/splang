@@ -29,6 +29,7 @@ syntaxColor Keyword = Blue
 syntaxColor Function = Green
 syntaxColor UniqueID = Magenta
 syntaxColor Comments = Black
+syntaxColor QuotedString = Black
 
 color :: OpenClose Styles -> IO ()
 color (Open s) = setSGR [SetColor Foreground Vivid (syntaxColor s)]

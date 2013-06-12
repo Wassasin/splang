@@ -47,6 +47,8 @@ data TokenE = Comment String
 	| TrueT
 	| FalseT
 	| Operator OperatorE
+	| Extern		-- For allowing linkage with other languages (like extern "C")
+	| QuotedString String	-- String literals, and the language part in `extern "C"`
 	deriving (Show, Eq, Read)
 
 data TokenMeta loc = Token TokenE loc
@@ -93,7 +95,8 @@ literalMap = [
 		("&&", Operator And),
 		("||", Operator Or),
 		(":", Operator Cons),
-		("!", Operator Not)
+		("!", Operator Not),
+		("extern", Extern)
 	]
 
 (>>>) :: LexerFunc -> LexerFunc -> LexerFunc
@@ -122,6 +125,17 @@ consumeComment (str, start)
 								size = 2+n+1
 								end = start+size
 								in Match [Token (Comment (Source.substr str 2 (n+1))) (Source.IndexSpan start end)] (Source.precut str size, end)
+	| otherwise = NoMatch start
+
+-- NOTE: one cannot (yet) escape characters in spl...
+consumeQuotedString :: LexerFunc
+consumeQuotedString (str, start)
+	| (Source.isPrefixOf "\"" str) = case Source.findstr "\"" (Source.precut str 1) of
+							Nothing -> NoMatch (start+1)
+							Just n -> let
+								size = 1+n+1
+								end = start+size
+								in Match [Token (QuotedString (Source.substr str 1 n)) (Source.IndexSpan start end)] (Source.precut str size, end)
 	| otherwise = NoMatch start
 
 consumeLiteral :: LexerFunc
@@ -157,6 +171,7 @@ consumeIdentifier (x:xs, start)
 lextok :: LexerFunc
 lextok = consumeWhitespace
 	>>> consumeComment
+	>>> consumeQuotedString
 	>>> consumeInteger
 	>>> consumeLiteral
 	>>> consumeIdentifier

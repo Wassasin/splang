@@ -10,6 +10,7 @@ data Styles = Type
 	| Function
 	| UniqueID
 	| Comments
+	| QuotedString
 
 data OpenClose a = Open a | Close a
 type Markup a = Either Char (OpenClose a)
@@ -47,6 +48,7 @@ getIdentifierUniqueID (Identifier _ Nothing _) = ""
 
 keyword str = open Keyword ++ lift str ++ close Keyword
 constant str = open Constant ++ lift str ++ close Constant
+quotedString str = open QuotedString ++ lift str ++ close QuotedString
 variable mo ident = open Variable ++ lift (getIdentifierString ident) ++ close Variable ++ identComment mo mo ident
 function mo ident = open Function ++ lift (getIdentifierString ident) ++ close Function ++ identComment mo mo ident
 
@@ -93,6 +95,10 @@ instance Output Program where
 instance Output Decl where
 	output mo decl@(VarDecl t i e _)	= (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ variable mo i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
 	output mo decl@(FunDecl t i args vdecls stmts _) = (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ function mo i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (output (indent mo)) (lift "\n") vdecls ++ delim (output (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
+	output mo decl@(ExternDecl l t i args _) = (declComment mo mo decl) ++ tabs mo ++ lift "extern " ++ output mo l ++ lift " " ++ output mo t ++ lift " " ++ function mo i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift ");"
+
+instance Output ExternLanguage where
+	output mo (ExternLanguage str _) = quotedString $ show str
 
 outputArg :: OutputInfo a -> (Type a, Identifier a) -> MarkupString Styles
 outputArg mo (t, i) = output mo t ++ lift " " ++ variable mo i

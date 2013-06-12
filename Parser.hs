@@ -16,7 +16,26 @@ parseProgram = newObject $ do
 	produceP1 $ AST.Program decls
 
 parseDecl :: ParseFuncD (P1 AST.Decl)
-parseDecl = parseVarDecl <|> parseFunDecl
+parseDecl = parseExternDecl <|> parseVarDecl <|> parseFunDecl
+
+parseExternDecl :: ParseFuncD (P1 AST.Decl)
+parseExternDecl = newObject $ do
+	equalsToken Lexer.Extern
+	l <- parseLanguage
+	t <- parseVoidType <!> parseType
+	i <- parseIdentifier
+	equalsToken Lexer.ParenthesesOpen
+	fargs <- parseFargs
+	equalsToken Lexer.ParenthesesClose
+	equalsToken Lexer.Semicolon
+	produceP1 $ AST.ExternDecl l t i fargs
+
+parseLanguage :: ParseFuncD (P1 AST.ExternLanguage)
+parseLanguage = newObject $ do
+	(Lexer.QuotedString str) <- parseToken (\t -> case t of
+		Lexer.QuotedString _ -> True
+		_ -> False)
+	produceP1 $ AST.ExternLanguage str
 
 parseVarDecl :: ParseFuncD (P1 AST.Decl)
 parseVarDecl = newObject $ do

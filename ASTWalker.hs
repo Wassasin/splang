@@ -41,6 +41,14 @@ instance ASTWalker AST.Decl where
 				decls <- Trav.mapM (walk ftup) decls
 				stmts <- Trav.mapM (walk ftup) stmts
 				return $ AST.FunDecl t i args decls stmts m
+			AST.ExternDecl l t i args m -> do
+				t <- walk ftup t
+				i <- walk ftup i
+				args <- Trav.mapM (\(x, y) -> do
+					x <- walk ftup x
+					y <- walk ftup y
+					return (x, y)) args
+				return $ AST.ExternDecl l t i args m
 
 instance ASTWalker AST.Type where
 	walk ftup@(_, _, ft, _, _, _) t = do
