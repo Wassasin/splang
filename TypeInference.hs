@@ -37,7 +37,7 @@ type InferState = FTid
  Cannot unify types
  IdentID could not be found in context
  wrong number of arguemnts in function app -}
-data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify m (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m) | WrongArguments [AST.Expr m] [MonoType m] m | NoFunction (AST.Identifier m) (MonoType m) m
+data InferError m = VoidUsage m (MonoType m) | TypeError (MonoType m) (MonoType m) | CannotUnify m (MonoType m) (MonoType m) | ContextNotFound AST.IdentID | UnknownIdentifier (AST.Identifier m) | WrongArguments [AST.Expr m] [MonoType m] m | NoFunction (AST.Identifier m) (MonoType m) m | ExternPolyUsage m
 type InferResult m a = ErrorContainer (InferError m) () (a, InferState)
 
 type InferMonad m a = InferState -> InferResult m a
@@ -219,6 +219,11 @@ constructDeclContext c (AST.FunDecl _ i _ decls _ m) = do
 	c <- setContext i at c
 	c <- foldl (>>=) (return c) $ map (\d -> \c -> constructDeclContext c d) decls
 	return c
+constructDeclContext c (AST.ExternDecl _ _ i _ m) = do
+	i <- fetchIdentID i
+	let at = fromJust $ annotatedType m
+	c <- setContext i at c
+	return c
 	
 validateProgramContext :: InferContext P2Meta -> P2 AST.Program -> InferMonadD P2Meta ()
 validateProgramContext c (AST.Program decls _) = do
@@ -240,6 +245,7 @@ validateDeclContext c (AST.FunDecl _ i _ decls _ m) = do
 	validateType at bt
 	sequence $ map (\d -> validateDeclContext c d) decls
 	return ()
+validateDeclContext c (AST.ExternDecl _ _ i args m) = return ()
 
 validateType :: MonoType P2Meta -> MonoType P2Meta -> InferMonadD P2Meta [(FreeType P2Meta, FreeType P2Meta)]
 validateType a b = vt a b []
@@ -339,6 +345,13 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 		hasReturn (AST.While _ _ _)		= False -- might evaluate to false, thus might not
 		hasReturn (AST.Return _ _)		= True
 		hasReturn _				= False
+inferDecl ce decl@(AST.ExternDecl l t i args m) = do
+	when (isPolymorphic . fromJust . annotatedType $ m) $ addInferError (ExternPolyUsage m)
+	ident <- fetchIdentID i
+	u <- ce ident
+	u <- genBind m u
+	let pargs = map (\(x, y) -> (fpromote x, fpromote y)) args
+	return (AST.ExternDecl (fpromote l) (fpromote t) (fpromote i) pargs (tpromote m u), id)
 
 inferStmt :: InferFunc P2Meta (P2 AST.Stmt) (P3 AST.Stmt)
 inferStmt c (AST.Expr e m) _ = do

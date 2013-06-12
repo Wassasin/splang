@@ -275,3 +275,5 @@ printTypingError opts filename source (WrongArguments es as m)	= do
 printTypingError opts filename source (NoFunction i u m)	= standardMessageIO filename source (src m) Console.Error (do
 		Console.intense $ getString i ++ " used as function, but has type "
 		monoTypePrint basicInfo coloredTypePrinter u)
+printTypingError opts filename source (ExternPolyUsage m)	= do
+	standardMessage filename source (src m) Console.Error "Polymorphic function with external linkage are not supported"

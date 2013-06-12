@@ -27,7 +27,11 @@ usingVoid (Pair t1 t2 _)	= usingVoid t1 || usingVoid t2
 usingVoid (List t _)		= usingVoid t
 usingVoid (Void _)		= True
 usingVoid _			= False
-	
+
+isPolymorphic :: PolyType a -> Bool
+isPolymorphic (Poly _ _ _) = True
+isPolymorphic (Mono _ _) = False
+
 instance Eq (FreeType m) where
 	(==) (FT x _) (FT y _) = x == y
 
