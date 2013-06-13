@@ -312,7 +312,7 @@ parseOpNegative = operatorToken $ \op -> case op of
 
 parseIdentifier :: ParseFuncD (P1 AST.Identifier)
 parseIdentifier = parseOne $ \x -> case x of
-		(Lexer.Token (Lexer.Identifier str) l) -> Just (AST.Identifier str Nothing (constructP1 l))
+		(Lexer.Token (Lexer.Identifier str) l) -> Just (AST.Identifier str Nothing (AST.IdentInfo {}) (constructP1 l))
 		_ -> Nothing
 
 parseInteger :: ParseFuncD AST.Integer

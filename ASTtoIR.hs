@@ -42,7 +42,7 @@ genLabels strs = do
 
 -- TODO: lookup
 getFunctionLabel :: (AST.Identifier a) -> State TranslationState IR.Label
-getFunctionLabel (AST.Identifier str _ _) = return str
+getFunctionLabel (AST.Identifier str _ _ _) = return str
 
 class Translate a b | a -> b where
 	translate :: a -> State TranslationState b
@@ -52,11 +52,12 @@ instance Translate (P3 AST.Program) (IR.Program IR.IRStmt) where
 		l <- Trav.mapM translate decls
 		return . mconcat $ l
 
-returnFunction x = return ([x], [])
-returnFunctionAndGlob x y = return ([x], [y])
+returnFunction x = return ([x], [], [])
+returnFunctionAndGlob x y = return ([x], [y], [])
+returnFunctionDecl z = return ([], [], [z])
 
 instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
-	translate (AST.VarDecl _ (AST.Identifier str mn _) e m) = do
+	translate (AST.VarDecl _ (AST.Identifier str mn _ _) e m) = do
 		t <- translate (guardJust "COMPILER BUG (AST->IR): variable has no type" $ inferredType m)
 		e <- translate e
 		let n = guardJust "COMPILER BUG (AST->IR): variable has no ID" mn
@@ -64,12 +65,12 @@ instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 		let fname = ("init_globalvar_"++str)
 		modify (addTemporary n d)
 		returnFunctionAndGlob (IR.Func fname [] (IR.Seq (IR.Move d e) (IR.Ret Nothing)) Nothing) (IR.Glob n t fname)
-	translate (AST.FunDecl _ (AST.Identifier str _ _) args decls stmts m) = do
+	translate (AST.FunDecl _ (AST.Identifier str _ _ _) args decls stmts m) = do
 		let Typing.Func _ rt _ = guardJust "COMPILER BUG (AST->IR): variable has no type" $ inferredType m
 		rt <- case rt of
 			Typing.Void _ -> return Nothing
 			t -> Just <$> translate t
-		args <- Trav.forM args (\(_, AST.Identifier _ (Just n) m2) -> do
+		args <- Trav.forM args (\(_, AST.Identifier _ (Just n) _ m2) -> do
 			t <- translate (guardJust "COMPILER BUG (AST->IR): argument has no type" $ inferredType m2)
 			modify $ addTemporary n (IR.Data t n)
 			return (t, n))
@@ -79,10 +80,17 @@ instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 			Just _ -> []
 			Nothing -> [IR.Ret Nothing] -- FIXME: ugly hack to ensure functions always return
 		returnFunction $ IR.Func str args stmts rt
+	translate (AST.ExternDecl _ _ (AST.Identifier str _ _ _) args m) = do
+		let Typing.Func types rt _ = guardJust "COMPILER BUG (AST->IR): variable has no type" $ inferredType m
+		rt <- case rt of
+			Typing.Void _ -> return Nothing
+			t -> Just <$> translate t
+		types <- Trav.mapM translate types
+		returnFunctionDecl $ IR.ExternFun str types rt
 
 translateLocalVarDecl :: P3 AST.Decl -> State TranslationState IR.IRStmt
 translateLocalVarDecl (AST.FunDecl{}) = error "COMPILER BUG: function declarations cannot occur in function body."
-translateLocalVarDecl (AST.VarDecl _ (AST.Identifier str mn _) e m) = do
+translateLocalVarDecl (AST.VarDecl _ (AST.Identifier str mn _ _) e m) = do
 	t <- translate (guardJust "COMPILER BUG (AST->IR): local variable has no type" $ inferredType m)
 	e <- translate e
 	let identid = guardJust "COMPILER BUG (AST->IR): local variable has no ID" mn
@@ -111,7 +119,7 @@ instance Translate (P3 AST.Stmt) IR.IRStmt where
 		[test, true, wend] <- genLabels ["_while_test", "_while_true", "_while_end"]
 		let ss = [IR.Label test, IR.CJump e true wend, IR.Label true, s, IR.Jump test, IR.Label wend]
 		return $ foldl IR.Seq IR.Nop ss
-	translate (AST.Assignment (AST.Identifier _ n _) e _) = do
+	translate (AST.Assignment (AST.Identifier _ n _ _) e _) = do
 		e <- translate e
 		t <- guardJust "COMPILER BUG (AST->IR): unable to lookup temp" <$> Map.lookup (guardJust "COMPILER BUG (AST->IR): assignment variable has no ID" n) <$> identifierTemporaries <$> get
 		return $ IR.Move t e
@@ -120,7 +128,7 @@ instance Translate (P3 AST.Stmt) IR.IRStmt where
 		return $ IR.Ret e
 
 instance Translate (P3 AST.Expr) IR.IRExpr where
-	translate (AST.Var (AST.Identifier _ n _) _) = guardJust "COMPILER BUG (AST->IR): unable to lookup temp" <$> Map.lookup (guardJust "COMPILER BUG (AST->IR): variable has no ID" n) <$> identifierTemporaries <$> get
+	translate (AST.Var (AST.Identifier _ n _ _) _) = guardJust "COMPILER BUG (AST->IR): unable to lookup temp" <$> Map.lookup (guardJust "COMPILER BUG (AST->IR): variable has no ID" n) <$> identifierTemporaries <$> get
 	translate (AST.Binop e1 (AST.Cons _) e2 m) = do
 		t <- translate (guardJust "COMPILER BUG (AST->IR): cons has no type" $ inferredType m)
 		e1 <- translate e1
@@ -140,7 +148,7 @@ instance Translate (P3 AST.Expr) IR.IRExpr where
 	translate (AST.Kint n _) = return $ IR.Const IR.Int n
 	translate (AST.Kbool True _) = return $ IR.Const IR.Bool (-1)
 	translate (AST.Kbool False _) = return $ IR.Const IR.Bool 0
-	translate (AST.FunCall ident@(AST.Identifier str n _) l m) = do
+	translate (AST.FunCall ident@(AST.Identifier str n _ _) l m) = do
 		let t2 = guardJust "COMPILER BUG (AST->IR): call has no type" $ inferredType m
 		t <- case t2 of
 			Typing.Void _	-> return Nothing

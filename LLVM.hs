@@ -160,6 +160,8 @@ type BasicBlock = [Instruction] -- ends always in an terminal (= ret/br)
 data Function = Function GlobalName [(Type, NamedTemporary)] [BasicBlock] Type -- name args body retType
 
 instance Show Function where
+	show (Function name args [] retType) = "declare " ++ show retType +++ show name ++ "(" ++ argsStr ++ ")"
+		where argsStr = implode ", " $ flip map args $ \(t, temp) -> show t +++ show temp
 	show (Function name args body retType) = "define " ++ show retType +++ show name ++ "(" ++ argsStr ++ ") {\n" ++ bodyStr ++ "}"
 		where
 			argsStr = implode ", " $ flip map args $ \(t, temp) -> show t +++ show temp

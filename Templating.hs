@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, RankNTypes #-}
 
 module Templating (template) where
 
@@ -64,8 +64,9 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		findMain :: [P3 AST.Decl] -> AST.IdentID
 		findMain [] = error "Program error: function main not found" -- TODO
 		findMain (AST.VarDecl _ _ _ _ : decls) = findMain decls
-		findMain (AST.FunDecl _ (AST.Identifier str (Just id) _) _ _ _ _ : decls) = if str == "main" then id else findMain decls
-	
+		findMain (AST.FunDecl _ (AST.Identifier str (Just id) _ _) _ _ _ _ : decls) = if str == "main" then id else findMain decls
+		findMain (_ : decls) = findMain decls -- Main cannot be declared extern
+
 		templateVarDecls :: [P3 AST.Decl] -> TemplateMonad [P3 AST.Decl]
 		templateVarDecls decls = Trav.mapM (rewrite id 0) $ filter AST.isVarDecl decls -- rewrite all global vardecls for concrete types
 
@@ -75,12 +76,15 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 			let (key@(id, t), depth):_ = queue state -- is always non-empty due to whileM-condition
 			modify (\state -> state { queue = tail $ queue $ state }) -- remove top from queue
 			let Just newid = (nameMap state) key
-			let AST.FunDecl ftd (AST.Identifier fstr (Just fid) fim) fargs fdecls fstmts fm = declmap id
-			let s = case TypeInference.mgu (guardJust "mgu" $ inferredType $ fm) t of
-				TypeInference.Success s -> s
-				_ -> error "Can not infer"
-			let decl = rewriteTypes s $ AST.FunDecl ftd (AST.Identifier (mangle (fstr, t)) (Just newid) fim) fargs fdecls fstmts fm
-			rewrite s (depth + 1) decl
+			case declmap id of
+				AST.FunDecl ftd ident fargs fdecls fstmts fm -> do
+					let s = case TypeInference.mgu (guardJust "mgu" $ inferredType $ fm) t of
+						TypeInference.Success s -> s
+						_ -> error "Can not infer"
+					let decl = rewriteTypes s $ AST.FunDecl ftd (mangleIdent ident t (Just newid)) fargs fdecls fstmts fm
+					rewrite s (depth + 1) decl
+				AST.ExternDecl l ftd ident fargs fm -> do
+					return $ AST.ExternDecl l ftd (mangleIdent ident t (Just newid)) fargs fm
 		
 		rewriteTypes :: Functor a => Substitution P2Meta -> a P3Meta -> a P3Meta
 		rewriteTypes s x = fmap (\m -> m { inferredType = Just $ s $ guardJust "COMPILER BUG: t is not set" $ inferredType m }) x
@@ -88,7 +92,8 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		createFunDeclMap :: [P3 AST.Decl] -> FunctionDeclMap
 		createFunDeclMap [] = \_ -> error "COMPILER BUG: Referenced to non-existant function"
 		createFunDeclMap (AST.VarDecl _ _ _ _ : decls) = createFunDeclMap decls
-		createFunDeclMap (decl@(AST.FunDecl _ (AST.Identifier _ (Just id) _) _ _ _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
+		createFunDeclMap (decl@(AST.FunDecl _ (AST.Identifier _ (Just id) _ _) _ _ _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
+		createFunDeclMap (decl@(AST.ExternDecl _ _ (AST.Identifier _ (Just id) _ _) _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
 
 class ASTWalker.ASTWalker a => Templateable a where
 	rewrite :: Substitution P2Meta -> Int -> a P3Meta -> TemplateMonad (a P3Meta)
@@ -97,7 +102,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 		else ASTWalker.walk (return, return, return, return, fe s, return) x
 		where
 			fe :: Substitution P2Meta -> AST.Expr P3Meta -> TemplateMonad (AST.Expr P3Meta)
-			fe s decl@(AST.FunCall (AST.Identifier istr (Just iid) im) exprs m) =
+			fe s decl@(AST.FunCall ident@(AST.Identifier _ (Just iid) _ _) exprs m) =
 				if isBuiltin iid
 				then
 					return decl
@@ -114,7 +119,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 							newid <- iterateIdentID -- generate uniqueID and iterate
 							modify $ \state -> state { nameMap = append key newid $ nameMap state } -- add mapping of (id, type) to newid
 							return newid
-					return $ AST.FunCall (AST.Identifier (mangle (istr, t)) (Just newid) im) exprs m
+					return $ AST.FunCall (mangleIdent ident t (Just newid)) exprs m
 			fe _ e = do
 				return e
 	
@@ -122,27 +127,44 @@ class ASTWalker.ASTWalker a => Templateable a where
 	maxIdentID x = maximum $ snd $ runWriter $ ASTWalker.walk (return, return, return, return, return, fi) x
 		where
 			fi :: AST.Identifier m -> Writer [AST.IdentID] (AST.Identifier m)
-			fi i@(AST.Identifier _ (Just id) _) = do
+			fi i@(AST.Identifier _ (Just id) _ _) = do
 				tell [id]
 				return i
-			fi i@(AST.Identifier _ Nothing _) = return i
+			fi i@(AST.Identifier _ Nothing _ _) = return i
 
 -- gen concrete code
 instance Templateable AST.Program
 instance Templateable AST.Decl
 
-class Mangle a where
-	mangle :: a -> String
-	
-instance Mangle (String, MonoType a) where
-	mangle (str, t) = str ++ "_" ++ mangle t
+-- Mangling part
+newtype SPL a	= SPL a
+newtype C a	= C a
 
-instance Mangle (MonoType a) where
-	mangle (Typing.Func args r _)	= (mangle r) ++ if null args then "" else "_" ++ (concat $ map mangle args)
-	mangle (Typing.Pair x y _)	= "p" ++ (mangle x) ++ (mangle y)
-	mangle (Typing.List (Typing.Free _ _) _)	= "lf"
-	mangle (Typing.List x _)	= "l" ++ mangle x
-	mangle (Typing.Free _ _)	= error "COMPILER BUG: Can not translate an abstract type to a concrete datatype"
-	mangle (Typing.Int _)		= "i"
-	mangle (Typing.Bool _)		= "b"
-	mangle (Typing.Void _)		= "v"
+-- Mangling depends purely on the type
+type ManglingInformation b = MonoType b
+
+class Mangle a where
+	mangle :: a String -> ManglingInformation b -> String
+
+-- Will mangle the identifier, if needed (eg in SPL), and also assigns a new ID
+mangleIdent :: AST.Identifier a -> ManglingInformation b -> Maybe AST.IdentID -> AST.Identifier a
+mangleIdent (AST.Identifier str _ el m) ty n2 = case l of
+	"SPL" -> AST.Identifier (mangle (SPL str) ty) n2 el m
+	"C" -> AST.Identifier (mangle (C str) ty) n2 el m
+	_ -> error ("Language "++l++" not supported") -- TODO: better error (get source from meta in el)
+	where (AST.ExternLanguage l _) = AST.externLanguage el
+
+instance Mangle C where
+	mangle (C str) _ = str
+
+instance Mangle SPL where
+	mangle (SPL str) t = str ++ "_" ++ mangleType t
+		where
+		mangleType (Typing.Func args r _)	= (mangleType r) ++ if null args then "" else "_" ++ (concat $ map mangleType args)
+		mangleType (Typing.Pair x y _)		= "p" ++ (mangleType x) ++ (mangleType y)
+		mangleType (Typing.List (Typing.Free _ _) _)	= "lf"
+		mangleType (Typing.List x _)		= "l" ++ mangleType x
+		mangleType (Typing.Free _ _)		= error "COMPILER BUG: Can not translate an abstract type to a concrete datatype"
+		mangleType (Typing.Int _)		= "i"
+		mangleType (Typing.Bool _)		= "b"
+		mangleType (Typing.Void _)		= "v"

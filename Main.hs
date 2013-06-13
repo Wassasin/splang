@@ -45,7 +45,7 @@ standardMessage filename source idx kind message = do
 	standardMessageIO filename source idx kind (Console.intense message)
 
 show2 :: Show a => GeneralIdentifier a -> String
-show2 (User (AST.Identifier str _ _)) = "User " ++ str
+show2 (User (AST.Identifier str _ _ _)) = "User " ++ str
 show2 s = show s
 
 exitFatal :: IO a
@@ -152,7 +152,7 @@ interleave file (x:xs) = Console.putMessageLn Console.Note file (-1, -1) "Possib
 
 -- *** Scoping
 identCommetns :: AST.Identifier a -> MarkupString Styles
-identCommetns (AST.Identifier _ n _) = case n of
+identCommetns (AST.Identifier _ n _ _) = case n of
 	Nothing -> lift "?"
 	Just m -> lift $ show m
 

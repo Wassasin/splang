@@ -125,7 +125,8 @@ class Translate a where
 	translate :: a -> WriterT Output (State TranslationState) ()
 
 instance Translate (Program [BasicBlock]) where
-	translate (fs, gs) = do
+	translate (fs, gs, ds) = do
+		-- TODO: error/warn when ds is non-empty
 		-- Store current stack ptr for globals
 		out (SSM.LoadRegisterFromRegister SSM.R5 SSM.SP)
 		-- Initialise globals

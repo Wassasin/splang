@@ -43,8 +43,8 @@ close :: a -> MarkupString a
 close a = return $ Right $ Close a
 
 getIdentifierUniqueID :: Identifier a -> String
-getIdentifierUniqueID (Identifier _ (Just n) _) = show n
-getIdentifierUniqueID (Identifier _ Nothing _) = ""
+getIdentifierUniqueID (Identifier _ (Just n) _ _) = show n
+getIdentifierUniqueID (Identifier _ Nothing _ _) = ""
 
 keyword str = open Keyword ++ lift str ++ close Keyword
 constant str = open Constant ++ lift str ++ close Constant

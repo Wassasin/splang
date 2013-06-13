@@ -41,8 +41,12 @@ class Translate a b | a -> b where
 	translate :: a -> State TranslationState b
 
 instance Translate (Program [BasicBlock]) LLVM.Program where
-	translate (fs, gs) = do
-		gd <- flip mapM gs $ \(Glob i gt _) -> do
+	translate (fs, gs, ds) = do
+		ds <- forM ds $ \(ExternFun name ts rt) -> do
+			ts <- flip zip (map (\x -> LLVM.N ("x" ++ show x)) [1..]) <$> mapM translate ts
+			rt <- translate rt
+			return $ LLVM.Function (LLVM.G name) ts [] rt
+		gd <- forM gs $ \(Glob i gt _) -> do
 			gt <- translate gt
 			let name = LLVM.G $ "glob" ++ show i
 			modify $ saveDataPointer i $ LLVM.Global (LLVM.Pointer gt) name
@@ -50,13 +54,13 @@ instance Translate (Program [BasicBlock]) LLVM.Program where
 		let gc = flip map gs $ \(Glob _ _ l) -> LLVM.Call LLVM.Void (LLVM.G l) []
 		let mainc = LLVM.Call LLVM.Void (LLVM.G "main_v") []
 		sfresh <- get
-		fs <- flip mapM fs $ \f -> do
+		fs <- forM fs $ \f -> do
 			modify $ \s -> s { llvmTemporary = llvmTemporary sfresh, dataPointers = dataPointers sfresh } -- LLVM wants reset temporaries and a fresh context at beginning of FunDecl
 			translate f
 		let main = LLVM.Function (LLVM.G "main") [] [gc ++ [mainc] ++ [LLVM.ReturnVoid]] LLVM.Void
 		s <- get
 		let td = map swap $ Map.toList $ namedTypes s
-		return $ LLVM.Prog gd td (main:fs)
+		return $ LLVM.Prog gd td (ds++main:fs)
 
 instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 	translate (Func l args bbs retType) = do
@@ -151,7 +155,10 @@ instance Translate IRExpr ([LLVM.Instruction], Maybe LLVM.Value) where
 	translate (Const Bool (-1))	= onlyValue $ LLVM.Const LLVM.i1 1
 	translate (Const Bool _)	= onlyValue $ LLVM.Const LLVM.i1 0
 	translate (Const Int n)		= onlyValue $ LLVM.Const LLVM.i32 n
-	translate (Const t@(ListPtr _) 0)	= do
+	translate (Const t@(ListPtr _) 0) = do
+		t <- translate t
+		onlyValue $ LLVM.Null t
+	translate (Const t@(ListAbstractEmpty) 0) = do
 		t <- translate t
 		onlyValue $ LLVM.Null t
 	translate (Temp ty n)		= translateIRExprTemp ty n

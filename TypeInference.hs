@@ -175,7 +175,7 @@ genBind m (Poly a t _) = do
 	return $ substitute a (Free b m) t
 
 fetchIdentID :: AST.Identifier m -> InferMonadD m (AST.IdentID)
-fetchIdentID (AST.Identifier _ (Just i) _)	= return i
+fetchIdentID (AST.Identifier _ (Just i) _ _)	= return i
 fetchIdentID i					= returnFatalInferError $ UnknownIdentifier i
 
 (.>) :: InferMonadD m (Substitution m) -> Substitution m -> InferMonadD m (Substitution m)
@@ -310,9 +310,9 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 	u <- genBind m u
 	b <- if(any hasReturn stmts) then genFreshConcrete m else return $ Void m
 	-- make for each argument a free type
-	(argtup, args) <- unzip <$> (sequence $ map (\(t, AST.Identifier str n m) -> do
+	(argtup, args) <- unzip <$> (sequence $ map (\(t, AST.Identifier str n l m) -> do
 		a <- genFreshConcrete m
-		return ((fromJust n, a), (fpromote t, AST.Identifier str n (tpromote m a)))) args)
+		return ((fromJust n, a), (fpromote t, AST.Identifier str n (fpromote l) (tpromote m a)))) args)
 	-- set types for arguments in context
 	ci <- foldl (\cf (i, t) -> cf >>= setContext i (Mono t $ getMeta t)) (return ce) argtup
 	-- define vardecls

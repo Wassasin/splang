@@ -73,4 +73,4 @@ instance ASTMeta UnaryOperator where
 	getMeta (Negative m) = m
 
 instance ASTMeta Identifier where
-	getMeta (Identifier _ _ m) = m
+	getMeta (Identifier _ _ _ m) = m

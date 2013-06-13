@@ -25,6 +25,7 @@ data IRFunc a = Func Label [(Type, Temporary)] a (Maybe Type)
 
 -- Label is the initialisation function
 data IRGlob = Glob Temporary Type Label
+data IRDecls = ExternFun Label [Type] (Maybe Type)
 
 type IRBOps = AST.BinaryOperator ()
 type IRUOps = AST.UnaryOperator ()
@@ -64,7 +65,7 @@ data IRStmt
 	deriving (Eq, Ord, Show)
 
 type BasicBlock = [IRStmt]
-type Program a = ([IRFunc a], [IRGlob])
+type Program a = ([IRFunc a], [IRGlob], [IRDecls])
 
 -- Derive the isConstructor functions :)
 $( derive makeIs ''IRExpr)
@@ -259,19 +260,19 @@ linearizeFunc (Func a b body c) = do
 	return $ Func a b body c
 
 linearize :: IR.Program IRStmt -> IR.Program [BasicBlock]
-linearize (fs, gs) = (startWith 0 . startWithT [] . mapM linearizeFunc $ fs, gs)
+linearize (fs, gs, ds) = (startWith 0 . startWithT [] . mapM linearizeFunc $ fs, gs, ds)
 
 -- TODO: Analyse traces and remove redundant labels
 
 -- Output stuff
 printIR :: Program IRStmt -> IO ()
-printIR = mapM_ (\(Func l args body t) -> do
+printIR (fs, _, _) = mapM_ (\(Func l args body t) -> do
 	putStrLn $ l ++ show args ++ show t
 	print body
-	putStrLn "") . fst
+	putStrLn "") $ fs
 
 printCanonicalizedIR :: Program [BasicBlock] -> IO ()
-printCanonicalizedIR = mapM_ (\(Func l args body t) -> do
+printCanonicalizedIR (fs, _, _) = mapM_ (\(Func l args body t) -> do
 	putStrLn $ l ++ show args ++ show t
 	forM_ body (\bb -> forM_ bb (\s -> putStrLn $ show s ++ ";") >> putStrLn "------")
-	putStrLn "") . fst
+	putStrLn "") $ fs

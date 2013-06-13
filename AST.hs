@@ -65,14 +65,19 @@ data UnaryOperator a = Not a | Negative a
 	deriving (Show, Eq, Ord, Read, Functor)
 
 type IdentID = Int
-data Identifier a = Identifier String (Maybe IdentID) a
+data IdentInfo a = IdentInfo { externLanguage :: ExternLanguage a }
+	deriving (Show, Eq, Read, Functor)
+data Identifier a = Identifier String (Maybe IdentID) (IdentInfo a) a
 	deriving (Show, Eq, Read, Functor)
 
+setIdentInfo :: IdentInfo a -> Identifier a -> Identifier a
+setIdentInfo i (Identifier s n _ m) = Identifier s n i m
+
 assignUniqueID :: Identifier a -> IdentID -> Identifier a
-assignUniqueID (Identifier str _ m) n = (Identifier str (Just n) m)
+assignUniqueID (Identifier str _ l m) n = (Identifier str (Just n) l m)
 
 getIdentifierString :: Identifier a -> String
-getIdentifierString (Identifier str _ _) = str
+getIdentifierString (Identifier str _ _ _) = str
 
 type Integer = Int
 type Boolean = Bool

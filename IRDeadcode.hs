@@ -12,7 +12,7 @@ type LabelMap = Map.Map IR.Label Graph.Vertex
 type EdgeMap = Map.Map Graph.Vertex (Set.Set Graph.Vertex)
 
 optimize :: IR.Program [IR.BasicBlock] -> IR.Program [IR.BasicBlock]
-optimize (fs, gs) = (map optimizeFunc fs, gs)
+optimize (fs, gs, ds) = (map optimizeFunc fs, gs, ds)
 
 optimizeFunc :: IR.IRFunc [IR.BasicBlock] -> IR.IRFunc [IR.BasicBlock]
 optimizeFunc (IR.Func l ts bbs rt) = IR.Func l ts (optimizeBBs bbs) rt

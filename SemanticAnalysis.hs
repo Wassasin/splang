@@ -29,7 +29,7 @@ type TypeContext = [(String, FTid)]
 
 -- Identifiers have scope and annotated type and TypeContext for arguments (only in fundecls)
 type P1Context = Context (GeneralIdentifier P1Meta) (Scope, PolyType P2Meta)
-data P2Meta = P2 {source2 :: Source.IndexSpan, context :: P1Context, annotatedType :: Maybe (PolyType P2Meta), argsTypeContext :: TypeContext}
+data P2Meta = P2 {source2 :: Source.IndexSpan, context :: P1Context, annotatedType :: Maybe (PolyType P2Meta), argsTypeContext :: TypeContext, functionLinkageContext :: Context (GeneralIdentifier P2Meta) (AST.ExternLanguage P2Meta)}
 	deriving (Show, Eq, Read)
 type P2 a = a P2Meta
 
@@ -37,12 +37,12 @@ instance Source.Sourcable P2Meta where
 	src = source2
 
 -- Will be passed around and updated
-data ScopingContext = ScopingContext {identifiers :: P1Context, types :: TypeContext, nextFTid :: Int, nextUniqueID :: Int}
+data ScopingContext = ScopingContext {identifiers :: P1Context, types :: TypeContext, nextFTid :: Int, nextUniqueID :: Int, functionLinkage :: Context (GeneralIdentifier P2Meta) (AST.ExternLanguage P2Meta)}
 
 addIdentifier :: P1 AST.Identifier -> Scope -> PolyType P2Meta -> ScopingContext -> ScopingContext
 addIdentifier ident s at context = context { identifiers = (User ident, (s, at)) : identifiers context, nextUniqueID = next }
 	where
-		(AST.Identifier _ n _) = ident
+		(AST.Identifier _ n _ _) = ident
 		next = case n of
 			Nothing -> nextUniqueID context
 			Just m -> max (m+1) (nextUniqueID context)
@@ -53,7 +53,7 @@ forget thing = constructP1 (source2 thing)
 
 -- Contruct empte P2Meta from P1Meta
 promote :: P1Meta -> P2Meta
-promote m = P2 { source2 = Source.src m, context = [], annotatedType = Nothing, argsTypeContext = [] }
+promote m = P2 { source2 = Source.src m, context = [], annotatedType = Nothing, argsTypeContext = [], functionLinkageContext = [] }
 
 -- To compare things in our context, we, in this phase, look at strings
 class StringIdentifiable a where
@@ -89,13 +89,13 @@ bestMatch search context = let (cost, best) = minimumBy (comparing fst) . map (\
 
 -- Updates a identifier to reflect a previous declared one (or builtin one)
 updateIdentifier :: AST.Identifier a -> GeneralIdentifier b -> AST.Identifier a
-updateIdentifier (AST.Identifier str _ a) (Builtin b) = AST.Identifier str (Just $ fromEnum b) a
-updateIdentifier (AST.Identifier str _ a) (User (AST.Identifier _ m _)) = AST.Identifier str m a
+updateIdentifier (AST.Identifier str _ l a) (Builtin b) = AST.Identifier str (Just $ fromEnum b) l a
+updateIdentifier (AST.Identifier str _ l a) (User (AST.Identifier _ m _ _)) = AST.Identifier str m l a
 
 stripContext :: P1Context -> [IdentID]
 stripContext [] = []
 stripContext ((Builtin b,_):xs) = fromEnum b : stripContext xs
-stripContext ((User (AST.Identifier _ n _),_):xs) = fromJust n : stripContext xs
+stripContext ((User (AST.Identifier _ n _ _),_):xs) = fromJust n : stripContext xs
 
 annotateType :: PolyType P2Meta -> P2Meta -> P2Meta
 annotateType t m = m { annotatedType = Just t }
@@ -114,7 +114,7 @@ builtinP2Meta :: P2Meta
 builtinP2Meta = promote $ constructP1 (Source.IndexSpan (-1) (-1))	-- TODO: fix this, if needed
 
 startContext :: ScopingContext
-startContext = ScopingContext { identifiers = emptyContext, types = [], nextFTid = 0, nextUniqueID = fromEnum (maxBound :: Builtins) + 1 }
+startContext = ScopingContext { identifiers = emptyContext, types = [], nextFTid = 0, nextUniqueID = fromEnum (maxBound :: Builtins) + 1, functionLinkage = [] }
 
 -- Will rewrite AST such that all identifiers have an unique name (represented by an IdentID),
 -- and add context (with scoping and annotated types) to the AST.
@@ -149,18 +149,20 @@ assignGlobDecl context decl@(AST.VarDecl a ident b m) = do
 		Just (iy, _) -> returnWithError (AST.VarDecl a ident b m, newContext) (DuplicateDeclaration (fmap forget ident) iy)
 		Nothing -> return (AST.VarDecl a ident2 b m, addIdentifier (fmap forget ident2) Global at newContext)
 assignGlobDecl context decl@(AST.FunDecl a ident b c d m) = do
-	let ident2 = AST.assignUniqueID ident (nextUniqueID context)
+	let el = ExternLanguage "SPL" m
+	let ident2 = setIdentInfo (IdentInfo {externLanguage=el}) $ AST.assignUniqueID ident (nextUniqueID context)
 	let (at, argTypeContext) = getAnnotatedType context decl
 	let m2 = m { argsTypeContext = types argTypeContext }
-	let newContext = context { nextFTid = nextFTid argTypeContext }
+	let newContext = context { nextFTid = nextFTid argTypeContext, functionLinkage = (User ident, el):functionLinkage argTypeContext }
 	case idLookup ident (identifiers context) of
 		Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d m2, newContext) (DuplicateDeclaration (fmap forget ident) iy)
 		Nothing -> return (AST.FunDecl a ident2 b c d m2, addIdentifier (fmap forget ident2) Global at newContext)
 assignGlobDecl context decl@(AST.ExternDecl l a ident b m) = do
-	let ident2 = AST.assignUniqueID ident (nextUniqueID context)
+	let el = l
+	let ident2 = setIdentInfo (IdentInfo {externLanguage=el}) $ AST.assignUniqueID ident (nextUniqueID context)
 	let (at, argTypeContext) = getAnnotatedType context decl
 	let m2 = m { argsTypeContext = types argTypeContext }
-	let newContext = context { nextFTid = nextFTid argTypeContext }
+	let newContext = context { nextFTid = nextFTid argTypeContext, functionLinkage = (User ident, el):functionLinkage argTypeContext }
 	case idLookup ident (identifiers context) of
 		Just (iy, _) -> returnWithError (AST.ExternDecl l a ident b m2, newContext) (DuplicateDeclaration (fmap forget ident) iy)
 		Nothing -> return (AST.ExternDecl l a ident2 b m2, addIdentifier (fmap forget ident2) Global at newContext)
@@ -168,7 +170,7 @@ assignGlobDecl context decl@(AST.ExternDecl l a ident b m) = do
 -- Part Two --
 -- Used to assign context in subtrees (via fmap)
 updateContext :: ScopingContext -> P2Meta -> P2Meta
-updateContext newContext thing = thing { context = (identifiers newContext) }
+updateContext newContext thing = thing { context = (identifiers newContext), functionLinkageContext = (functionLinkage newContext) }
 
 
 -- Part Three --
@@ -298,8 +300,10 @@ assignExpr (Unop uop e m) = do
 	return $ Unop uop e2 m
 assignExpr (FunCall ident exprs m) = case idLookup ident (context m) of
 	Just (iy, _) -> do
+		let (_,el) = fromJust $ idLookup ident (functionLinkageContext m)
+		let ident2 = setIdentInfo (IdentInfo {externLanguage=el}) ident
 		exprs2 <- sequence (map assignExpr exprs)
-		return $ FunCall (updateIdentifier ident iy) exprs2 m
+		return $ FunCall (updateIdentifier ident2 iy) exprs2 m
 	Nothing -> returnWithError (FunCall ident exprs m) (UndeclaredIdentifier (fmap forget ident) (context m))
 assignExpr (AST.Pair e1 e2 m) = do
 	ee1 <- assignExpr e1
