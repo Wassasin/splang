@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, RankNTypes #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TupleSections #-}
 
 module Templating (template) where
 
@@ -41,10 +41,12 @@ append kx v f = \ky -> if(kx == ky) then Just v else (f ky)
 newState :: AST.Program m -> TemplateState
 newState p = TemplateState {nameMap = \_ -> Nothing, queue = [], nextUniqueID = maxIdentID p + 1}
 
-appendToQueue :: (FunctionKey, Int) -> TemplateMonad ()
-appendToQueue key = do
-	state <- get
-	put $ state { queue = (queue state) ++ [key] }
+-- Appends to queue, and nameMap is also updated accordingly
+appendToQueue :: (FunctionKey, Int) -> TemplateMonad AST.IdentID
+appendToQueue k@(key, depth) = do
+	newid <- iterateIdentID -- generate uniqueID
+	modify $ \state -> state { queue = (queue state) ++ [k], nameMap = append key newid $ nameMap state }
+	return newid
 
 iterateIdentID :: TemplateMonad AST.IdentID
 iterateIdentID = do
@@ -56,16 +58,16 @@ iterateIdentID = do
 template :: AST.Program P3Meta -> AST.Program P3Meta
 template p@(AST.Program decls m) = flip evalState (newState p) $ do
 	let fm = getMeta $ guardJust "COMPILER BUG: fm is not set" $ inferredType m
-	appendToQueue $ ((findMain decls, Func [] (Void fm) fm), 0)
+	Trav.mapM appendToQueue $ map (,0) $ findExports decls
 	varDecls <- templateVarDecls decls
 	funDecls <- templateFunDecls $ createFunDeclMap decls
 	return $ AST.Program (varDecls ++ funDecls) m
 	where
-		findMain :: [P3 AST.Decl] -> AST.IdentID
-		findMain [] = error "Program error: function main not found" -- TODO
-		findMain (AST.VarDecl _ _ _ _ : decls) = findMain decls
-		findMain (AST.FunDecl _ (AST.Identifier str (Just id) _ _) _ _ _ _ _: decls) = if str == "main" then id else findMain decls
-		findMain (_ : decls) = findMain decls -- Main cannot be declared extern
+		findExports :: [P3 AST.Decl] -> [FunctionKey]
+		findExports [] = []
+		findExports (AST.VarDecl _ _ _ _ : decls) = findExports decls
+		findExports (AST.FunDecl _ (AST.Identifier str (Just id) _ _) _ _ _ attrs m: decls) = if elem AST.Export attrs then (id, guardJust "export types" $ inferredType m):findExports decls else findExports decls
+		findExports (_ : decls) = findExports decls -- Main cannot be declared extern
 
 		templateVarDecls :: [P3 AST.Decl] -> TemplateMonad [P3 AST.Decl]
 		templateVarDecls decls = Trav.mapM (rewrite id 0) $ filter AST.isVarDecl decls -- rewrite all global vardecls for concrete types
@@ -114,11 +116,7 @@ class ASTWalker.ASTWalker a => Templateable a where
 					state <- get
 					newid <- case (nameMap state) key of
 						Just newid -> return newid
-						Nothing -> do
-							appendToQueue (key, depth) -- queue function
-							newid <- iterateIdentID -- generate uniqueID and iterate
-							modify $ \state -> state { nameMap = append key newid $ nameMap state } -- add mapping of (id, type) to newid
-							return newid
+						Nothing -> appendToQueue (key, depth)
 					return $ AST.FunCall (mangleIdent ident t (Just newid)) exprs m
 			fe _ e = do
 				return e

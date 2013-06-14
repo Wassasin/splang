@@ -154,9 +154,12 @@ assignGlobDecl context decl@(AST.FunDecl a ident b c d attrs m) = do
 	let (at, argTypeContext) = getAnnotatedType context decl
 	let m2 = m { argsTypeContext = types argTypeContext }
 	let newContext = context { nextFTid = nextFTid argTypeContext, functionLinkage = (User ident, el):functionLinkage argTypeContext }
+	let newAttrs = case getIdentifierString ident of
+		"main" -> union [AST.Export] attrs
+		_ -> attrs
 	case idLookup ident (identifiers context) of
-		Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d attrs m2, newContext) (DuplicateDeclaration (fmap forget ident) iy)
-		Nothing -> return (AST.FunDecl a ident2 b c d attrs m2, addIdentifier (fmap forget ident2) Global at newContext)
+		Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d newAttrs m2, newContext) (DuplicateDeclaration (fmap forget ident) iy)
+		Nothing -> return (AST.FunDecl a ident2 b c d newAttrs m2, addIdentifier (fmap forget ident2) Global at newContext)
 assignGlobDecl context decl@(AST.ExternDecl l a ident b m) = do
 	let el = l
 	let ident2 = setIdentInfo (IdentInfo {externLanguage=el}) $ AST.assignUniqueID ident (nextUniqueID context)

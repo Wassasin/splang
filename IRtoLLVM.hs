@@ -6,7 +6,7 @@ import Control.Monad.State
 import Control.Applicative((<$>))
 import Data.Map as Map hiding (foldr, foldl, map)
 import Data.Tuple (swap)
-import Data.List (null)
+import Data.List (null, find)
 import Utils
 
 import qualified AST
@@ -52,15 +52,16 @@ instance Translate (Program [BasicBlock]) LLVM.Program where
 			modify $ saveDataPointer i $ LLVM.Global (LLVM.Pointer gt) name
 			return (name, gt)
 		let gc = flip map gs $ \(Glob _ _ l) -> LLVM.Call LLVM.Void (LLVM.G l) []
-		let mainc = LLVM.Call LLVM.Void (LLVM.G "main_v") []
 		sfresh <- get
+		let main = case find (\(Func str _ _ _) -> str == "main_v") fs of
+			Just _ -> [LLVM.Function (LLVM.G "main") [] [gc ++ [LLVM.Call LLVM.Void (LLVM.G "main_v") []] ++ [LLVM.ReturnVoid]] LLVM.Void]
+			Nothing -> []
 		fs <- forM fs $ \f -> do
 			modify $ \s -> s { llvmTemporary = llvmTemporary sfresh, dataPointers = dataPointers sfresh } -- LLVM wants reset temporaries and a fresh context at beginning of FunDecl
 			translate f
-		let main = LLVM.Function (LLVM.G "main") [] [gc ++ [mainc] ++ [LLVM.ReturnVoid]] LLVM.Void
 		s <- get
 		let td = map swap $ Map.toList $ namedTypes s
-		return $ LLVM.Prog gd td (ds++main:fs)
+		return $ LLVM.Prog gd td (ds++main++fs)
 
 instance Translate (IRFunc [BasicBlock]) LLVM.Function where
 	translate (Func l args bbs retType) = do
