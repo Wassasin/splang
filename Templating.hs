@@ -64,7 +64,7 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		findMain :: [P3 AST.Decl] -> AST.IdentID
 		findMain [] = error "Program error: function main not found" -- TODO
 		findMain (AST.VarDecl _ _ _ _ : decls) = findMain decls
-		findMain (AST.FunDecl _ (AST.Identifier str (Just id) _ _) _ _ _ _ : decls) = if str == "main" then id else findMain decls
+		findMain (AST.FunDecl _ (AST.Identifier str (Just id) _ _) _ _ _ _ _: decls) = if str == "main" then id else findMain decls
 		findMain (_ : decls) = findMain decls -- Main cannot be declared extern
 
 		templateVarDecls :: [P3 AST.Decl] -> TemplateMonad [P3 AST.Decl]
@@ -77,11 +77,11 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 			modify (\state -> state { queue = tail $ queue $ state }) -- remove top from queue
 			let Just newid = (nameMap state) key
 			case declmap id of
-				AST.FunDecl ftd ident fargs fdecls fstmts fm -> do
+				AST.FunDecl ftd ident fargs fdecls fstmts fattrs fm -> do
 					let s = case TypeInference.mgu (guardJust "mgu" $ inferredType $ fm) t of
 						TypeInference.Success s -> s
 						_ -> error "Can not infer"
-					let decl = rewriteTypes s $ AST.FunDecl ftd (mangleIdent ident t (Just newid)) fargs fdecls fstmts fm
+					let decl = rewriteTypes s $ AST.FunDecl ftd (mangleIdent ident t (Just newid)) fargs fdecls fstmts fattrs fm
 					rewrite s (depth + 1) decl
 				AST.ExternDecl l ftd ident fargs fm -> do
 					return $ AST.ExternDecl l ftd (mangleIdent ident t (Just newid)) fargs fm
@@ -92,7 +92,7 @@ template p@(AST.Program decls m) = flip evalState (newState p) $ do
 		createFunDeclMap :: [P3 AST.Decl] -> FunctionDeclMap
 		createFunDeclMap [] = \_ -> error "COMPILER BUG: Referenced to non-existant function"
 		createFunDeclMap (AST.VarDecl _ _ _ _ : decls) = createFunDeclMap decls
-		createFunDeclMap (decl@(AST.FunDecl _ (AST.Identifier _ (Just id) _ _) _ _ _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
+		createFunDeclMap (decl@(AST.FunDecl _ (AST.Identifier _ (Just id) _ _) _ _ _ _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
 		createFunDeclMap (decl@(AST.ExternDecl _ _ (AST.Identifier _ (Just id) _ _) _ _) : decls) = \x -> if x == id then decl else (createFunDeclMap decls) x
 
 class ASTWalker.ASTWalker a => Templateable a where

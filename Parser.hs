@@ -48,6 +48,7 @@ parseVarDecl = newObject $ do
 
 parseFunDecl :: ParseFuncD (P1 AST.Decl)
 parseFunDecl = newObject $ do
+	exp <- opt $ equalsToken Lexer.Export
 	t <- parseVoidType <!> parseType
 	i <- parseIdentifier
 	equalsToken Lexer.ParenthesesOpen
@@ -57,7 +58,10 @@ parseFunDecl = newObject $ do
 	vdecls <- many parseVarDecl
 	stmts <- many1 parseStmt
 	equalsToken Lexer.CurlyBracketClose
-	produceP1 $ AST.FunDecl t i fargs vdecls stmts
+	let attributes = case exp of
+		Nothing -> []
+		Just _ -> [AST.Export]
+	produceP1 $ AST.FunDecl t i fargs vdecls stmts attributes
 
 parseFarg :: ParseFuncD (P1 AST.Type, P1 AST.Identifier)
 parseFarg = do

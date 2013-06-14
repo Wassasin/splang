@@ -148,15 +148,15 @@ assignGlobDecl context decl@(AST.VarDecl a ident b m) = do
 	case idLookup ident (identifiers context) of
 		Just (iy, _) -> returnWithError (AST.VarDecl a ident b m, newContext) (DuplicateDeclaration (fmap forget ident) iy)
 		Nothing -> return (AST.VarDecl a ident2 b m, addIdentifier (fmap forget ident2) Global at newContext)
-assignGlobDecl context decl@(AST.FunDecl a ident b c d m) = do
+assignGlobDecl context decl@(AST.FunDecl a ident b c d attrs m) = do
 	let el = ExternLanguage "SPL" m
 	let ident2 = setIdentInfo (IdentInfo {externLanguage=el}) $ AST.assignUniqueID ident (nextUniqueID context)
 	let (at, argTypeContext) = getAnnotatedType context decl
 	let m2 = m { argsTypeContext = types argTypeContext }
 	let newContext = context { nextFTid = nextFTid argTypeContext, functionLinkage = (User ident, el):functionLinkage argTypeContext }
 	case idLookup ident (identifiers context) of
-		Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d m2, newContext) (DuplicateDeclaration (fmap forget ident) iy)
-		Nothing -> return (AST.FunDecl a ident2 b c d m2, addIdentifier (fmap forget ident2) Global at newContext)
+		Just (iy, _) -> returnWithError (AST.FunDecl a ident b c d attrs m2, newContext) (DuplicateDeclaration (fmap forget ident) iy)
+		Nothing -> return (AST.FunDecl a ident2 b c d attrs m2, addIdentifier (fmap forget ident2) Global at newContext)
 assignGlobDecl context decl@(AST.ExternDecl l a ident b m) = do
 	let el = l
 	let ident2 = setIdentInfo (IdentInfo {externLanguage=el}) $ AST.assignUniqueID ident (nextUniqueID context)
@@ -192,7 +192,7 @@ assignDecl context (AST.VarDecl a ident b m) = do
 	let m2 = annotateType at m
 	y <- assignExpr b
 	return (AST.VarDecl a ident y m2, context)
-assignDecl context (AST.FunDecl t ident args decls stmtsin m) = do
+assignDecl context (AST.FunDecl t ident args decls stmtsin attrs m) = do
 	let at = snd . snd . fromJust $ idLookup ident (identifiers context)
 	let m2 = annotateType at m
 	let context2 = context { types = (argsTypeContext m) ++ (types context) }
@@ -200,7 +200,7 @@ assignDecl context (AST.FunDecl t ident args decls stmtsin m) = do
 	(decls, context2) <- assignVarDecls context2 decls
 	let stmts = fmap (fmap (updateContext context2)) stmtsin -- iterate over the list, iterate through tree
 	stmts <- assignStmts stmts
-	return (AST.FunDecl t ident args decls stmts m2, context { nextUniqueID = nextUniqueID context2 })
+	return (AST.FunDecl t ident args decls stmts attrs m2, context { nextUniqueID = nextUniqueID context2 })
 assignDecl context (AST.ExternDecl l t ident args m) = do
 	let at = snd . snd . fromJust $ idLookup ident (identifiers context)
 	let m2 = annotateType at m
@@ -352,7 +352,7 @@ class AnnotatedType b where
 -- We can do variables and functions
 instance AnnotatedType AST.Decl where
 	getAnnotatedType c (VarDecl t _ b m) = getAnnotatedType c t
-	getAnnotatedType c (FunDecl rt _ args _ _ m) = generateFunctionType c rt (map fst args) m
+	getAnnotatedType c (FunDecl rt _ args _ _ _ m) = generateFunctionType c rt (map fst args) m
 	getAnnotatedType c (ExternDecl _ rt _ args m) = generateFunctionType c rt (map fst args) m
 
 generateFunctionType :: ScopingContext -> Type a -> [Type a] -> a -> (PolyType a, ScopingContext)

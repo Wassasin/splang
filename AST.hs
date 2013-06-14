@@ -15,15 +15,18 @@ data Program a = Program [Decl a] a
 data ExternLanguage a = ExternLanguage String a
 	deriving (Show, Eq, Read, Functor)
 
+data FunctionAttributes = Export
+	deriving (Show, Eq, Read)
+
 -- I have inlined both VarDecl, FunDecl and FArgs
 data Decl a = VarDecl (Type a) (Identifier a) (Expr a) a
-	| FunDecl (Type a) (Identifier a) [(Type a, Identifier a)] [Decl a] [Stmt a] a
+	| FunDecl (Type a) (Identifier a) [(Type a, Identifier a)] [Decl a] [Stmt a] [FunctionAttributes] a
 	| ExternDecl (ExternLanguage a) (Type a) (Identifier a) [(Type a, Identifier a)] a
 	deriving (Show, Eq, Read, Functor)
 
 getIdentifier :: Decl a -> Identifier a
 getIdentifier (VarDecl _ i _ _) = i
-getIdentifier (FunDecl _ i _ _ _ _) = i
+getIdentifier (FunDecl _ i _ _ _ _ _) = i
 getIdentifier (ExternDecl _ _ i _ _) = i
 
 -- I have merged RetType and Type

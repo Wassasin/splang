@@ -22,7 +22,7 @@ instance ASTMeta Program where
 
 instance ASTMeta Decl where
 	getMeta (VarDecl _ _ _ m) = m
-	getMeta (FunDecl _ _ _ _ _ m) = m
+	getMeta (FunDecl _ _ _ _ _ _ m) = m
 	getMeta (ExternDecl _ _ _ _ m) = m
 
 instance ASTMeta Type where

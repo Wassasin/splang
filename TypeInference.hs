@@ -213,7 +213,7 @@ constructDeclContext c (AST.VarDecl _ i _ m) = do
 	let at = fromJust $ annotatedType m
 	c <- setContext i at c
 	return c
-constructDeclContext c (AST.FunDecl _ i _ decls _ m) = do
+constructDeclContext c (AST.FunDecl _ i _ decls _ _ m) = do
 	i <- fetchIdentID i
 	let at = fromJust $ annotatedType m
 	c <- setContext i at c
@@ -237,7 +237,7 @@ validateDeclContext c (AST.VarDecl _ i _ m) = do
 	bt <- genBind m bt
 	validateType at bt
 	return ()
-validateDeclContext c (AST.FunDecl _ i _ decls _ m) = do
+validateDeclContext c (AST.FunDecl _ i _ decls _ _ m) = do
 	i <- fetchIdentID i
 	at <- genBind m (fromJust $ annotatedType m)
 	bt <- c i
@@ -304,7 +304,7 @@ inferDecl c (AST.VarDecl t i e m) = do
 	(e, s) <- inferExpr c e a
 	when (usingVoid (s a)) $ addInferError (VoidUsage m (s a))
 	return (AST.VarDecl (fpromote t) (fpromote i) e (tpromote m a), s)
-inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
+inferDecl ce decl@(AST.FunDecl t i args decls stmts attrs m) = do
 	ident <- fetchIdentID i
 	u <- ce ident
 	u <- genBind m u
@@ -336,7 +336,7 @@ inferDecl ce decl@(AST.FunDecl t i args decls stmts m) = do
 		v <- return $ createPoly bs (s v) m
 		ce <- setContext ident v ce
 		validateDeclContext ce decl
-	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts (tpromote m (s v)), s)
+	return (AST.FunDecl (fpromote t) (fpromote i) args decls stmts attrs (tpromote m (s v)), s)
 	where
 		hasReturn :: P2 AST.Stmt -> Bool
 		hasReturn (AST.Scope stmts _)		= any hasReturn stmts

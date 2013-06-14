@@ -92,9 +92,13 @@ class Output b where
 instance Output Program where
 	output mo (Program pr _)		= join (output mo) (lift "\n\n") pr
 
+exportAttribute l = if elem Export l
+	then lift "export " 
+	else lift ""
+
 instance Output Decl where
 	output mo decl@(VarDecl t i e _)	= (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ variable mo i ++ lift " = " ++ output (withoutBrackets mo) e ++ lift ";"
-	output mo decl@(FunDecl t i args vdecls stmts _) = (declComment mo mo decl) ++ tabs mo ++ output mo t ++ lift " " ++ function mo i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (output (indent mo)) (lift "\n") vdecls ++ delim (output (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
+	output mo decl@(FunDecl t i args vdecls stmts attrs _) = (declComment mo mo decl) ++ tabs mo ++ exportAttribute attrs ++ output mo t ++ lift " " ++ function mo i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift "){\n" ++ delim (output (indent mo)) (lift "\n") vdecls ++ delim (output (indent mo)) (lift "\n") stmts ++ tabs mo ++ lift "}"
 	output mo decl@(ExternDecl l t i args _) = (declComment mo mo decl) ++ tabs mo ++ lift "extern " ++ output mo l ++ lift " " ++ output mo t ++ lift " " ++ function mo i ++ lift "(" ++ join (outputArg mo) (lift ", ") args ++ lift ");"
 
 instance Output ExternLanguage where

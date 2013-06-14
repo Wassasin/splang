@@ -49,6 +49,7 @@ data TokenE = Comment String
 	| Operator OperatorE
 	| Extern		-- For allowing linkage with other languages (like extern "C")
 	| QuotedString String	-- String literals, and the language part in `extern "C"`
+	| Export		-- For generating code for non-main functions
 	deriving (Show, Eq, Read)
 
 data TokenMeta loc = Token TokenE loc
@@ -96,7 +97,8 @@ literalMap = [
 		("||", Operator Or),
 		(":", Operator Cons),
 		("!", Operator Not),
-		("extern", Extern)
+		("extern", Extern),
+		("export", Export)
 	]
 
 (>>>) :: LexerFunc -> LexerFunc -> LexerFunc

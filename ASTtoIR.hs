@@ -65,7 +65,7 @@ instance Translate (P3 AST.Decl) (IR.Program IR.IRStmt) where
 		let fname = ("init_globalvar_"++str)
 		modify (addTemporary n d)
 		returnFunctionAndGlob (IR.Func fname [] (IR.Seq (IR.Move d e) (IR.Ret Nothing)) Nothing) (IR.Glob n t fname)
-	translate (AST.FunDecl _ (AST.Identifier str _ _ _) args decls stmts m) = do
+	translate (AST.FunDecl _ (AST.Identifier str _ _ _) args decls stmts _ m) = do
 		let Typing.Func _ rt _ = guardJust "COMPILER BUG (AST->IR): variable has no type" $ inferredType m
 		rt <- case rt of
 			Typing.Void _ -> return Nothing
