@@ -1,0 +1,53 @@
+
+extern "C" Int get_int();
+extern "C" Int rand();
+
+[t] shuffle([t] l){
+	[t] acc = [];
+	Int n = 1;
+	while(!isEmpty(l)){
+		acc = insert_at(head(l), acc, rand() % n);
+		l = tail(l);
+		n = n+1;
+	}
+	return acc;
+}
+
+[t] concat([t] l, [t] r){
+	if(isEmpty(l)){
+		return r;
+	} else {
+		return head(l):concat(tail(l), r);
+	}
+}
+
+[t] insert_ath(t x, [t] l, [t] r, Int n){
+	if(n <= 0 || isEmpty(r)){
+		return concat(l, x:r);
+	} else {
+		l = concat(l, head(r):[]);
+		r = tail(r);
+		return insert_ath(x, l, r, n-1);
+	}
+}
+
+[t] insert_at(t x, [t] l, Int n){
+	return insert_ath(x, [], l, n);
+}
+
+Void printList([t] l){
+	while(!isEmpty(l)){
+		print(head(l));
+		l = tail(l);
+	}
+}
+
+Void main(){
+	Int n = get_int();
+	[Int] l = [];
+	while(n != 0){
+		l = n:l;
+		n = get_int();
+	}
+	printList(shuffle(l));
+}
