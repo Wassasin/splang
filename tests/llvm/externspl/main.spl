@@ -1,0 +1,19 @@
+
+extern "SPL" [Int] mergesort([Int] m);
+extern "SPL" [Int] insertionsort([Int] m);
+
+Void printList([t] l){
+	while(!isEmpty(l)){
+		print(head(l));
+		l = tail(l);
+	}
+}
+
+Void main(){
+	[Int] l = 0:5:4:3:6:9:1:2:3:4:9:[];
+	[Int] ml = mergesort(l);
+	[Int] il = insertionsort(l);
+	printList(l);
+	printList(ml);
+	printList(il);
+}

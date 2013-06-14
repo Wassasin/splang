@@ -1,0 +1,29 @@
+
+[t] concat([t] l, [t] r){
+	if(isEmpty(l)){
+		return r;
+	} else {
+		return head(l):concat(tail(l), r);
+	}
+}
+
+[Int] insert_at_aux(Int x, [Int] l, [Int] r){
+	if(isEmpty(r)){
+		return concat(l, x:r);
+	}
+	if(x <= head(r)){
+		return concat(l, x:r);
+	}
+	l = concat(l, head(r):[]);
+	r = tail(r);
+	return insert_at_aux(x, l, r);
+}
+
+export [Int] insertionsort([Int] l){
+	[Int] acc = [];
+	while(!isEmpty(l)){
+		acc = insert_at_aux(head(l), [], acc);
+		l = tail(l);
+	}
+	return acc;
+}
