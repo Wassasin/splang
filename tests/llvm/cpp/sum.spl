@@ -1,0 +1,19 @@
+
+export Int sum([Int] l){
+	if(isEmpty(l)) return 0;
+	return head(l) + sum(tail(l));
+}
+
+export [Int] reverse([Int] l){
+	[Int] acc = [];
+	while(!isEmpty(l)){
+		acc = head(l) : acc;
+		l = tail(l);
+	}
+	return acc;
+}
+
+export [(Int, Int)] zip([Int] l, [Int] r){
+	if(isEmpty(l) || isEmpty(r)) return [];
+	return (head(l), head(r)):zip(tail(l), tail(r));
+}
