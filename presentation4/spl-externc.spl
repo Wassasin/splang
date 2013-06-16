@@ -1,0 +1,12 @@
+extern "C" Int get_int_from_user();
+
+Void main(){
+	[Int] l = [];
+	Int n = get_int_from_user();
+	
+	while(n != 0){
+		l = n:l;
+		n = get_int_from_user();
+	}
+	// Now do somthing with this list
+}
