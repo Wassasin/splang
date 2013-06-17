@@ -1,14 +1,46 @@
-\documentclass[14pt]{amsart}
+\documentclass[11pt]{amsart}
 
 \usepackage[british]{babel}
+
+\usepackage{geometry}
+\geometry{a4paper}
+\geometry{twoside=false}
+
+\usepackage[parfill]{parskip}
+\setlength{\marginparwidth}{2cm}
 
 \usepackage{graphicx}
 \usepackage{amssymb}
 \usepackage{color}
+\usepackage{textcomp}
+
 \usepackage{listings}
+\usepackage{prettylistings}
+\usepackage{lang-llvm}
+\usepackage{lang-spl}
+\usepackage{lang-ssm}
+\usepackage{lang-term}
+
+\definecolor{purple}{rgb}{0.5,0.0,0.3}
+
 \usepackage{xspace}
 \usepackage{url}
 
+\setcounter{tocdepth}{1}
+
+\newcommand{\llvm}{\textsc{LLVM}\xspace}
+\newcommand{\llvminl}[1]{\lstinline[language=llvm,basicstyle=]{#1}}
+
+\newcommand{\spl}{\texttt{SPL}\xspace}
+\newcommand{\splinl}[1]{\lstinline[language=spl,basicstyle=]{#1}}
+
+\newcommand{\C}{\texttt{C}\xspace}
+\newcommand{\Cinl}[1]{\lstinline[language=C,basicstyle=]{#1}}
+
+\newcommand{\Cpp}{\texttt{C}$^{++}$\xspace}
+\newcommand{\Cppinl}[1]{\lstinline[language=C++,basicstyle=]{#1}}
+
+\newcommand{\ssm}{\texttt{SSM}\xspace}
 \newcommand{\splang}{\textsc{Splang}\xspace}
 \newcommand{\flag}[1]{\texttt{#1}}
 
@@ -37,7 +69,7 @@
 \section{Overview}
 \subsection{Getting started}
 Get the source from \url{https://github.com/Wassasin/splang}. In order to compile it you'll need to install the following Haskell packages:
-\begin{lstlisting}
+\begin{lstlisting}[language=term]
 $ cabal update
 $ cabal install ansi-terminal
 $ cabal install edit-distance
@@ -46,7 +78,9 @@ $ cabal install derive
 
 Then to compile \texttt{some.spl}, simply run \texttt{./run some.spl}. This will first compile the compiler (if needed), then compile \texttt{some.spl}. If you only want to tidy \texttt{some.spl} up, you can use \texttt{./parse} instead (this will provide the needed compiler flags).
 
-Use \texttt{./run -h} to see all compiler flags.
+We support two targets, by default the \ssm (simple stack machine) is targeted, with the flag \flag{--target=llvm} one can target \llvm IR (which in turn can be compiled to native code with \texttt{llc}, or interpreted by \texttt{lli}). Use \texttt{./run -h} to see all compiler flags.
+
+We extended the language by allowing external linkage (with for example \C linkage). The linking of these function can be done with \texttt{ld}. This is only possible for the \llvm target, as there is no linker for \ssm. Therefore this extension is only discussed in the section about \llvm.
 
 \subsection{Compilation phases}
 Our compiler uses several compilation phases. A summary is given in table~\ref{tab:overview}. One can stop compiling after a phase by using the corresponding compiler flags \flag{--<phase>-only} and output the result after a phase with \flag{--show-<phase>}, note that not all phases have readable results. In the reading phase every error is a fatal one. In the analysis phase compilation will continue on errors (if possible). Code will only be generated for correct code, unless the \flag{--force-codegen} flag is given.
@@ -64,7 +98,9 @@ Our compiler uses several compilation phases. A summary is given in table~\ref{t
  & Templating & Rewrites functions to accommodate polymorphism. \\
  & AST to IR & Converts to the AST to our IR. \\
  & Canonicalize IR & Converts the IR into a IR consisting of basic blocks. \\
- & Generate SSM & Translates the canonical IR into SSM instructions.
+ & IR Deadcode removal & Removes basic blocks which are not reachable. \\
+ & Generate \ssm & Translates the canonical IR into \ssm instructions. \\
+ & Generate \llvm & Translates the canonical IR into \llvm instructions.
 \end{tabular}
 \caption{Overview of all the phases of the \splang compiler}
 \label{tab:overview}
@@ -72,12 +108,12 @@ Our compiler uses several compilation phases. A summary is given in table~\ref{t
 
 
 \section{Implementation}
-For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining datastructures. Another nice things is the \emph{\texttt{do}-syntax} of Haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperative language. Another nice feature is of course nested pattern-matching, which turned out to be really useful in code generation.
+For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining data structures. Another nice things is the \emph{\texttt{do}-syntax} of Haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperative language. Another nice feature is of course nested pattern-matching, which turned out to be really useful in code generation.
 
-We depend on the libraries mentioned above (other than the library which comes with Haskell). We use \emph{ansi-terminal} for coloured output in the terminal (colour scheme is based on the {\sc Clang} compiler), \emph{edit-distance} for suggestions when the programmer typed a undeclared identifier and \emph{derive} to derive functions/typeclasses for some datastructures.
+We depend on the libraries mentioned above (other than the library which comes with Haskell). We use \emph{ansi-terminal} for coloured output in the terminal (colour scheme is based on the {\sc Clang} compiler), \emph{edit-distance} for suggestions when the programmer typed a undeclared identifier and \emph{derive} to derive functions and type classes for some data structures.
 
 \section{Parser}
-We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and sourcecode information. It is implemented in a monadic way.
+We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and source code information. It is implemented in a monadic way.
 
 \subsection{Grammar}
 In order to parse the language we had to change the grammar a bit. First of all we added priorities to the different operators, so that the multiplication binds stronger than addition.
@@ -93,7 +129,7 @@ The used grammar is attached in the appendix.
 \section{Scoping}
 We distinguish three different scopes (from big to small): \emph{global}, \emph{function argument} and \emph{local}. If two identifiers are being declared in the same scope, an error will be thrown, but compilation will continue (to possibly catch more errors). If a identifier is being declared, but it was already declared in a bigger scope, we allow this, but we will give the user a warning (because it is probably not what you want, and might introduce subtle bugs). This is called shadowing, one can still initialize this shadowing identifier with the previous one, as shown here:
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 Int x = 5; // Global
 Void foo(){
     Int x = x; // ``Warning: x shadows global x''
@@ -107,9 +143,9 @@ Globals can be defined in any order you want. This for example allows mutual rec
 As far as scoping is concerned variables can be used as a function, and functions can be passed to other functions. However the type system does not accept this, because the annotated type in the source can never be a function type.
 
 \subsection{Type variable scoping}
-Type variables have similar scoping rules. If two typevariables are used in the same scope, they will be exactly the same type. In the following example \texttt{x} and \texttt{y} are of the same type, and therefore the second \texttt{print} will fail to typecheck. (We will later see another reason why this program is not allowed by the compiler).
+Type variables have similar scoping rules. If two type variables are used in the same scope, they will be exactly the same type. In the following example \texttt{x} and \texttt{y} are of the same type, and therefore the second \texttt{print} will fail to type check. (We will later see another reason why this program is not allowed by the compiler).
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 [t] x = [];
 [t] y = []; // Same type as x
 
@@ -121,7 +157,7 @@ Void main(){
 
 There is however an exception to this. We assume that if a function uses a type variable, then it is a polymorphic function. This means that type variables in function arguments are always new, in fact, this is the only way to create a new type variable with the same name. For example:
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 t x = /* ... */
 
 // The following 't' is independent of the above
@@ -134,7 +170,7 @@ Note that type variables and identifiers for variables and functions live in two
 
 \section{Typing}
 
-Our compiler mainly does typechecking, but some type inference is also needed. Type inference is hard to define in a imperative language, as the variables one is inferring, might be used differently later on (and mutual recursion is hard). This led to a system which does both type inference and type checking.
+Our compiler mainly does type checking, but some type inference is also needed. Type inference is hard to define in a imperative language, as the variables one is inferring, might be used differently later on (and mutual recursion is hard). This led to a system which does both type inference and type checking.
 
 We first determine the annotated types of every global variable and function. Then in all expressions and function bodies those annotations are used to infer the actual type at every place in the expression or function body, and with this information the annotated type is checked. We also make sure that \texttt{return} statements really return what they should, and if there is no \texttt{return} statement, the function should return \texttt{Void}.
 
@@ -142,13 +178,13 @@ We only allow \texttt{Void} to occur as a return type of a function. So a list o
 
 We do not allow the programmer to write this:
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 t x = 5;
 \end{lstlisting}
 
 Because it is weird to annotate x with a more general type than it really is. This is a explicit decision we made, technically the compiler is able to infer that \texttt{t == Int}. Allowing this code for variables might seem reasonable, but allowing this also for functions is wrong, as can be seen in the following example:
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 Bool x = f();
 
 // This should not be allowed
@@ -309,27 +345,27 @@ $\begin{array}{rcl}
 \end{array}$
 
 \section{Semantics}
-The semantics are straight forward. Integer arithmetic is the usual arithmetic, with overflow behaviour and division rounding defined by the target (i.e. by the SSM). Also the boolean operators work as usual. We don't do short-circuiting, so in the following code \texttt{f} will be called:
-\begin{lstlisting}
+The semantics are straight forward. Integer arithmetic is the usual arithmetic, with overflow behaviour and division rounding defined by the target (i.e. by the \ssm). Also the boolean operators work as usual. We don't do short-circuiting, so in the following code \texttt{f} will be called:
+\begin{lstlisting}[language=spl]
 if(False && f()){
 	// ...
 }
 \end{lstlisting}
 
 If one calls multiple statements in one statements, generally those functions will be called from left to right, unless one of the functions is nested in another function call. So in the following example \texttt{a}, \texttt{b} and \texttt{c} are called (in this order) before \texttt{f}:
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 	Int x = f(a(), b(), c());
 \end{lstlisting}
 
-All functions take arguments by value. There are no mechanism to update a datastructure (i.e. tuple or list). So one always has to construct such an object fully.
+All functions take arguments by value. There are no mechanism to update a data structure (i.e. tuple or list). So one always has to construct such an object fully.
 
 \subsection{Polymorphism}
 
-Polymorphic functions will be instantiated for each use. Starting from the \texttt{main} function, and all global variable declarations, all function calls are rewritten to point to a specific version for a specific type of the called function. These functions along with the type for which these functions are called are added to a queue. Every declaration in this queue is then rewritten in a similar way. This is like the templating system in C++. We decided on a templating system because we also want to target LLVM bitcode, which is strongly typed (without polymorphism). This also means that we do not require boxing for complex types such as tuples.
+Polymorphic functions will be instantiated for each use. Starting from the \texttt{main} function, and all global variable declarations, all function calls are rewritten to point to a specific version for a specific type of the called function. These functions along with the type for which these functions are called are added to a queue. Every declaration in this queue is then rewritten in a similar way. This is like the templating system in C++. We decided on a templating system because we also want to target \llvm IR, which is strongly typed (without polymorphism). This also means that we do not require boxing for complex types such as tuples.
 
 Rewritten functions use a mangled name describing the type for which the function is called. In the following case, for example:
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 Void f(a x){
 	print(x);
 }
@@ -341,9 +377,9 @@ Void main(){
 }
 \end{lstlisting}
 
-Because \texttt{f} is called for three seperate types, the function is instantiated three times:
+Because \texttt{f} is called for three separate types, the function is instantiated three times:
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 // main_v :: Void()
 Void main_v(){
 	f_v_i(42);
@@ -366,7 +402,7 @@ Void f_v_ppiipii(a x){
 
 Of course we can easily write a program which requires infinitely many types, for example:
 
-\begin{lstlisting}
+\begin{lstlisting}[language=spl]
 Void f(t x){
 	f((x,x));
 }
@@ -378,7 +414,7 @@ Void main(){
 
 However such programs will never terminate, so they are not very useful in practice. In order to guarantee that the \splang compiler terminates, we will only instantiate until a certain depth is reached. We regard this as a small drawback, but the advantage of this is that we know the exact concrete types when generating code.
 
-\section{SSM}
+\section{\ssm}
 % what should this chapter contain:
 % A chapter explaining the compilation schemes used in your compiler. A
 % concise informal or semiformal description suﬃces, so a formal description
@@ -386,7 +422,7 @@ However such programs will never terminate, so they are not very useful in pract
 % 5explain here are calling conventions, stack management, stack layout, heap
 % layout, and heap management.
 
-In this section we talk about the compilation schemes for the SSM target. SSM stands for simple stack machine. So most instructions only use the stack. There is also a heap, and only some registers. All data is in terms of \emph{word}s. A word is the smallest addressable unit. Integers and bools are stored as one word, as all instructions assume this (there is also no mechanism for bigger integers, since there is no carry/overflow flag).
+In this section we talk about the compilation schemes for the \ssm target. Most instructions only use the stack. There is also a heap, and only some registers. All data is in terms of \emph{word}s. A word is the smallest addressable unit. Integers and bools are stored as one word, as all instructions assume this (there is also no mechanism for bigger integers, since there is no carry/overflow flag).
 When we talk about the \emph{size} of an object, we mean the number of words it takes to store it.
 
 \subsection{Tuples and lists}
@@ -406,7 +442,48 @@ For the actual call the \texttt{bsr} and \texttt{ret} instructions are used. So 
 Global variables are stored at the beginning of the stack (before \texttt{main} is entered). In order to know where the stack begins, we store the initial stack pointer to register 5. All global variables are initialized with 0. This means that lists are initialized with an empty list, integers with 0, and tuples are constructed with all zeros (see the next subsection about tuples). After this initialization, the real initialization begins (in order of declaration), then \texttt{main} is called. After executing the program, these values are not cleaned up.
 
 \subsection{Printing}
-The \texttt{print} function will do a shallow print. For lists this means it only print the pointer to the first element. For tuples this means it will print all the values in the tuple, but in reverse order (due to technical reasons and efficiency). We think printing lists and tuples incorrectly is not really an issue for now, since printing on the SSM is very limited anyways (it is for example impossible to print brackets). Integers are printed as they should, bools are printed as: -1 meaning true, 0 meaning false.
+The \texttt{print} function will do a shallow print. For lists this means it only print the pointer to the first element. For tuples this means it will print all the values in the tuple, but in reverse order (due to technical reasons and efficiency). We think printing lists and tuples incorrectly is not really an issue for now, since printing on the \ssm is very limited anyways (it is for example impossible to print brackets). Integers are printed as they should, bools are printed as: -1 meaning true, 0 meaning false.
+
+
+\section{\llvm}
+\subsection{Typical usage}
+As said, the \splang compile can target \llvm IR. In order to run this code one should have \llvm installed. You can install llvm from the package manager, or get it from the official site (or github). \llvm comes with a number of tools, for compiling, optimizing and interpreting \llvm IR. A typical usage is:
+\begin{lstlisting}[language=term]
+$ splang --target=llvm my_file.spl | opt -O3 | llc -filetype=obj > my_file.o
+$ ld -native -o my_file my_file.o
+$ ./my_file
+\end{lstlisting}
+The first command compiles your \texttt{.spl}-file to \llvm IR, which is fed into the \llvm optimizer \texttt{opt} and then compiled into an object file with \texttt{llc}. This object file has then to be linked with for example \texttt{libc} and possibly other OS-dependent libraries. The outcome is a native binary \texttt{my\_file}.
+
+\subsection{\llvm}
+The advantage of this approach of native code generation is that \llvm can do the optimization (for the specific machine we run it on).
+
+\subsection{External linkage}
+We support calling external functions from a \spl-file. In order to do this one should first declare these external functions with the \splinl{extern} keyword. For example:
+\begin{lstlisting}[language=spl]
+extern "C" Int get_int_from_user();
+\end{lstlisting}
+Defines a function with \C linkage. It is also possible to link separate \spl-files, in that case use \splinl{extern "SPL"} instead. Note that we need to make this distinction because \splang does name-mangling, whereas \C doesn't do so.
+
+With this feature we get I/O and better printing facilities for \spl.
+
+An important limitation of this feature is that \splang does not accept polymorphic functions with external linkage, since all types are concrete at any time (due to templating).
+
+Also note that due to templating code will only be generated for reachable functions (from \splinl{main}). In order to generate code for other functions (for example in the absence of \splinl{main}), one can declare that the compiler should export the function:
+\begin{lstlisting}[language=spl]
+export [Int] sort([Int] n){
+	// sorting magic here
+}
+\end{lstlisting}
+
+\subsection{Types}
+As \llvm IR is strongly typed we have to emit types for the types used in the \spl-program. Here we will discuss how \spl types are mapped to the \llvm types. The types \splinl{Int} and \splinl{Bool} are mapped to \llvminl{i32} (an integral type with 32 bits) and \llvminl{i1} (an integral type with 1 bit) respectively. Note that all arithmetic uses signed integer semantics.
+
+Tuples are translated to structs, so for example \splinl{(Bool, Int)} becomes \llvminl{\{i1, i32\}}. The alignment of this struct is the default alignment used by the \llvm compiler.
+
+Lists are singly linked lists. A node consists of a pointer to the next element and then the value. So for example a list of integers will be translated to \llvminl{\%li = type \{\%li*, i32\}}.
+
+If one wants to call \spl-functions from a \C file, he or she should be able to mimic this convention with \C-structs. For \Cpp we created a simple header which defines struct templates which are compatible with the code our compiler outputs. For example \Cppinl{spl::list<bool, int>} defines the pair type from above and \Cppinl{spl::list<int>} defines a list of integers.
 
 \section{Tests}
 All tests of the first phases are performed with the \texttt{--show-input --show-stages --type-only} flags, and all colors are stripped. These tests show the error-messages on wrong input, and a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration).
@@ -432,7 +509,7 @@ All tests of the first phases are performed with the \texttt{--show-input --show
 \end{itemize}
 
 \subsection{Code generation}
-To test code generation we run the generated code in the SSM interpreter. We use a gui-less version which can be downloaded from \url{https://github.com/mklinik/ssm-nogui}. The result is then checked against the expected output, the following examples all pass this test. For the full test-case we refer to our repository at \url{https://github.com/Wassasin/splang}, in particular one can have a look at the script \texttt{run\_tests}.
+To test code generation we run the generated code in the \ssm interpreter. We use a gui-less version which can be downloaded from \url{https://github.com/mklinik/ssm-nogui}. The result is then checked against the expected output, the following examples all pass this test. For the full test-case we refer to our repository at \url{https://github.com/Wassasin/splang}, in particular one can have a look at the script \texttt{run\_tests}.
 
 \begin{itemize}
 	\item[pass\_fib] Implement two versions of the Fibonacci sequence. One with recursion, one with a single loop. So this tests simple arithmetic, and also simple tuples. We see that the recursive version is slow for inputs larger than 10, whereas the looped version is not.
@@ -442,7 +519,7 @@ To test code generation we run the generated code in the SSM interpreter. We use
 \end{itemize}
 
 \section{Reflection}
-In the first phase Wouter made the lexer, and Joshua made a first implementation of the parser in \emph{Parsec}, however we decided to write our own parsing library. This was mainly done by Wouter. In the second phase Joshua mainly worked on the scoping and type annotations, Wouter mainly on the type inference. In the third phase Wouter mainly worked on templating, while Joshua mainly worked on the transformation of the AST to the IR, and the transformation of the IR to SSM. All design choices were discussed together to ensure a working whole. And also in some cases one found a bug in the others code. So eventually all code understood by both of us.
+In the first phase Wouter made the lexer, and Joshua made a first implementation of the parser in \emph{Parsec}, however we decided to write our own parsing library. This was mainly done by Wouter. In the second phase Joshua mainly worked on the scoping and type annotations, Wouter mainly on the type inference. In the third phase Wouter mainly worked on templating, while Joshua mainly worked on the transformation of the AST to the IR, and the transformation of the IR to \ssm. All design choices were discussed together to ensure a working whole. And also in some cases one found a bug in the others code. So eventually all code understood by both of us.
 
 For a very precise description of who did what, one can have a look at our repository:
 
@@ -457,9 +534,10 @@ For a very precise description of who did what, one can have a look at our repos
 
 \begin{tabular}[t]{p{2.5cm} c p{10cm}}
 Prog		& := & Decl$^+$					\\
-Decl		& := & VarDecl \I FunDecl			\\
+Decl		& := & ExtDecl \I VarDecl \I FunDecl		\\
 VarDecl		& := & Type id \tok{=} Exp \tok{;}		\\
-FunDecl		& := & RetType id \tok{(} [ FArgs ] \tok{)} \tok{\{} VarDecl* Stmt$^+$ \tok{\}} \\
+FunDecl		& := & [\tok{export}] RetType id \tok{(} [ FArgs ] \tok{)} \tok{\{} VarDecl* Stmt$^+$ \tok{\}} \\
+ExtDecl		& := & \tok{extern} lang RetType id \tok{(} [ FArgs ] \tok{)} \tok{;} \\
 RetType		& := & Type \I \tok{Void}			\\
 Type		& := & \tok{Int} \I \tok{Bool} \I id		\\
 		& \I & \tok{(} Type \tok{,} Type \tok{)}	\\
