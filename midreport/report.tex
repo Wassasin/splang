@@ -68,7 +68,7 @@
 
 \section{Overview}
 \subsection{Getting started}
-Get the source from \url{https://github.com/Wassasin/splang}. In order to compile it you'll need to install the following Haskell packages:
+Get the source from \url{https://github.com/Wassasin/splang}\footnote{One can also \emph{view} the repository online on this address, if one is not interested in actually building and running the compiler.}. In order to compile it you'll need to install the following Haskell packages:
 \begin{lstlisting}[language=term]
 $ cabal update
 $ cabal install ansi-terminal
@@ -76,14 +76,19 @@ $ cabal install edit-distance
 $ cabal install derive
 \end{lstlisting}
 
-Then to compile \texttt{some.spl}, simply run \texttt{./run some.spl}. This will first compile the compiler (if needed), then compile \texttt{some.spl}. If you only want to tidy \texttt{some.spl} up, you can use \texttt{./parse} instead (this will provide the needed compiler flags).
+Then to compile \texttt{some.spl}, simply run \texttt{./run some.spl}. This will first compile the compiler (if needed), then compile \texttt{some.spl}. If you only want to tidy \texttt{some.spl} up, you can use \texttt{./parse} instead (this will provide the needed compiler flags). 
 
 We support two targets, by default the \ssm (simple stack machine) is targeted, with the flag \flag{--target=llvm} one can target \llvm IR (which in turn can be compiled to native code with \texttt{llc}, or interpreted by \texttt{lli}). Use \texttt{./run -h} to see all compiler flags.
 
 We extended the language by allowing external linkage (with for example \C linkage). The linking of these function can be done with \texttt{ld}. This is only possible for the \llvm target, as there is no linker for \ssm. Therefore this extension is only discussed in the section about \llvm.
 
+\subsection{Goal and motivation}
+We wanted to make a nice compiler that also provide errors and warnings in a elegant way to the user. As we like the compiler \texttt{clang} a lot, we decided to try to provide errors and warnings in the same way. This includes a clear description of where the error occurs, coloured output and in some cases even a hint on how to fix it.\footnote{Of course one might argue that the main goal of a compiler is to generate code instead of giving fancy error messages. In our eyes both aspects are very important. Good error messages will really benefit productivity.}
+
+Another thing we wanted is \llvm output. As this is a fast growing platform with a lot of tools and libraries to help compiler writers, it is good to learn about this. As a consequence of implementing \llvm IR generation we automatically support many architectures and OSes. All in all, we hopefully justified why our compiler is called \splang.
+
 \subsection{Compilation phases}
-Our compiler uses several compilation phases. A summary is given in table~\ref{tab:overview}. One can stop compiling after a phase by using the corresponding compiler flags \flag{--<phase>-only} and output the result after a phase with \flag{--show-<phase>}, note that not all phases have readable results. In the reading phase every error is a fatal one. In the analysis phase compilation will continue on errors (if possible). Code will only be generated for correct code, unless the \flag{--force-codegen} flag is given.
+Our compiler uses several compilation phases. A summary is given in Table~\ref{tab:overview}. One can stop compiling after a phase by using the corresponding compiler flags \flag{--<phase>-only} and output the result after a phase with \flag{--show-<phase>}, note that not all phases have readable results. In the reading phase every error is a fatal one. In the analysis phase compilation will continue on errors (if possible). Code will only be generated for correct code, unless the \flag{--force-codegen} flag is given.
 
 \begin{table}
 \begin{tabular}{l l p{8cm}}
@@ -111,6 +116,8 @@ Our compiler uses several compilation phases. A summary is given in table~\ref{t
 For our SPL-compiler, \splang, we choose \emph{Haskell} as our implementation language. First of all because this is a \emph{functional programming language}, which is really helpful when defining data structures. Another nice things is the \emph{\texttt{do}-syntax} of Haskell, which makes it very easy (at least to some extend) to propagate for example error messages. Of course this part would also be very easy in a imperative language. Another nice feature is of course nested pattern-matching, which turned out to be really useful in code generation.
 
 We depend on the libraries mentioned above (other than the library which comes with Haskell). We use \emph{ansi-terminal} for coloured output in the terminal (colour scheme is based on the {\sc Clang} compiler), \emph{edit-distance} for suggestions when the programmer typed a undeclared identifier and \emph{derive} to derive functions and type classes for some data structures.
+
+For the \llvm IR code generation we wanted to use the \llvm Haskell bindings. But we weren't able to get this running, so we decided to do this ourselves. So we build some basic data structures to handle the aspects of \llvm we need.
 
 \section{Parser}
 We made our own parsing combinator library. It has infinite lookahead, but when performance matters there are also 1-lookahead combinators. We choose to make our own one, because then we would have full control of error messages and source code information. It is implemented in a monadic way.
@@ -483,7 +490,19 @@ Tuples are translated to structs, so for example \splinl{(Bool, Int)} becomes \l
 
 Lists are singly linked lists. A node consists of a pointer to the next element and then the value. So for example a list of integers will be translated to \llvminl{\%li = type \{\%li*, i32\}}.
 
-If one wants to call \spl-functions from a \C file, he or she should be able to mimic this convention with \C-structs. For \Cpp we created a simple header which defines struct templates which are compatible with the code our compiler outputs. For example \Cppinl{spl::list<bool, int>} defines the pair type from above and \Cppinl{spl::list<int>} defines a list of integers.
+If one wants to call \spl-functions from a \C file, he or she should be able to mimic this convention with \C-structs. For \Cpp we created a simple header which defines struct templates which are compatible with the code our compiler outputs. For example \Cppinl{spl::pair<bool, int>} defines the pair type from above and \Cppinl{spl::list<int>} defines a list of integers.
+
+\subsection{Examples}
+In our repository one can find examples on how to use this linking. We show that it is quite easy to call \C functions from within a \spl file and vice versa. One can find the following examples in the \texttt{tests/llvm} directory.
+
+\begin{itemize}
+	\item[externc] This shows that it is easy to define a function in \C to be used in a \spl program. In this case we use \C to ask the user to enter numbers. In the \spl file we store these numbers in a list, and then use the standard \C function \Cinl{rand} to shuffle this list. The shuffled list is outputted.
+	\item[externspl] Here we show that we have separate compilation for \spl files. We defined two sorting algorithms (mergesort and insertionsort) in different files. In the main source file we only have to use them. This leaves the main file small and tidy.
+	\item[cpp] This shows that we can also do the converse. We can call \spl functions from a \Cpp source (we chose to do \Cpp here, because we aren't really good at \C). We implemented two simple list algorithms in \spl (reverse and zip) and use them in \Cpp. This shows that we can use the convenient list syntax from \spl and still do all the other things in a language we like.
+	\item[performance] Of course we would like to know what we gain from \llvm. We implemented the fibonacci sequence with a double recursion (the naive way to do this). We see that the \ssm interpreter needs 8 seconds to print the first 20. Whereas the native binary\footnote{both unoptimized and optimized} only uses 0.003 seconds. Looking at the optimized code we see that \llvm got rid of one recursive call and uses a loop instead.
+
+	How does it compete against other compilers? We also implemented the ackermann function. The unoptimized native binary takes 21 seconds to complete the task, the optimized version only 12 seconds (so indeed we get some nice optimization from \llvm). In comparison \texttt{gcc} generates code which completes in only 8 seconds, and \texttt{clang} even manages to get a stunning 4 seconds.\footnote{Times were measured on a early 2011 13'' MacBook Pro (2.7 GHz Intel i7).}
+\end{itemize}
 
 \section{Tests}
 All tests of the first phases are performed with the \texttt{--show-input --show-stages --type-only} flags, and all colors are stripped. These tests show the error-messages on wrong input, and a pretty printed version of the program augmented with both the scoping results (after every identifier), and typing (before every declaration).
@@ -509,7 +528,7 @@ All tests of the first phases are performed with the \texttt{--show-input --show
 \end{itemize}
 
 \subsection{Code generation}
-To test code generation we run the generated code in the \ssm interpreter. We use a gui-less version which can be downloaded from \url{https://github.com/mklinik/ssm-nogui}. The result is then checked against the expected output, the following examples all pass this test. For the full test-case we refer to our repository at \url{https://github.com/Wassasin/splang}, in particular one can have a look at the script \texttt{run\_tests}.
+To test code generation we run the generated code in the \ssm interpreter and also execute the native binaries generated with \llvm. We use a gui-less version of the \ssm interpreter which can be downloaded from \url{https://github.com/mklinik/ssm-nogui}. The result is then checked against the expected output, the following examples all pass this test. For the full test-case we refer to our repository at \url{https://github.com/Wassasin/splang}, in particular one can have a look at the script \texttt{run\_tests}.
 
 \begin{itemize}
 	\item[pass\_fib] Implement two versions of the Fibonacci sequence. One with recursion, one with a single loop. So this tests simple arithmetic, and also simple tuples. We see that the recursive version is slow for inputs larger than 10, whereas the looped version is not.
@@ -519,7 +538,9 @@ To test code generation we run the generated code in the \ssm interpreter. We us
 \end{itemize}
 
 \section{Reflection}
-In the first phase Wouter made the lexer, and Joshua made a first implementation of the parser in \emph{Parsec}, however we decided to write our own parsing library. This was mainly done by Wouter. In the second phase Joshua mainly worked on the scoping and type annotations, Wouter mainly on the type inference. In the third phase Wouter mainly worked on templating, while Joshua mainly worked on the transformation of the AST to the IR, and the transformation of the IR to \ssm. All design choices were discussed together to ensure a working whole. And also in some cases one found a bug in the others code. So eventually all code understood by both of us.
+In the first phase Wouter made the lexer, and Joshua made a first implementation of the parser in \emph{Parsec}, however we decided to write our own parsing library. This was mainly done by Wouter. In the second phase Joshua mainly worked on the scoping and type annotations, Wouter mainly on the type inference.
+
+In the third phase Wouter mainly worked on templating, while Joshua mainly worked on the transformation of the AST to the IR, and the transformation of the IR to \ssm. For the \llvm output Joshua began with a stub, which later was extended and finished by Wouter, while Joshua made some testcases and demos. All design choices were discussed together to ensure a working whole. And also in some cases one found a bug in the others code. So eventually all code understood by both of us.
 
 For a very precise description of who did what, one can have a look at our repository:
 
