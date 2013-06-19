@@ -172,7 +172,7 @@ midentifiers opts filename source program = do
 		Errors.Result newProgram errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings
 			sequence $ map (printSemanticsError opts filename source) errors
-			when (showParsingResult opts) $ prettyPrint midentifiersPrintingInfo (astPrinter opts) newProgram
+			when (showScopingResult opts) $ prettyPrint midentifiersPrintingInfo (astPrinter opts) newProgram
 			return (newProgram, False)
 		Errors.FatalError fe errors warnings -> do
 			sequence $ map (printSemanticsWarning opts filename source) warnings

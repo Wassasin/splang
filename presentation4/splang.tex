@@ -39,12 +39,29 @@
 \end{frame}
 
 \begin{frame}
+\begin{center}
+	\frametitle{Recap: The phases}
+	\includegraphics[width=\textwidth]{phases}
+\end{center}
+\end{frame}
+
+\begin{frame}
+	\frametitle{Goals}
+	\begin{itemize}
+		\item Compiler with nice error messages \\
+			{\small because: nice error messages $\rightarrow$ productivity}
+		\item \llvm backend
+	\end{itemize}
+	\visible<2>{\includegraphics[width=\textwidth]{error}}
+\end{frame}
+
+\begin{frame}
 	\frametitle{\llvm}
 
 	\begin{itemize}
 		% LLVM used to stand for low level virtual machine, but as it also is capable of native codegen, they dropped the acronym
 		\item \emph{Low Level Virtual Machine}\footnote{Not only a VM, but also native codegen!}
-		\item We generate \llvm IR:
+		\item \llvm IR:
 		\begin{itemize}
 			\item Strongly typed (no polymorhpism)
 			\item Single assignment
@@ -54,7 +71,7 @@
 	\bigskip
 	\pause
 	\begin{center}
-		Why?
+		Why \llvm?
 	\end{center}
 \end{frame}
 
@@ -139,17 +156,9 @@
 
 \begin{frame}
 \begin{center}
-	{\Huge Demo!}
+	{\Huge Questions?}
+	\bigskip
 
-	calling \SPL from \Cpp
-
-	JIT
-\end{center}
-\end{frame}
-
-\begin{frame}
-\begin{center}
-	\frametitle{Fun: all our phases :)}
 	\includegraphics[width=\textwidth]{phases}
 \end{center}
 \end{frame}
