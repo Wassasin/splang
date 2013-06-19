@@ -1,0 +1,18 @@
+
+extern "C" Void up();
+extern "C" Void left();
+extern "C" Void down();
+extern "C" Void right();
+
+Void main(){
+	Int x = 10;
+	while(x != 0){
+		down();
+		right();
+		down();
+		right();
+		up();
+		left();
+		x = x - 1;
+	}
+}
