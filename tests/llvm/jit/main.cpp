@@ -8,33 +8,12 @@
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include "compiler.hpp"
 #include "kareltje.hpp"
 static game game;
 
 using namespace llvm;
-using vvtype = void(*)(void);
-
-Module * load_module(LLVMContext& context, std::string const & filename){
-	using namespace llvm;
-	SMDiagnostic error;
-	auto ret = ParseIRFile(filename, error, context);
-	if(!ret) throw std::runtime_error(error.getMessage());
-	return ret;
-}
-
-vvtype get_main(Module * module){
-	auto engine = ExecutionEngine::createJIT(module, nullptr, 0, CodeGenOpt::Aggressive);
-	if(!engine) throw std::runtime_error("Failed to construct ExecutionEngine");
-
-	engine->addGlobalMapping(module->getFunction("up"), (void*) (vvtype) []{ game.up(); });
-	engine->addGlobalMapping(module->getFunction("left"), (void*) (vvtype) []{ game.left(); });
-	engine->addGlobalMapping(module->getFunction("down"), (void*) (vvtype) []{ game.down(); });
-	engine->addGlobalMapping(module->getFunction("right"), (void*) (vvtype) []{ game.right(); });
-
-	auto f = (vvtype) engine->getPointerToFunction(module->getFunction("main"));
-	if(!f) throw std::runtime_error("Main function could not be found");
-	return f;
-}
+using namespace compiler;
 
 int main(){
 	InitializeNativeTarget();
@@ -48,8 +27,12 @@ int main(){
 		std::getline(std::cin, line);
 
 		if(line == "compile"){
-			auto module = load_module(context, "program.ll");
-			main_function = get_main(module);
+			main_function = compile(context, "program", {
+				{"up",		(void*) (vvtype) []{ game.up(); }	},
+				{"left",	(void*) (vvtype) []{ game.left(); }	},
+				{"down",	(void*) (vvtype) []{ game.down(); }	},
+				{"right",	(void*) (vvtype) []{ game.right(); }	}
+			});
 			std::cout << "Succesfully compiled, ready to run" << std::endl;
 		}
 		if(line == "run"){

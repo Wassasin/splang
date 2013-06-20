@@ -33,6 +33,7 @@ data Options = Options
 	, forceCodegen :: Bool
 	, enabledWarnings :: Warnings
 	, target :: Target
+	, outputFile :: String
 	}
 
 defaultOptions :: Options
@@ -52,6 +53,7 @@ defaultOptions = Options
 	, forceCodegen = False
 	, enabledWarnings = allWarnings
 	, target = SSM
+	, outputFile = ""
 	}
 
 warningsOptions :: String -> Warnings -> Warnings
@@ -89,6 +91,7 @@ options =
 	, Option [] ["force-codegen"]	(NoArg (\o -> o { forceCodegen = True }))		"will generate code, even when there are (non-fatal) errors in analysis"
 	, Option "W" []			(ReqArg (fmap liftW warningsOptions) "warning")		"Controls warnings (eg: -Wno-shadow), all warnings are enable by default"
 	, Option [] ["target"]		(ReqArg (fmap liftT targetOptions) "target")		"Specifies target (eg: --target llvm), default is ssm"
+	, Option "o" []			(ReqArg (\s o -> o { outputFile = s }) "filename")	"Specifies output file (don't specify for stdout)"
 	]
 
 mkOptions :: [String] -> IO (Options, [String])

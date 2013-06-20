@@ -101,11 +101,15 @@ main = do
 
 	when (target opts == Options.SSM) $ do
 		when (showStages opts) $ Console.highLightLn ("SSM:")
-		putStrLn . SSM.showProgram $ CodeGen.toSSM ir
+		if (outputFile opts == "")
+			then putStrLn . SSM.showProgram $ CodeGen.toSSM ir
+			else writeFile (outputFile opts) $ SSM.showProgram $ CodeGen.toSSM ir
 
 	when (target opts == Options.LLVM) $ do
 		when (showStages opts) $ Console.highLightLn ("LLVM:")
-		putStrLn . LLVM.showProgram $ CodeGen.toLLVM ir
+		if (outputFile opts == "")
+			then putStrLn . LLVM.showProgram $ CodeGen.toLLVM ir
+			else writeFile (outputFile opts) $ LLVM.showProgram $ CodeGen.toLLVM ir
 
 	when (showStages opts) $ Console.highLightLn ("*** Done ")
 	exit b
