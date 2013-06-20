@@ -26,7 +26,7 @@ for f in fib ackermann; do
 	if [[ `uname` == 'Darwin' ]]; then
 		ld /usr/lib/libc.dylib /usr/lib/crt1.o $f.o
 	else
-		ld -native $f.o
+		llvm-ld -native $f.o
 	fi
 	echo -e "\n\033[32m$f LLVM IR native code\033[0m"
 	time ./a.out 1>/dev/null
@@ -36,7 +36,7 @@ for f in fib ackermann; do
 	if [[ `uname` == 'Darwin' ]]; then
 		ld /usr/lib/libc.dylib /usr/lib/crt1.o $f.o
 	else
-		ld -native $f.o
+		llvm-ld -native $f.o
 	fi
 	echo -e "\n\033[32m$f LLVM IR optimized native code\033[0m"
 	time ./a.out 1>/dev/null
