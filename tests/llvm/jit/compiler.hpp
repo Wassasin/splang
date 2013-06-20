@@ -19,7 +19,6 @@ namespace compiler {
 	using function_map = std::map<std::string, void*>;
 
 	Module * load_module(LLVMContext& context, std::string const & filename){
-		using namespace llvm;
 		SMDiagnostic error;
 		auto ret = ParseIRFile(filename, error, context);
 		if(!ret) throw std::runtime_error(error.getMessage());
