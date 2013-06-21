@@ -42,7 +42,7 @@ Testing
 ./run_tests
 ```
 
-Note that thee `codegen`-phase of these tests require ssm-nogui and LLVM to be installed.
+Note that the `codegen`-phase of these tests requires ssm-nogui and LLVM to be installed.
 
 Testing (SSM)
 ======================
