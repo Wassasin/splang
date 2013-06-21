@@ -6,7 +6,7 @@ splang --target=llvm main.spl | opt -O3 | llc -filetype=obj > main.o
 
 unamestr=`uname`
 if [[ "$unamestr" == 'Linux' ]]; then
-   ld -native shuffle.o get_int.o
+   llvm-ld -native mergesort.o insertionsort.o main.o
 elif [[ "$unamestr" == 'Darwin' ]]; then
    ld /usr/lib/libc.dylib /usr/lib/crt1.o mergesort.o insertionsort.o main.o
 fi
