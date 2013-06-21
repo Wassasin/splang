@@ -5,7 +5,7 @@ clang -c -o get_int.o get_int.c
 
 unamestr=`uname`
 if [[ "$unamestr" == 'Linux' ]]; then
-   ld -native shuffle.o get_int.o
+   llvm-ld -native shuffle.o get_int.o
 elif [[ "$unamestr" == 'Darwin' ]]; then
    ld /usr/lib/libc.dylib /usr/lib/crt1.o shuffle.o get_int.o
 fi
